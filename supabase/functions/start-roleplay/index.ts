@@ -108,7 +108,7 @@ serve(async (req: Request) => {
       .insert({
         staff_id: staff.id,
         scenario_id: body.scenarioId,
-        status: 'active',
+        status: 'in_progress',
         messages: [
           {
             role: 'customer',

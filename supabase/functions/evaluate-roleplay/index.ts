@@ -213,9 +213,9 @@ ${conversation}`,
       const { error: updateError } = await supabase
         .from('roleplay_sessions')
         .update({
-          status: 'evaluated',
+          status: 'completed',
           evaluation,
-          evaluated_at: new Date().toISOString(),
+          ended_at: new Date().toISOString(),
         })
         .eq('id', body.sessionId);
 
