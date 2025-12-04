@@ -286,6 +286,97 @@ export class ApiService {
     // The actual implementation should be done via an Edge Function
     return [];
   }
+
+  /**
+   * Get training scenario details
+   */
+  async getTrainingScenario(scenarioId: string): Promise<TrainingScenario> {
+    return this.request<TrainingScenario>(`get-training-scenario?id=${scenarioId}`, {
+      method: 'GET',
+    });
+  }
+
+  /**
+   * Start a roleplay session
+   */
+  async startRoleplay(scenarioId: string): Promise<StartRoleplayResponse> {
+    return this.request<StartRoleplayResponse>('start-roleplay', {
+      method: 'POST',
+      body: JSON.stringify({ scenarioId }),
+    });
+  }
+
+  /**
+   * Send a message in roleplay session
+   */
+  async sendRoleplayMessage(sessionId: string, message: string): Promise<RoleplayMessageResponse> {
+    return this.request<RoleplayMessageResponse>('roleplay-chat', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, userMessage: message }),
+    });
+  }
+
+  /**
+   * End roleplay session and get evaluation
+   */
+  async endRoleplay(sessionId: string): Promise<RoleplayEndResult> {
+    return this.request<RoleplayEndResult>('evaluate-roleplay', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
+    });
+  }
+
+  /**
+   * Login with email and password
+   * Note: This should use Supabase Auth directly in production
+   */
+  async login(email: string, password: string): Promise<LoginResponse> {
+    return this.request<LoginResponse>('auth-login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
+  /**
+   * Logout the current user
+   * Note: This should use Supabase Auth directly in production
+   */
+  async logout(): Promise<void> {
+    try {
+      await this.request('auth-logout', {
+        method: 'POST',
+      });
+    } catch {
+      // Ignore errors, just clear local state
+    }
+    this.accessToken = null;
+  }
+
+  /**
+   * Refresh the access token
+   * Note: This should use Supabase Auth directly in production
+   */
+  async refreshToken(): Promise<string | null> {
+    try {
+      const result = await this.request<{ accessToken: string }>('auth-refresh', {
+        method: 'POST',
+      });
+      this.accessToken = result.accessToken;
+      return result.accessToken;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Register push notification token
+   */
+  async registerPushToken(token: string, platform: 'ios' | 'android'): Promise<void> {
+    await this.request('register-push-token', {
+      method: 'POST',
+      body: JSON.stringify({ token, platform }),
+    });
+  }
 }
 
 // Roleplay types
@@ -372,6 +463,57 @@ export interface ReportData {
   improvements: string[];
   strengths: string[];
   generatedAt: string;
+}
+
+// Training scenario types
+export interface TrainingScenario {
+  id: string;
+  title: string;
+  description: string;
+  customerPersona: {
+    name: string;
+    ageGroup: string;
+    personality: string;
+    hairConcerns: string[];
+  };
+  objectives: string[];
+}
+
+export interface StartRoleplayResponse {
+  id: string;
+  initialMessage: string | null;
+}
+
+export interface RoleplayMessageResponse {
+  message: string;
+  shouldEnd: boolean;
+}
+
+export interface RoleplayEndResult {
+  overallScore: number;
+  feedback: string;
+  improvements: string[];
+  modelAnswers?: Array<{
+    situation: string;
+    yourResponse: string;
+    modelAnswer: string;
+    reasoning: string;
+  }>;
+}
+
+// Auth types
+export interface LoginResponse {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  salon: {
+    id: string;
+    name: string;
+  } | null;
+  accessToken: string;
 }
 
 // Singleton instance

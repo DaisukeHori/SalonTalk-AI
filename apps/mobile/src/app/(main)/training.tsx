@@ -241,7 +241,7 @@ export default function TrainingScreen() {
       // Call roleplay-chat API
       const response = await apiService.roleplayChat({
         scenarioId: selectedScenario.id,
-        userMessage: inputText.trim(),
+        userMessage: userMessage.content,
         conversationHistory,
       });
 
