@@ -222,17 +222,132 @@ export interface AnalysisMetrics {
 }
 
 /**
- * 各指標の重み付け
+ * 各指標の重み付け（設計書準拠）
  */
 export const METRIC_WEIGHTS = {
-  talkRatio: 0.25,
-  questionQuality: 0.2,
+  talkRatio: 0.15,
+  questionQuality: 0.15,
   emotion: 0.15,
-  concernKeywords: 0.15,
-  proposalTiming: 0.1,
-  proposalQuality: 0.1,
-  conversion: 0.05,
+  concernKeywords: 0.10,
+  proposalTiming: 0.15,
+  proposalQuality: 0.15,
+  conversion: 0.15,
 } as const;
+
+/**
+ * 指標タイプ
+ */
+export type IndicatorType =
+  | 'talk_ratio'
+  | 'question_analysis'
+  | 'emotion_analysis'
+  | 'concern_keywords'
+  | 'proposal_timing'
+  | 'proposal_quality'
+  | 'conversion';
+
+export const IndicatorTypeDisplay: Record<IndicatorType, string> = {
+  talk_ratio: 'トーク比率',
+  question_analysis: '質問分析',
+  emotion_analysis: '感情分析',
+  concern_keywords: '悩みキーワード',
+  proposal_timing: '提案タイミング',
+  proposal_quality: '提案品質',
+  conversion: '成約判定',
+};
+
+/**
+ * 来店頻度
+ */
+export type VisitFrequency = 'first' | 'monthly' | 'bimonthly' | 'quarterly' | 'irregular';
+
+export const VisitFrequencyDisplay: Record<VisitFrequency, string> = {
+  first: '初めて',
+  monthly: '月1回',
+  bimonthly: '2ヶ月に1回',
+  quarterly: '3ヶ月に1回',
+  irregular: '不定期',
+};
+
+/**
+ * 年代表示
+ */
+export const AgeGroupDisplay: Record<AgeGroup, string> = {
+  '10s': '10代',
+  '20s': '20代',
+  '30s': '30代',
+  '40s': '40代',
+  '50s': '50代',
+  '60s': '60代',
+  '70s_plus': '70代以上',
+};
+
+/**
+ * 性別表示
+ */
+export const GenderDisplay: Record<Gender, string> = {
+  male: '男性',
+  female: '女性',
+  other: 'その他',
+};
+
+/**
+ * スタッフ役割表示
+ */
+export const StaffRoleDisplay: Record<StaffRole, string> = {
+  owner: 'オーナー',
+  manager: 'マネージャー',
+  stylist: 'スタイリスト',
+  admin: '管理者',
+};
+
+/**
+ * プラン表示
+ */
+export const PlanDisplay: Record<Plan, string> = {
+  free: 'フリー',
+  standard: 'スタンダード',
+  premium: 'プレミアム',
+  enterprise: 'エンタープライズ',
+};
+
+/**
+ * セッションステータス表示
+ */
+export const SessionStatusDisplay: Record<SessionStatus, string> = {
+  recording: '録音中',
+  processing: '処理中',
+  analyzing: '分析中',
+  completed: '完了',
+  error: 'エラー',
+};
+
+/**
+ * スコアランク
+ */
+export type ScoreRank = 'S' | 'A' | 'B' | 'C' | 'D';
+
+export function getScoreRank(score: number): ScoreRank {
+  if (score >= 90) return 'S';
+  if (score >= 80) return 'A';
+  if (score >= 70) return 'B';
+  if (score >= 60) return 'C';
+  return 'D';
+}
+
+/**
+ * ベクトル埋め込み
+ */
+export type Embedding = number[];
+export const EMBEDDING_DIMENSION = 1536;
+
+export const isValidEmbedding = (embedding: unknown): embedding is Embedding => {
+  return (
+    Array.isArray(embedding) &&
+    embedding.length === EMBEDDING_DIMENSION &&
+    embedding.every(v => typeof v === 'number' && !isNaN(v))
+  );
+};
 
 /**
  * 総合スコア計算

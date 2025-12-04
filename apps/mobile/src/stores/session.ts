@@ -24,6 +24,12 @@ interface SessionState {
   updateScore: (score: number) => void;
   updateTalkRatio: (stylist: number, customer: number) => void;
   reset: () => void;
+
+  // Direct setters
+  setCurrentSession: (session: Session | null) => void;
+  setIsRecording: (isRecording: boolean) => void;
+  setCurrentScore: (score: number | null) => void;
+  setTalkRatio: (talkRatio: { stylist: number; customer: number } | null) => void;
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -88,5 +94,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       currentScore: null,
       talkRatio: null,
     });
+  },
+
+  // Direct setters
+  setCurrentSession: (session) => {
+    set({ currentSession: session });
+  },
+
+  setIsRecording: (isRecording) => {
+    set({ isRecording });
+  },
+
+  setCurrentScore: (score) => {
+    set({ currentScore: score });
+  },
+
+  setTalkRatio: (talkRatio) => {
+    set({ talkRatio });
   },
 }));
