@@ -124,12 +124,25 @@ serve(async (req: Request) => {
       return errorResponse('AI_003', 'Failed to parse analysis result', 500);
     }
 
-    // Save analysis result to database
-    const { error: insertError } = await supabase.from('analysis_results').insert({
+    // Save analysis result to database (session_analyses table with individual score columns)
+    const { error: insertError } = await supabase.from('session_analyses').insert({
       session_id: body.sessionId,
       chunk_index: body.chunkIndex,
       overall_score: analysis.overallScore,
-      metrics: analysis.metrics,
+      talk_ratio_score: analysis.metrics.talkRatio?.score,
+      talk_ratio_detail: analysis.metrics.talkRatio,
+      question_score: analysis.metrics.questionQuality?.score,
+      question_detail: analysis.metrics.questionQuality,
+      emotion_score: analysis.metrics.emotion?.score,
+      emotion_detail: analysis.metrics.emotion,
+      concern_keywords_score: analysis.metrics.concernKeywords?.score,
+      concern_keywords_detail: analysis.metrics.concernKeywords,
+      proposal_timing_score: analysis.metrics.proposalTiming?.score,
+      proposal_timing_detail: analysis.metrics.proposalTiming,
+      proposal_quality_score: analysis.metrics.proposalQuality?.score,
+      proposal_quality_detail: analysis.metrics.proposalQuality,
+      conversion_score: analysis.metrics.conversion?.score,
+      conversion_detail: analysis.metrics.conversion,
       suggestions: analysis.suggestions,
       highlights: analysis.highlights,
     });
