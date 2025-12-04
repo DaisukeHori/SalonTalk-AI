@@ -72,7 +72,7 @@ export default function DashboardPage() {
       const { data: staff } = await supabase
         .from('staffs')
         .select('salon_id')
-        .eq('auth_user_id', user.id)
+        .eq('id', user.id)
         .single();
 
       if (!staff) {

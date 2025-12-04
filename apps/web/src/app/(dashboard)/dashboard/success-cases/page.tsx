@@ -62,7 +62,7 @@ export default function SuccessCasesPage() {
       const { data: staff } = await supabase
         .from('staffs')
         .select('salon_id')
-        .eq('auth_user_id', user.id)
+        .eq('id', user.id)
         .single();
 
       if (!staff) return;
@@ -142,7 +142,7 @@ export default function SuccessCasesPage() {
     const { data: staff } = await supabase
       .from('staffs')
       .select('id, salon_id')
-      .eq('auth_user_id', user.id)
+      .eq('id', user.id)
       .single();
 
     if (!staff) {

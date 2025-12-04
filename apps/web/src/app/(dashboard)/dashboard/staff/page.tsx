@@ -51,7 +51,7 @@ export default function StaffPage() {
       const { data: currentStaff } = await supabase
         .from('staffs')
         .select('salon_id')
-        .eq('auth_user_id', user.id)
+        .eq('id', user.id)
         .single();
 
       if (!currentStaff) return;
@@ -121,7 +121,7 @@ export default function StaffPage() {
     const { data: currentStaff } = await supabase
       .from('staffs')
       .select('salon_id')
-      .eq('auth_user_id', user.id)
+      .eq('id', user.id)
       .single();
 
     if (!currentStaff) {

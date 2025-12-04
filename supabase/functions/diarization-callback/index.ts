@@ -108,12 +108,18 @@ Deno.serve(async (req: Request) => {
         }
 
         if (bestMatch) {
+          // Determine the pyannote speaker label based on mapped role
+          // firstSpeaker (e.g., "SPEAKER_00") maps to "stylist"
+          // So if bestMatch.speaker is "stylist", use firstSpeaker, else use the other one
+          const speakerLabel = bestMatch.speaker === "stylist" ? firstSpeaker :
+            (firstSpeaker === "SPEAKER_00" ? "SPEAKER_01" : "SPEAKER_00");
+
           // Update transcript with speaker info
           await supabase
             .from("transcripts")
             .update({
               speaker: bestMatch.speaker,
-              speaker_label: firstSpeaker === bestMatch.speaker ? "SPEAKER_00" : "SPEAKER_01",
+              speaker_label: speakerLabel,
             })
             .eq("id", transcript.id);
 
