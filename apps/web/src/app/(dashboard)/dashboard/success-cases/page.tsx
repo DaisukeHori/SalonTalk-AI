@@ -6,11 +6,15 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 interface SuccessCase {
   id: string;
   concern_keywords: string[];
-  successful_talk: string;
-  key_tactics: string[];
+  approach_text: string;
+  result: string | null;
+  successful_talk?: string; // New column from migration
+  key_tactics?: string[];   // New column from migration
   sold_product: string | null;
   is_public: boolean;
+  is_active: boolean;
   created_at: string;
+  stylist_id?: string;
   staffs?: {
     name: string;
   };
@@ -73,15 +77,17 @@ export default function SuccessCasesPage() {
         .select(`
           id,
           concern_keywords,
+          approach_text,
+          result,
           successful_talk,
           key_tactics,
           sold_product,
           is_public,
-          created_at,
-          staffs!success_cases_created_by_fkey (
-            name
-          )
+          is_active,
+          stylist_id,
+          created_at
         `)
+        .eq('is_active', true)
         .or(`salon_id.eq.${staff.salon_id},is_public.eq.true`)
         .order('created_at', { ascending: false });
 
@@ -121,9 +127,10 @@ export default function SuccessCasesPage() {
     const matchesCategory =
       selectedCategory === 'すべて' ||
       caseItem.concern_keywords?.some((k) => k.includes(selectedCategory));
+    const approachText = caseItem.successful_talk || caseItem.approach_text;
     const matchesSearch =
       searchQuery === '' ||
-      caseItem.successful_talk?.includes(searchQuery) ||
+      approachText?.includes(searchQuery) ||
       caseItem.concern_keywords?.some((k) => k.includes(searchQuery));
     return matchesCategory && matchesSearch;
   });
@@ -162,12 +169,15 @@ export default function SuccessCasesPage() {
 
     const { error } = await supabase.from('success_cases').insert({
       salon_id: staff.salon_id,
-      created_by: staff.id,
+      stylist_id: staff.id,
       concern_keywords: keywords,
+      approach_text: formData.approach,
+      result: formData.result,
       successful_talk: formData.approach,
       key_tactics: tactics,
       sold_product: formData.soldProduct || null,
       is_public: formData.isPublic,
+      is_active: true,
     });
 
     if (error) {
@@ -182,15 +192,17 @@ export default function SuccessCasesPage() {
       .select(`
         id,
         concern_keywords,
+        approach_text,
+        result,
         successful_talk,
         key_tactics,
         sold_product,
         is_public,
-        created_at,
-        staffs!success_cases_created_by_fkey (
-          name
-        )
+        is_active,
+        stylist_id,
+        created_at
       `)
+      .eq('is_active', true)
       .or(`salon_id.eq.${staff.salon_id},is_public.eq.true`)
       .order('created_at', { ascending: false });
 
@@ -323,20 +335,26 @@ export default function SuccessCasesPage() {
                 {/* Approach */}
                 <div className="mb-4">
                   <h3 className="text-sm font-semibold text-gray-600 mb-1">アプローチ</h3>
-                  <p className="text-gray-800 leading-relaxed">{caseItem.successful_talk}</p>
+                  <p className="text-gray-800 leading-relaxed">
+                    {caseItem.successful_talk || caseItem.approach_text}
+                  </p>
                 </div>
 
                 {/* Key Tactics / Result */}
-                {caseItem.key_tactics && caseItem.key_tactics.length > 0 && (
+                {(caseItem.key_tactics && caseItem.key_tactics.length > 0) || caseItem.result ? (
                   <div className="bg-green-50 rounded-lg p-3">
                     <h3 className="text-sm font-semibold text-green-700 mb-1">ポイント</h3>
-                    <ul className="list-disc list-inside text-green-800">
-                      {caseItem.key_tactics.map((tactic, index) => (
-                        <li key={index}>{tactic}</li>
-                      ))}
-                    </ul>
+                    {caseItem.key_tactics && caseItem.key_tactics.length > 0 ? (
+                      <ul className="list-disc list-inside text-green-800">
+                        {caseItem.key_tactics.map((tactic, index) => (
+                          <li key={index}>{tactic}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-green-800">{caseItem.result}</p>
+                    )}
                   </div>
-                )}
+                ) : null}
               </div>
 
               {/* Side Info */}

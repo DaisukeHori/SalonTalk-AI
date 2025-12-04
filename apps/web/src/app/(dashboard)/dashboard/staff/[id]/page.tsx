@@ -20,7 +20,8 @@ interface StaffDetail {
   email: string;
   role: string;
   position: string | null;
-  profileImageUrl: string | null;
+  avatarUrl: string | null;
+  profileImageUrl?: string | null; // For compatibility
   joinDate: string | null;
   isActive: boolean;
 }
@@ -44,6 +45,7 @@ const roleLabels: Record<string, string> = {
   manager: 'マネージャー',
   stylist: 'スタイリスト',
   assistant: 'アシスタント',
+  admin: '管理者',
 };
 
 export default function StaffDetailPage() {
@@ -86,6 +88,7 @@ export default function StaffDetailPage() {
         email: staffData.email,
         role: staffData.role,
         position: staffData.position,
+        avatarUrl: staffData.avatar_url || staffData.profile_image_url,
         profileImageUrl: staffData.profile_image_url,
         joinDate: staffData.join_date,
         isActive: staffData.is_active,
@@ -215,9 +218,9 @@ export default function StaffDetailPage() {
         </Link>
         <div className="flex items-center mt-4">
           <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
-            {staff.profileImageUrl ? (
+            {(staff.avatarUrl || staff.profileImageUrl) ? (
               <img
-                src={staff.profileImageUrl}
+                src={staff.avatarUrl || staff.profileImageUrl || ''}
                 alt={staff.name}
                 className="w-16 h-16 rounded-full object-cover"
               />

@@ -5,7 +5,7 @@
  * Based on 詳細設計書 10.3 グローバルエラーハンドラー
  */
 
-import { AppError, toAppError, isRetryableError } from './AppError';
+import { AppError, toAppError } from './AppError';
 
 /**
  * Edge Function用エラーレスポンス生成
@@ -112,22 +112,34 @@ export function getGlobalErrorHandler(): (error: Error, errorInfo: unknown) => v
 
 /**
  * Promise rejection用グローバルハンドラー
+ * Browser-specific: may not work in Node.js/Deno environments
  */
+// Declare window for non-DOM environments
+declare const window: { addEventListener?: (type: string, handler: (event: unknown) => void) => void } | undefined;
+
 export function setupGlobalErrorHandlers(): void {
-  if (typeof window !== 'undefined') {
-    // Browser environment
-    window.addEventListener('unhandledrejection', (event) => {
-      reportError(event.reason, {
+  // Only run in browser environment with proper window check
+  // Using type declaration to avoid DOM lib dependency
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const win = typeof window !== 'undefined' ? window : null;
+
+  if (win && typeof win.addEventListener === 'function') {
+    // Unhandled promise rejection handler
+    win.addEventListener('unhandledrejection', (event: unknown) => {
+      const e = event as { reason?: unknown };
+      reportError(e.reason, {
         type: 'unhandled_rejection',
       });
     });
 
-    window.addEventListener('error', (event) => {
-      reportError(event.error, {
+    // Global error handler
+    win.addEventListener('error', (event: unknown) => {
+      const e = event as { error?: Error; filename?: string; lineno?: number; colno?: number };
+      reportError(e.error, {
         type: 'global_error',
-        filename: event.filename,
-        lineno: event.lineno,
-        colno: event.colno,
+        filename: e.filename,
+        lineno: e.lineno,
+        colno: e.colno,
       });
     });
   }

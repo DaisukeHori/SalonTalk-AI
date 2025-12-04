@@ -5,7 +5,7 @@
  * Based on 詳細設計書 10.2 エラーハンドリングクラス
  */
 
-import { ErrorCodes, ErrorCode, getErrorDefinition } from './errorCodes';
+import { ErrorCode, getErrorDefinition } from './errorCodes';
 
 /**
  * アプリケーションエラー基底クラス

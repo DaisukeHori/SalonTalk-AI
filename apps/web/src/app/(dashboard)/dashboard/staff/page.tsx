@@ -8,10 +8,12 @@ interface Staff {
   id: string;
   name: string;
   email: string;
-  role: 'owner' | 'manager' | 'stylist' | 'assistant';
+  role: 'owner' | 'manager' | 'stylist' | 'assistant' | 'admin';
   position: string | null;
+  join_date: string | null;
   is_active: boolean;
-  profile_image_url: string | null;
+  avatar_url: string | null;
+  profile_image_url?: string | null; // Alias for compatibility
   created_at: string;
   // Stats (calculated from sessions)
   sessionCount?: number;
@@ -24,6 +26,7 @@ const roleLabels: Record<string, string> = {
   manager: 'マネージャー',
   stylist: 'スタイリスト',
   assistant: 'アシスタント',
+  admin: '管理者',
 };
 
 export default function StaffPage() {
@@ -260,9 +263,9 @@ export default function StaffPage() {
           >
             <div className="flex items-center mb-4">
               <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
-                {member.profile_image_url ? (
+                {(member.avatar_url || member.profile_image_url) ? (
                   <img
-                    src={member.profile_image_url}
+                    src={member.avatar_url || member.profile_image_url || ''}
                     alt={member.name}
                     className="w-12 h-12 rounded-full object-cover"
                   />

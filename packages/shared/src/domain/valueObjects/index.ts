@@ -48,7 +48,7 @@ export type Plan = 'free' | 'standard' | 'premium' | 'enterprise';
 /**
  * スタッフ役割
  */
-export type StaffRole = 'stylist' | 'manager' | 'owner' | 'admin';
+export type StaffRole = 'stylist' | 'manager' | 'owner' | 'admin' | 'assistant';
 
 /**
  * セッションステータス
@@ -361,6 +361,7 @@ export const StaffRoleDisplay: Record<StaffRole, string> = {
   manager: 'マネージャー',
   stylist: 'スタイリスト',
   admin: '管理者',
+  assistant: 'アシスタント',
 };
 
 /**
