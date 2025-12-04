@@ -5,61 +5,55 @@
  * Audio chunk uploaded → Trigger pyannote diarization
  */
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { corsHeaders, handleCors } from '../_shared/cors.ts';
-import { successResponse, errorResponse } from '../_shared/response.ts';
-import { getSupabaseClient, getSupabaseAdmin } from '../_shared/supabase.ts';
-import { triggerDiarization } from '../_shared/pyannote.ts';
-import { validateRequest, ValidationError } from '../_shared/validation.ts';
+import { handleCors } from '../_shared/cors.ts';
+import { jsonResponse, errorResponse, unauthorizedResponse } from '../_shared/response.ts';
+import { createSupabaseClient, createSupabaseAdminClient } from '../_shared/supabase.ts';
+import { submitDiarization } from '../_shared/pyannote.ts';
 
-interface DiarizationRequest {
+interface TriggerDiarizationRequest {
   sessionId: string;
   audioChunkId: string;
   audioUrl: string;
   chunkIndex: number;
 }
 
-const requestSchema = {
-  sessionId: { type: 'string', required: true },
-  audioChunkId: { type: 'string', required: true },
-  audioUrl: { type: 'string', required: true },
-  chunkIndex: { type: 'number', required: true },
-} as const;
-
 serve(async (req: Request) => {
   // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return handleCors();
-  }
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   try {
     // Authenticate request
-    const supabase = getSupabaseClient(req);
+    const supabase = createSupabaseClient(req);
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return errorResponse('Unauthorized', 401);
+      return unauthorizedResponse();
     }
 
     // Parse and validate request
-    const body = await req.json();
-    const validatedData = validateRequest<DiarizationRequest>(body, requestSchema);
+    const body: TriggerDiarizationRequest = await req.json();
 
-    const { sessionId, audioChunkId, audioUrl, chunkIndex } = validatedData;
+    if (!body.sessionId || !body.audioChunkId || !body.audioUrl) {
+      return errorResponse('VAL_001', 'sessionId, audioChunkId, and audioUrl are required', 400);
+    }
+
+    const { sessionId, audioChunkId, audioUrl, chunkIndex } = body;
 
     // Verify session exists and belongs to user
-    const supabaseAdmin = getSupabaseAdmin();
+    const supabaseAdmin = createSupabaseAdminClient();
     const { data: session, error: sessionError } = await supabaseAdmin
       .from('sessions')
-      .select('id, status, staff_id')
+      .select('id, status, stylist_id')
       .eq('id', sessionId)
       .single();
 
     if (sessionError || !session) {
-      return errorResponse('Session not found', 404);
+      return errorResponse('NOT_FOUND', 'Session not found', 404);
     }
 
     if (session.status !== 'recording') {
-      return errorResponse('Session is not in recording state', 400);
+      return errorResponse('INVALID_STATUS', 'Session is not in recording state', 400);
     }
 
     // Update audio chunk status to processing
@@ -69,15 +63,11 @@ serve(async (req: Request) => {
       .eq('id', audioChunkId);
 
     // Trigger diarization via pyannote server
-    const diarizationResult = await triggerDiarization({
+    const diarizationResult = await submitDiarization({
+      sessionId,
+      chunkIndex: chunkIndex || 0,
       audioUrl,
       callbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/diarization-callback`,
-      metadata: {
-        sessionId,
-        audioChunkId,
-        chunkIndex,
-        staffId: session.staff_id,
-      },
     });
 
     // Store job ID for tracking
@@ -89,7 +79,7 @@ serve(async (req: Request) => {
       })
       .eq('id', audioChunkId);
 
-    return successResponse({
+    return jsonResponse({
       success: true,
       jobId: diarizationResult.jobId,
       message: 'Diarization triggered successfully',
@@ -97,11 +87,8 @@ serve(async (req: Request) => {
   } catch (error) {
     console.error('Trigger diarization error:', error);
 
-    if (error instanceof ValidationError) {
-      return errorResponse(error.message, 400);
-    }
-
     return errorResponse(
+      'INTERNAL_ERROR',
       error instanceof Error ? error.message : 'Internal server error',
       500
     );

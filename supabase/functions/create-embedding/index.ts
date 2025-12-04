@@ -42,11 +42,6 @@ function buildEmbeddingText(
 ): string {
   const parts: string[] = [];
 
-  // Add session context
-  if (session.menu_type) {
-    parts.push(`メニュー: ${session.menu_type}`);
-  }
-
   // Add report summary if available
   if (report) {
     if (report.summary) {
@@ -179,13 +174,12 @@ serve(async (req: Request) => {
         transcripts || []
       );
 
-      // Build metadata
+      // Build metadata for logging
       metadata = {
         ...metadata,
         session_id: body.sessionId,
         salon_id: session.salon_id,
-        staff_id: session.staff_id,
-        menu_type: session.menu_type,
+        stylist_id: session.stylist_id,
         overall_score: report?.overall_score,
         is_converted: report?.is_converted,
         created_at: session.created_at,
@@ -202,11 +196,9 @@ serve(async (req: Request) => {
         {
           session_id: body.sessionId,
           salon_id: staff.salon_id,
-          staff_id: staff.id,
+          stylist_id: staff.id,
           embedding: embedding,
-          content: embeddingText,
-          metadata,
-          updated_at: new Date().toISOString(),
+          approach_text: embeddingText,
         },
         {
           onConflict: 'session_id',
