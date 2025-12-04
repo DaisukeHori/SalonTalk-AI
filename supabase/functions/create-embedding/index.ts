@@ -34,11 +34,12 @@ const EMBEDDING_DIMENSIONS = 1536;
 
 /**
  * Build text content for embedding from session data
+ * Note: Uses speaker_segments table which has speaker field ('stylist' | 'customer')
  */
 function buildEmbeddingText(
   session: Record<string, unknown>,
   report: Record<string, unknown> | null,
-  transcripts: Array<{ text: string; speaker_label?: string }>
+  segments: Array<{ text: string; speaker?: string }>
 ): string {
   const parts: string[] = [];
 
@@ -56,10 +57,10 @@ function buildEmbeddingText(
   }
 
   // Add conversation highlights
-  const conversationText = transcripts
-    .map((t) => {
-      const speaker = t.speaker_label === 'SPEAKER_00' ? '美容師' : 'お客様';
-      return `[${speaker}] ${t.text}`;
+  const conversationText = segments
+    .map((s) => {
+      const speakerLabel = s.speaker === 'stylist' ? '美容師' : 'お客様';
+      return `[${speakerLabel}] ${s.text}`;
     })
     .join('\n');
 
@@ -160,10 +161,11 @@ serve(async (req: Request) => {
         report = reportData;
       }
 
-      // Fetch transcripts (limit to key segments)
+      // Fetch speaker segments for conversation context (has speaker info)
+      // Note: speaker_segments has speaker ('stylist'/'customer') and uses milliseconds
       const { data: transcripts } = await supabase
-        .from('transcripts')
-        .select('text, speaker_label')
+        .from('speaker_segments')
+        .select('text, speaker')
         .eq('session_id', body.sessionId)
         .order('start_time_ms', { ascending: true })
         .limit(50);
