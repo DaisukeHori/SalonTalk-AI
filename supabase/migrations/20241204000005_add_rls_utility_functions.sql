@@ -12,7 +12,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT id FROM staffs WHERE auth_user_id = auth.uid() LIMIT 1;
+  SELECT id FROM staffs WHERE id = auth.uid() LIMIT 1;
 $$;
 
 -- Get current user's salon ID
@@ -24,7 +24,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT salon_id FROM staffs WHERE auth_user_id = auth.uid() LIMIT 1;
+  SELECT salon_id FROM staffs WHERE id = auth.uid() LIMIT 1;
 $$;
 
 -- Get current user's role
@@ -36,7 +36,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT role::text FROM staffs WHERE auth_user_id = auth.uid() LIMIT 1;
+  SELECT role::text FROM staffs WHERE id = auth.uid() LIMIT 1;
 $$;
 
 -- Check if current user is owner or manager
@@ -50,7 +50,7 @@ SET search_path = public
 AS $$
   SELECT EXISTS(
     SELECT 1 FROM staffs
-    WHERE auth_user_id = auth.uid()
+    WHERE id = auth.uid()
     AND role IN ('owner', 'manager')
   );
 $$;
@@ -68,7 +68,7 @@ AS $$
     SELECT 1 FROM sessions s
     JOIN staffs st ON s.salon_id = st.salon_id
     WHERE s.id = session_id_param
-    AND st.auth_user_id = auth.uid()
+    AND st.id = auth.uid()
   );
 $$;
 
@@ -85,7 +85,7 @@ AS $$
     SELECT 1 FROM sessions s
     JOIN staffs st ON s.stylist_id = st.id
     WHERE s.id = session_id_param
-    AND st.auth_user_id = auth.uid()
+    AND st.id = auth.uid()
   );
 $$;
 
@@ -119,7 +119,7 @@ CREATE POLICY "staff_view_same_salon" ON staffs
 -- Staffs: Can only update own profile
 CREATE POLICY "staff_update_own" ON staffs
     FOR UPDATE
-    USING (auth_user_id = auth.uid());
+    USING (id = auth.uid());
 
 -- Sessions: Same salon access
 CREATE POLICY "session_access" ON sessions
@@ -136,11 +136,11 @@ CREATE POLICY "analysis_result_access" ON analysis_results
     FOR ALL
     USING (can_access_session(session_id));
 
--- Success Cases: Same salon access or public
+-- Success Cases: Same salon access or active (shared)
 CREATE POLICY "success_case_access" ON success_cases
     FOR SELECT
     USING (
-        salon_id = get_current_salon_id() OR is_public = true
+        salon_id = get_current_salon_id() OR is_active = true
     );
 
 CREATE POLICY "success_case_manage" ON success_cases

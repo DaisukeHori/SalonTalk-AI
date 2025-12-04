@@ -18,27 +18,33 @@ export interface Database {
         Row: {
           id: string;
           name: string;
-          owner_email: string | null;
+          address: string | null;
+          phone: string | null;
           plan: string;
-          is_active: boolean;
+          seats_count: number | null;
+          settings: Json;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
           name: string;
-          owner_email?: string | null;
+          address?: string | null;
+          phone?: string | null;
           plan?: string;
-          is_active?: boolean;
+          seats_count?: number | null;
+          settings?: Json;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
           name?: string;
-          owner_email?: string | null;
+          address?: string | null;
+          phone?: string | null;
           plan?: string;
-          is_active?: boolean;
+          seats_count?: number | null;
+          settings?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -47,27 +53,21 @@ export interface Database {
         Row: {
           id: string;
           salon_id: string;
-          auth_user_id: string | null;
           name: string;
           email: string;
           role: string;
-          position: string | null;
-          profile_image_url: string | null;
-          join_date: string | null;
+          avatar_url: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
         };
         Insert: {
-          id?: string;
+          id: string;
           salon_id: string;
-          auth_user_id?: string | null;
           name: string;
           email: string;
           role?: string;
-          position?: string | null;
-          profile_image_url?: string | null;
-          join_date?: string | null;
+          avatar_url?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -75,13 +75,10 @@ export interface Database {
         Update: {
           id?: string;
           salon_id?: string;
-          auth_user_id?: string | null;
           name?: string;
           email?: string;
           role?: string;
-          position?: string | null;
-          profile_image_url?: string | null;
-          join_date?: string | null;
+          avatar_url?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -97,7 +94,6 @@ export interface Database {
           started_at: string;
           ended_at: string | null;
           total_duration_ms: number | null;
-          realtime_channel: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -110,7 +106,6 @@ export interface Database {
           started_at?: string;
           ended_at?: string | null;
           total_duration_ms?: number | null;
-          realtime_channel?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -123,9 +118,107 @@ export interface Database {
           started_at?: string;
           ended_at?: string | null;
           total_duration_ms?: number | null;
-          realtime_channel?: string | null;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      speaker_segments: {
+        Row: {
+          id: string;
+          session_id: string;
+          chunk_index: number;
+          speaker: string;
+          text: string;
+          start_time_ms: number;
+          end_time_ms: number;
+          confidence: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          chunk_index: number;
+          speaker: string;
+          text: string;
+          start_time_ms: number;
+          end_time_ms: number;
+          confidence?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          chunk_index?: number;
+          speaker?: string;
+          text?: string;
+          start_time_ms?: number;
+          end_time_ms?: number;
+          confidence?: number | null;
+          created_at?: string;
+        };
+      };
+      analysis_results: {
+        Row: {
+          id: string;
+          session_id: string;
+          chunk_index: number;
+          overall_score: number;
+          metrics: Json;
+          suggestions: string[] | null;
+          highlights: string[] | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          chunk_index: number;
+          overall_score: number;
+          metrics: Json;
+          suggestions?: string[] | null;
+          highlights?: string[] | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          chunk_index?: number;
+          overall_score?: number;
+          metrics?: Json;
+          suggestions?: string[] | null;
+          highlights?: string[] | null;
+          created_at?: string;
+        };
+      };
+      session_analyses: {
+        Row: {
+          id: string;
+          session_id: string;
+          chunk_index: number;
+          indicator_type: string;
+          score: number;
+          value: number;
+          details: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          chunk_index: number;
+          indicator_type: string;
+          score: number;
+          value: number;
+          details?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          chunk_index?: number;
+          indicator_type?: string;
+          score?: number;
+          value?: number;
+          details?: Json | null;
+          created_at?: string;
         };
       };
       session_reports: {
@@ -172,210 +265,238 @@ export interface Database {
           updated_at?: string;
         };
       };
-      audio_chunks: {
-        Row: {
-          id: string;
-          session_id: string;
-          chunk_index: number;
-          storage_path: string | null;
-          duration_ms: number | null;
-          processed: boolean;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          session_id: string;
-          chunk_index: number;
-          storage_path?: string | null;
-          duration_ms?: number | null;
-          processed?: boolean;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          session_id?: string;
-          chunk_index?: number;
-          storage_path?: string | null;
-          duration_ms?: number | null;
-          processed?: boolean;
-          created_at?: string;
-        };
-      };
-      speaker_segments: {
-        Row: {
-          id: string;
-          session_id: string;
-          speaker: string;
-          text: string;
-          start_time_ms: number;
-          end_time_ms: number;
-          confidence: number | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          session_id: string;
-          speaker: string;
-          text: string;
-          start_time_ms: number;
-          end_time_ms: number;
-          confidence?: number | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          session_id?: string;
-          speaker?: string;
-          text?: string;
-          start_time_ms?: number;
-          end_time_ms?: number;
-          confidence?: number | null;
-          created_at?: string;
-        };
-      };
-      session_analyses: {
-        Row: {
-          id: string;
-          session_id: string;
-          chunk_index: number;
-          indicator_type: string;
-          score: number;
-          value: number;
-          details: Json | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          session_id: string;
-          chunk_index: number;
-          indicator_type: string;
-          score: number;
-          value: number;
-          details?: Json | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          session_id?: string;
-          chunk_index?: number;
-          indicator_type?: string;
-          score?: number;
-          value?: number;
-          details?: Json | null;
-          created_at?: string;
-        };
-      };
       success_cases: {
         Row: {
           id: string;
-          salon_id: string | null;
+          salon_id: string;
+          session_id: string | null;
           concern_keywords: string[];
-          customer_profile: Json | null;
-          successful_talk: string;
-          key_tactics: string[] | null;
-          sold_product: string | null;
+          approach_text: string;
+          result: string;
+          conversion_rate: number | null;
           embedding: number[] | null;
-          is_public: boolean;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          salon_id?: string | null;
-          concern_keywords: string[];
-          customer_profile?: Json | null;
-          successful_talk: string;
-          key_tactics?: string[] | null;
-          sold_product?: string | null;
-          embedding?: number[] | null;
-          is_public?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          salon_id?: string | null;
-          concern_keywords?: string[];
-          customer_profile?: Json | null;
-          successful_talk?: string;
-          key_tactics?: string[] | null;
-          sold_product?: string | null;
-          embedding?: number[] | null;
-          is_public?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
-      training_scenarios: {
-        Row: {
-          id: string;
-          title: string;
-          description: string;
-          difficulty: string;
-          customer_persona: Json;
-          objectives: string[];
           is_active: boolean;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
-          title: string;
-          description: string;
-          difficulty?: string;
-          customer_persona: Json;
-          objectives: string[];
+          salon_id: string;
+          session_id?: string | null;
+          concern_keywords: string[];
+          approach_text: string;
+          result: string;
+          conversion_rate?: number | null;
+          embedding?: number[] | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
+          salon_id?: string;
+          session_id?: string | null;
+          concern_keywords?: string[];
+          approach_text?: string;
+          result?: string;
+          conversion_rate?: number | null;
+          embedding?: number[] | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      reports: {
+        Row: {
+          id: string;
+          session_id: string;
+          summary: string;
+          overall_score: number;
+          metrics: Json;
+          improvements: string[] | null;
+          strengths: string[] | null;
+          comparison_with_average: Json | null;
+          matched_success_cases: Json | null;
+          generated_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          summary: string;
+          overall_score: number;
+          metrics: Json;
+          improvements?: string[] | null;
+          strengths?: string[] | null;
+          comparison_with_average?: Json | null;
+          matched_success_cases?: Json | null;
+          generated_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          summary?: string;
+          overall_score?: number;
+          metrics?: Json;
+          improvements?: string[] | null;
+          strengths?: string[] | null;
+          comparison_with_average?: Json | null;
+          matched_success_cases?: Json | null;
+          generated_at?: string;
+        };
+      };
+      training_scenarios: {
+        Row: {
+          id: string;
+          salon_id: string | null;
+          title: string;
+          description: string;
+          difficulty: string;
+          customer_persona: Json;
+          objectives: string[];
+          estimated_minutes: number;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          salon_id?: string | null;
+          title: string;
+          description: string;
+          difficulty?: string;
+          customer_persona: Json;
+          objectives: string[];
+          estimated_minutes?: number;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          salon_id?: string | null;
           title?: string;
           description?: string;
           difficulty?: string;
           customer_persona?: Json;
           objectives?: string[];
+          estimated_minutes?: number;
           is_active?: boolean;
           created_at?: string;
-          updated_at?: string;
         };
       };
       roleplay_sessions: {
         Row: {
           id: string;
           staff_id: string;
-          scenario_id: string | null;
-          messages: Json[];
+          scenario_id: string;
+          status: string;
+          messages: Json;
           evaluation: Json | null;
-          overall_score: number | null;
-          created_at: string;
-          completed_at: string | null;
+          started_at: string;
+          ended_at: string | null;
         };
         Insert: {
           id?: string;
           staff_id: string;
-          scenario_id?: string | null;
-          messages?: Json[];
+          scenario_id: string;
+          status?: string;
+          messages?: Json;
           evaluation?: Json | null;
-          overall_score?: number | null;
-          created_at?: string;
-          completed_at?: string | null;
+          started_at?: string;
+          ended_at?: string | null;
         };
         Update: {
           id?: string;
           staff_id?: string;
-          scenario_id?: string | null;
-          messages?: Json[];
+          scenario_id?: string;
+          status?: string;
+          messages?: Json;
           evaluation?: Json | null;
-          overall_score?: number | null;
+          started_at?: string;
+          ended_at?: string | null;
+        };
+      };
+      push_tokens: {
+        Row: {
+          id: string;
+          staff_id: string;
+          token: string;
+          platform: string;
+          device_id: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          staff_id: string;
+          token: string;
+          platform: string;
+          device_id?: string | null;
+          is_active?: boolean;
           created_at?: string;
-          completed_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          staff_id?: string;
+          token?: string;
+          platform?: string;
+          device_id?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      notification_logs: {
+        Row: {
+          id: string;
+          staff_id: string;
+          type: string;
+          title: string;
+          body: string;
+          data: Json | null;
+          sent_at: string;
+          status: string;
+        };
+        Insert: {
+          id?: string;
+          staff_id: string;
+          type: string;
+          title: string;
+          body: string;
+          data?: Json | null;
+          sent_at?: string;
+          status?: string;
+        };
+        Update: {
+          id?: string;
+          staff_id?: string;
+          type?: string;
+          title?: string;
+          body?: string;
+          data?: Json | null;
+          sent_at?: string;
+          status?: string;
         };
       };
     };
     Views: {};
-    Functions: {};
+    Functions: {
+      search_success_cases: {
+        Args: {
+          query_embedding: number[];
+          match_threshold: number;
+          match_count: number;
+          salon_id?: string | null;
+        };
+        Returns: Array<{
+          id: string;
+          concern_keywords: string[];
+          approach_text: string;
+          result: string;
+          similarity: number;
+        }>;
+      };
+    };
     Enums: {};
     CompositeTypes: {};
   };
