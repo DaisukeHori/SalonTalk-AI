@@ -1,0 +1,103 @@
+/**
+ * useTranscript Hook
+ * 文字起こしフック
+ */
+import { useEffect, useState, useCallback } from 'react';
+import { speechRecognitionService, SpeechRecognitionResult } from '@/services';
+
+interface TranscriptSegment {
+  id: string;
+  speaker: 'stylist' | 'customer';
+  text: string;
+  timestamp: number;
+  confidence: number;
+}
+
+export function useTranscript() {
+  const [segments, setSegments] = useState<TranscriptSegment[]>([]);
+  const [isListening, setIsListening] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = speechRecognitionService.addListener((event) => {
+      switch (event.type) {
+        case 'result':
+          handleSpeechResult(event.result);
+          break;
+        case 'error':
+          setError(event.error.message);
+          break;
+        case 'started':
+          setIsListening(true);
+          setError(null);
+          break;
+        case 'stopped':
+          setIsListening(false);
+          break;
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  const handleSpeechResult = useCallback((result: SpeechRecognitionResult) => {
+    const segment: TranscriptSegment = {
+      id: `segment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      speaker: result.speaker || 'stylist', // Default to stylist, will be updated after diarization
+      text: result.text,
+      timestamp: result.timestamp,
+      confidence: result.confidence,
+    };
+
+    setSegments((prev) => [...prev, segment]);
+  }, []);
+
+  const clearSegments = useCallback(() => {
+    setSegments([]);
+  }, []);
+
+  const updateSegmentSpeaker = useCallback((segmentId: string, speaker: 'stylist' | 'customer') => {
+    setSegments((prev) =>
+      prev.map((seg) => (seg.id === segmentId ? { ...seg, speaker } : seg))
+    );
+  }, []);
+
+  const getFullTranscript = useCallback(() => {
+    return segments.map((seg) => `[${seg.speaker}] ${seg.text}`).join('\n');
+  }, [segments]);
+
+  const getTalkTime = useCallback(() => {
+    let stylistTime = 0;
+    let customerTime = 0;
+
+    segments.forEach((seg) => {
+      // Estimate time based on text length (average speaking rate ~150 words/min)
+      const estimatedSeconds = seg.text.length / 10; // Rough estimate
+      if (seg.speaker === 'stylist') {
+        stylistTime += estimatedSeconds;
+      } else {
+        customerTime += estimatedSeconds;
+      }
+    });
+
+    return {
+      stylist: stylistTime,
+      customer: customerTime,
+      total: stylistTime + customerTime,
+    };
+  }, [segments]);
+
+  return {
+    segments,
+    isListening,
+    error,
+    clearSegments,
+    updateSegmentSpeaker,
+    getFullTranscript,
+    getTalkTime,
+  };
+}
+
+export default useTranscript;
