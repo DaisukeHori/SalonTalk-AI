@@ -85,8 +85,8 @@ export function useSession() {
       speechRecognitionService.stop();
       setIsRecording(false);
 
-      // End session via API
-      const report = await apiService.endSession(currentSession.id);
+      // End session via API (report generation is triggered asynchronously)
+      const response = await apiService.endSession({ sessionId: currentSession.id });
 
       // Disconnect realtime
       realtimeService.disconnect();
@@ -94,7 +94,7 @@ export function useSession() {
       // Reset session state
       reset();
 
-      return report;
+      return response;
     } catch (error) {
       console.error('Failed to end session:', error);
       throw error;

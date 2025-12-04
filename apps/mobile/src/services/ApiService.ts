@@ -37,7 +37,7 @@ export interface ProcessAudioRequest {
 }
 
 export interface ProcessAudioResponse {
-  segmentId: string;
+  transcriptId: string;
   audioUrl: string;
   diarizationTriggered: boolean;
 }
@@ -47,8 +47,10 @@ export interface EndSessionRequest {
 }
 
 export interface EndSessionResponse {
+  sessionId: string;
   status: 'processing' | 'completed';
   endedAt: string;
+  totalDurationMs: number;
 }
 
 export interface GenerateReportResponse {
