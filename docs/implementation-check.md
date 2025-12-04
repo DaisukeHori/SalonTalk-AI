@@ -1135,4 +1135,112 @@ generatedAt: report?.created_at || null, // column renamed from generated_at to 
 
 ---
 
-*最終更新: 2025-12-04 16周目完了（全Edge Function最終検証完了）*
+## 17周目確認結果 (2025-12-04)
+
+### analyze-segment/index.ts 追加修正
+
+#### 🔴 発見された問題
+
+**問題点**:
+- `transcripts` テーブルは `start_time`, `end_time` カラム（秒、NUMERIC型）を使用
+- しかし `analyze-segment` は `start_time_ms`, `end_time_ms` を想定していた
+- クエリ: `.order('start_time_ms'...)` → エラーになる
+- mergeSegments関数: `transcript.start_time_ms` を参照 → undefined
+
+**修正内容**:
+1. TranscriptSegmentインターフェースを修正:
+```typescript
+// Before (誤)
+start_time_ms: number;
+end_time_ms: number;
+
+// After (正)
+start_time: number;  // seconds (NUMERIC from DB)
+end_time: number;    // seconds (NUMERIC from DB)
+```
+
+2. クエリのorder句を修正:
+```typescript
+// Before (誤)
+.order('start_time_ms', { ascending: true });
+
+// After (正)
+.order('start_time', { ascending: true });
+```
+
+3. mergeSegments関数で秒→ミリ秒変換を追加:
+```typescript
+// Convert transcript time from seconds to milliseconds for comparison
+const transcriptStartMs = Math.round(Number(transcript.start_time) * 1000);
+const transcriptEndMs = Math.round(Number(transcript.end_time) * 1000);
+```
+
+#### ✅ 確認済みEdge Functions（17周目）
+- `end-session/index.ts` - 問題なし
+- `create-session/index.ts` - 問題なし
+- `start-roleplay/index.ts` - 問題なし
+- `evaluate-roleplay/index.ts` - 問題なし
+- `search-success-cases/index.ts` - 問題なし
+- `register-push-token/index.ts` - 問題なし
+- `roleplay-chat/index.ts` - 問題なし
+- `send-notification/index.ts` - 問題なし
+
+### 17周目検証結果: analyze-segmentのtranscriptsカラム整合性修正 ✅
+
+---
+
+## 最終検証完了サマリー（17周目更新）
+
+### 検証ラウンド結果一覧
+| 周 | 検証内容 | 結果 |
+|----|---------|------|
+| 1-7周目 | 初期検証・機能実装確認 | 完了 |
+| 8周目 | DBカラム名整合性 | Salon型修正 |
+| 8周目 | 結合テスト作成 | 51シナリオ作成 |
+| 9周目 | 設計書vs実装比較 | 6点の意図的差異確認 |
+| 10周目 | エラー/外部連携/テスト | 問題なし |
+| 11周目 | データ設計/状態遷移 | 問題なし |
+| 12周目 | アルゴリズム/セキュリティ | 問題なし |
+| 13周目 | Edge Function vs DBスキーマ | analyze-segment/generate-report修正 |
+| 14周目 | 追加Edge Function検証 | process-audio/diarization-callback修正 |
+| 15周目 | 残りEdge Function検証 | invite-staff修正 |
+| 16周目 | 全Edge Function最終確認 | get-report修正 |
+| **17周目** | **transcriptsカラム名再検証** | **analyze-segment修正** |
+
+### 修正済みファイル（13-17周目）
+1. `supabase/functions/analyze-segment/index.ts` - session_analyses正規化スキーマ対応、transcriptsカラム名修正
+2. `supabase/functions/generate-report/index.ts` - 読み込みロジック修正
+3. `supabase/functions/process-audio/index.ts` - transcriptsスキーマ対応
+4. `supabase/functions/diarization-callback/index.ts` - 秒→ミリ秒変換、speaker_segmentsのみ作成
+5. `supabase/functions/invite-staff/index.ts` - name カラム修正、invitation_logs削除
+6. `supabase/functions/get-report/index.ts` - generated_at → created_at修正
+
+### DBスキーマ整合性まとめ
+
+#### transcriptsテーブル
+- `start_time`, `end_time`: **秒** (NUMERIC型)
+- `chunk_index`: チャンク番号
+- `audio_url`: 音声ファイルURL
+
+#### speaker_segmentsテーブル
+- `start_time_ms`, `end_time_ms`: **ミリ秒** (INTEGER型)
+- `speaker`: 'stylist' | 'customer'
+- `chunk_index`: チャンク番号
+
+#### session_analysesテーブル（正規化スキーマ）
+- `indicator_type`: 'talk_ratio' | 'question_analysis' | 'emotion_analysis' | ...
+- `value`: 指標値 (NUMERIC)
+- `score`: スコア (0-100)
+- `details`: 詳細 (JSONB)
+
+### 最終結論
+- **設計書整合性**: ✅ 重大な漏れなし
+- **Edge Function整合性**: ✅ 7回の修正で全てDBスキーマと整合
+- **テストカバレッジ**: ✅ 51シナリオの結合テスト
+- **機能実装率**: 97% (Phase 1/2完了)
+
+**17周の検証を完了しました。全Edge FunctionsがDBスキーマと整合しています。**
+
+---
+
+*最終更新: 2025-12-04 17周目完了（transcriptsカラム名修正完了）*
