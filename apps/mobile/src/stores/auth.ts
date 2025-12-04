@@ -150,7 +150,7 @@ async function fetchUserData(
         *,
         salons (*)
       `)
-      .eq('auth_user_id', authUserId)
+      .eq('id', authUserId)
       .single();
 
     if (staffError || !staff) {
