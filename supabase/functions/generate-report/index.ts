@@ -61,9 +61,9 @@ Deno.serve(async (req: Request) => {
       return errorResponse("SES_002", `セッションのステータスが不正です: ${session.status}`, 400);
     }
 
-    // Get all analysis results for this session
+    // Get all analysis results from session_analyses (populated by analyze-segment)
     const { data: analyses } = await adminClient
-      .from("analysis_results")
+      .from("session_analyses")
       .select("*")
       .eq("session_id", sessionId)
       .order("chunk_index", { ascending: true });
@@ -142,7 +142,20 @@ function aggregateAnalysisResults(
   analyses: Array<{
     chunk_index: number;
     overall_score: number;
-    metrics: Record<string, IndicatorScore>;
+    talk_ratio_score?: number;
+    talk_ratio_detail?: Record<string, unknown>;
+    question_score?: number;
+    question_detail?: Record<string, unknown>;
+    emotion_score?: number;
+    emotion_detail?: Record<string, unknown>;
+    concern_keywords_score?: number;
+    concern_keywords_detail?: Record<string, unknown>;
+    proposal_timing_score?: number;
+    proposal_timing_detail?: Record<string, unknown>;
+    proposal_quality_score?: number;
+    proposal_quality_detail?: Record<string, unknown>;
+    conversion_score?: number;
+    conversion_detail?: Record<string, unknown>;
   }>
 ): Record<string, IndicatorScore> {
   if (analyses.length === 0) {
@@ -157,9 +170,38 @@ function aggregateAnalysisResults(
     };
   }
 
-  // Get the latest (last) analysis as the aggregate
+  // Get the latest (last) analysis and build metrics from individual columns
   const latest = analyses[analyses.length - 1];
-  return latest.metrics;
+  return {
+    talkRatio: {
+      score: latest.talk_ratio_score || 50,
+      value: (latest.talk_ratio_detail as any)?.stylistRatio || 50,
+    },
+    questionAnalysis: {
+      score: latest.question_score || 50,
+      value: (latest.question_detail as any)?.openCount || 0,
+    },
+    emotionAnalysis: {
+      score: latest.emotion_score || 50,
+      value: (latest.emotion_detail as any)?.positiveRatio || 50,
+    },
+    concernKeywords: {
+      score: latest.concern_keywords_score || 50,
+      value: ((latest.concern_keywords_detail as any)?.keywords?.length) || 0,
+    },
+    proposalTiming: {
+      score: latest.proposal_timing_score || 50,
+      value: (latest.proposal_timing_detail as any)?.timingMs || 0,
+    },
+    proposalQuality: {
+      score: latest.proposal_quality_score || 50,
+      value: (latest.proposal_quality_detail as any)?.matchRate || 0,
+    },
+    conversion: {
+      score: latest.conversion_score || 50,
+      value: (latest.conversion_detail as any)?.isConverted ? 100 : 0,
+    },
+  };
 }
 
 function calculateOverallScore(metrics: Record<string, IndicatorScore>): number {
