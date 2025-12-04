@@ -73,7 +73,7 @@ export default function DashboardPage() {
         .from('staffs')
         .select('salon_id')
         .eq('id', user.id)
-        .single();
+        .single() as { data: { salon_id: string } | null };
 
       if (!staff) {
         setIsLoading(false);

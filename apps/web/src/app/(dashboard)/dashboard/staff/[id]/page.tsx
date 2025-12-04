@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   LineChart,
@@ -50,7 +50,6 @@ const roleLabels: Record<string, string> = {
 
 export default function StaffDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const staffId = params.id as string;
 
   const [staff, setStaff] = useState<StaffDetail | null>(null);
@@ -74,7 +73,7 @@ export default function StaffDetailPage() {
         .from('staffs')
         .select('*')
         .eq('id', staffId)
-        .single();
+        .single() as { data: any; error: any };
 
       if (staffError || !staffData) {
         console.error('Error fetching staff:', staffError);
@@ -111,7 +110,7 @@ export default function StaffDetailPage() {
         `)
         .eq('stylist_id', staffId)
         .gte('started_at', thirtyDaysAgo.toISOString())
-        .order('started_at', { ascending: false });
+        .order('started_at', { ascending: false }) as { data: any[] | null; error: any };
 
       if (sessionError) {
         console.error('Error fetching sessions:', sessionError);
@@ -121,7 +120,7 @@ export default function StaffDetailPage() {
       const formattedSessions: Session[] = (sessionData || []).map((s: any) => {
         const startDate = new Date(s.started_at);
         const endDate = s.ended_at ? new Date(s.ended_at) : null;
-        const durationMins = endDate
+        const duration = endDate
           ? Math.round((endDate.getTime() - startDate.getTime()) / 1000 / 60)
           : 0;
 
@@ -129,7 +128,7 @@ export default function StaffDetailPage() {
           id: s.id,
           date: startDate.toLocaleDateString('ja-JP'),
           time: startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-          duration: `\${durationMins}分`,
+          duration: `${duration}分`,
           score: s.session_reports?.overall_score || 0,
           status: s.status,
         };

@@ -55,7 +55,7 @@ export default function StaffPage() {
         .from('staffs')
         .select('salon_id')
         .eq('id', user.id)
-        .single();
+        .single() as { data: { salon_id: string } | null };
 
       if (!currentStaff) return;
 
@@ -64,7 +64,7 @@ export default function StaffPage() {
         .from('staffs')
         .select('*')
         .eq('salon_id', currentStaff.salon_id)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true }) as { data: any[] | null; error: any };
 
       if (error) {
         console.error('Error fetching staff:', error);
@@ -84,7 +84,7 @@ export default function StaffPage() {
               )
             `)
             .eq('stylist_id', s.id)
-            .eq('status', 'completed');
+            .eq('status', 'completed') as { data: any[] | null };
 
           const sessionCount = sessions?.length || 0;
           const scores = sessions
@@ -125,7 +125,7 @@ export default function StaffPage() {
       .from('staffs')
       .select('salon_id')
       .eq('id', user.id)
-      .single();
+      .single() as { data: { salon_id: string } | null };
 
     if (!currentStaff) {
       setIsSubmitting(false);
@@ -165,10 +165,10 @@ export default function StaffPage() {
         .from('staffs')
         .select('*')
         .eq('salon_id', currentStaff.salon_id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: any[] | null };
 
       if (newStaff) {
-        setStaff(newStaff.map((s) => ({
+        setStaff(newStaff.map((s: any) => ({
           ...s,
           name: s.display_name || s.email,
           sessionCount: 0,
@@ -189,10 +189,12 @@ export default function StaffPage() {
 
   const toggleActiveStatus = async (staffId: string, currentStatus: boolean) => {
     const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase
-      .from('staffs')
+    const result = await (supabase
+      .from('staffs') as any)
       .update({ is_active: !currentStatus })
       .eq('id', staffId);
+
+    const { error } = result;
 
     if (error) {
       console.error('Error updating staff status:', error);

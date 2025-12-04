@@ -67,7 +67,7 @@ export default function SuccessCasesPage() {
         .from('staffs')
         .select('salon_id')
         .eq('id', user.id)
-        .single();
+        .single() as { data: { salon_id: string } | null };
 
       if (!staff) return;
 
@@ -89,7 +89,7 @@ export default function SuccessCasesPage() {
         `)
         .eq('is_active', true)
         .or(`salon_id.eq.${staff.salon_id},is_public.eq.true`)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: any[] | null; error: any };
 
       if (error) {
         console.error('Error fetching success cases:', error);
@@ -150,7 +150,7 @@ export default function SuccessCasesPage() {
       .from('staffs')
       .select('id, salon_id')
       .eq('id', user.id)
-      .single();
+      .single() as { data: { id: string; salon_id: string } | null };
 
     if (!staff) {
       setIsSubmitting(false);
@@ -167,7 +167,7 @@ export default function SuccessCasesPage() {
       .map((t) => t.trim())
       .filter((t) => t);
 
-    const { error } = await supabase.from('success_cases').insert({
+    const result = await (supabase.from('success_cases') as any).insert({
       salon_id: staff.salon_id,
       stylist_id: staff.id,
       concern_keywords: keywords,
@@ -179,6 +179,8 @@ export default function SuccessCasesPage() {
       is_public: formData.isPublic,
       is_active: true,
     });
+
+    const { error } = result;
 
     if (error) {
       console.error('Error creating success case:', error);
@@ -204,7 +206,7 @@ export default function SuccessCasesPage() {
       `)
       .eq('is_active', true)
       .or(`salon_id.eq.${staff.salon_id},is_public.eq.true`)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false }) as { data: any[] | null };
 
     setSuccessCases(cases || []);
     setIsModalOpen(false);

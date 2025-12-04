@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LineChart,
   Line,
@@ -23,11 +23,6 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 // FR-704: Period comparison types
-interface DateRange {
-  start: Date;
-  end: Date;
-}
-
 interface PeriodComparisonData {
   current: Stats;
   previous: Stats;
@@ -95,10 +90,7 @@ export default function AnalyticsPage() {
 
   // FR-704: Period comparison state
   const [comparisonMode, setComparisonMode] = useState(false);
-  const [customDateRange, setCustomDateRange] = useState<DateRange | null>(null);
   const [periodComparison, setPeriodComparison] = useState<PeriodComparisonData | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [previousPeriodTrend, setPreviousPeriodTrend] = useState<MonthlyData[]>([]);
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -113,7 +105,7 @@ export default function AnalyticsPage() {
         .from('staffs')
         .select('salon_id')
         .eq('id', user.id)
-        .single();
+        .single() as { data: { salon_id: string } | null };
 
       if (!staff) return;
 
@@ -412,28 +404,6 @@ export default function AnalyticsPage() {
             <option value="custom">カスタム期間</option>
           </select>
 
-          {/* FR-704: Custom Date Range Picker */}
-          {period === 'custom' && (
-            <div className="flex items-center space-x-2 px-4 py-2 bg-gray-50 rounded-lg">
-              <input
-                type="date"
-                className="px-2 py-1 border border-gray-300 rounded"
-                onChange={(e) => setCustomDateRange((prev) => ({
-                  start: new Date(e.target.value),
-                  end: prev?.end || new Date(),
-                }))}
-              />
-              <span className="text-gray-500">〜</span>
-              <input
-                type="date"
-                className="px-2 py-1 border border-gray-300 rounded"
-                onChange={(e) => setCustomDateRange((prev) => ({
-                  start: prev?.start || new Date(),
-                  end: new Date(e.target.value),
-                }))}
-              />
-            </div>
-          )}
 
           <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
             レポート出力
@@ -575,7 +545,7 @@ export default function AnalyticsPage() {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {concernDistribution.map((entry, index) => (
+                {concernDistribution.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
