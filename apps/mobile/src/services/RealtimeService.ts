@@ -151,7 +151,7 @@ export class RealtimeService {
     });
 
     // Subscribe to the channel
-    const status = await this.channel.subscribe((status) => {
+    await this.channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         this.isConnected = true;
         this.emit({ type: 'connected' });

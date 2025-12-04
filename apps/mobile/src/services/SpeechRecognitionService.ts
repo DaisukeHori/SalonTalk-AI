@@ -9,8 +9,6 @@
 import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
-  getSpeechRecognitionPermissions,
-  requestSpeechRecognitionPermissions,
 } from 'expo-speech-recognition';
 
 export interface TranscriptSegment {
@@ -43,7 +41,6 @@ export type SpeechEvent =
 export class SpeechRecognitionService {
   private listeners: Set<SpeechEventListener> = new Set();
   private currentChunkIndex = 0;
-  private currentTranscript = '';
   private segments: TranscriptSegment[] = [];
   private isRunning = false;
   private startTime = 0;
@@ -54,7 +51,7 @@ export class SpeechRecognitionService {
    */
   async isAvailable(): Promise<boolean> {
     try {
-      const status = await getSpeechRecognitionPermissions();
+      const status = await ExpoSpeechRecognitionModule.getPermissionsAsync();
       return status.canAskAgain || status.granted;
     } catch {
       return false;
@@ -66,7 +63,7 @@ export class SpeechRecognitionService {
    */
   async requestPermission(): Promise<boolean> {
     try {
-      const result = await requestSpeechRecognitionPermissions();
+      const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       return result.granted;
     } catch (error) {
       console.error('Failed to request speech recognition permission:', error);
@@ -104,7 +101,6 @@ export class SpeechRecognitionService {
 
     this.isRunning = true;
     this.currentChunkIndex = 0;
-    this.currentTranscript = '';
     this.segments = [];
     this.startTime = Date.now();
     this.accumulatedText = '';
@@ -162,7 +158,7 @@ export class SpeechRecognitionService {
    * Process audio chunk for transcription
    * This method is called when a new audio chunk is available
    */
-  async processAudioChunk(audioUri: string, chunkIndex: number): Promise<TranscriptChunk> {
+  async processAudioChunk(_audioUri: string, chunkIndex: number): Promise<TranscriptChunk> {
     // For continuous recognition, we return the accumulated text for this chunk
     const chunkStartMs = chunkIndex * 60000;
     const chunkEndMs = (chunkIndex + 1) * 60000;
@@ -225,9 +221,6 @@ export class SpeechRecognitionService {
     if (topResult.isFinal) {
       this.segments.push(segment);
       this.accumulatedText += (this.accumulatedText ? ' ' : '') + topResult.transcript;
-      this.currentTranscript = '';
-    } else {
-      this.currentTranscript = topResult.transcript;
     }
 
     this.emit({ type: 'transcript_update', transcript: segment });
@@ -254,7 +247,6 @@ export class SpeechRecognitionService {
       isFinal: false,
     };
 
-    this.currentTranscript = text;
     this.emit({ type: 'transcript_update', transcript: segment });
   }
 
@@ -273,7 +265,6 @@ export class SpeechRecognitionService {
 
     this.segments.push(segment);
     this.accumulatedText += (this.accumulatedText ? ' ' : '') + text;
-    this.currentTranscript = '';
     this.emit({ type: 'transcript_update', transcript: segment });
   }
 
@@ -328,7 +319,7 @@ export function useSpeechRecognition() {
       results: event.results.map((r) => ({
         transcript: r.transcript,
         confidence: r.confidence,
-        isFinal: r.isFinal,
+        isFinal: event.isFinal,
       })),
     });
   });

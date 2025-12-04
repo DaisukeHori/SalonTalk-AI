@@ -75,6 +75,7 @@ export function ProposalNotification({
         }, autoHideDuration);
         return () => clearTimeout(timer);
       }
+      return undefined;
     } else {
       Animated.parallel([
         Animated.timing(fadeAnim, {
@@ -88,6 +89,7 @@ export function ProposalNotification({
           useNativeDriver: true,
         }),
       ]).start();
+      return undefined;
     }
   }, [visible, autoHideDuration, fadeAnim, translateY, onClose]);
 

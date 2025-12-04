@@ -44,8 +44,6 @@ export default function SessionScreen() {
     setIsRecording,
     setCurrentScore,
     setTalkRatio,
-    addSegment,
-    addAnalysisResult,
     reset,
   } = useSessionStore();
 
@@ -55,7 +53,6 @@ export default function SessionScreen() {
   const [isStarting, setIsStarting] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotification, setShowNotification] = useState(false);
   const [currentNotification, setCurrentNotification] = useState<Notification | null>(null);
   const [detectedConcerns, setDetectedConcerns] = useState<string[]>([]);
@@ -179,7 +176,6 @@ export default function SessionScreen() {
       severity: notification.severity || 'info',
     };
 
-    setNotifications((prev) => [...prev, newNotification]);
     setCurrentNotification(newNotification);
     setShowNotification(true);
 
@@ -284,20 +280,10 @@ export default function SessionScreen() {
 
       // Create local session object
       const session = {
-        id: response.sessionId as any,
-        salonId: salon.id,
-        stylistId: user.id,
-        status: 'recording' as const,
-        customerInfo: {
-          visitType: customerType,
-          ageGroup: customerAge,
-          gender: customerGender,
-        },
+        id: response.sessionId,
+        status: 'recording',
         startedAt: new Date(response.startedAt),
-        endedAt: null,
-        totalDurationMs: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        realtimeChannel: 'session:' + response.sessionId,
       };
 
       setCurrentSession(session);
@@ -314,7 +300,6 @@ export default function SessionScreen() {
 
       // Reset UI state
       setConversations([]);
-      setNotifications([]);
       setDetectedConcerns([]);
       setQuestionCount(0);
       setEmotionIndicator('neutral');
@@ -373,7 +358,6 @@ export default function SessionScreen() {
             onPress: () => {
               reset();
               setConversations([]);
-              setNotifications([]);
             },
           },
         ]
@@ -386,12 +370,6 @@ export default function SessionScreen() {
     }
   };
 
-  const handleReset = () => {
-    reset();
-    setConversations([]);
-    setNotifications([]);
-    setDetectedConcerns([]);
-  };
 
   const getEmotionEmoji = () => {
     switch (emotionIndicator) {
