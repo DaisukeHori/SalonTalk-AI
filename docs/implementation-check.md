@@ -1243,4 +1243,114 @@ const transcriptEndMs = Math.round(Number(transcript.end_time) * 1000);
 
 ---
 
-*最終更新: 2025-12-04 17周目完了（transcriptsカラム名修正完了）*
+## 18周目確認結果 (2025-12-04)
+
+### 追加発見・修正したEdge Functions
+
+#### 🔴 `create-embedding/index.ts` の問題
+
+**問題点**:
+- `transcripts`テーブルから`speaker_label`カラムを取得しようとしていたが、正規化されたスキーマでは存在しない
+- `order('start_time_ms'...)` を使用していたが、transcriptsは`start_time`（秒）を使用
+
+**修正内容**:
+```typescript
+// Before (誤)
+const { data: transcripts } = await supabase
+  .from('transcripts')
+  .select('text, speaker_label')
+  .eq('session_id', body.sessionId)
+  .order('start_time_ms', { ascending: true })
+  .limit(50);
+
+// After (正)
+const { data: transcripts } = await supabase
+  .from('speaker_segments')
+  .select('text, speaker')
+  .eq('session_id', body.sessionId)
+  .order('start_time_ms', { ascending: true })
+  .limit(50);
+```
+
+また、`buildEmbeddingText`関数も`speaker_label`から`speaker`フィールドを使用するように修正。
+
+#### 🔴 `analyze-conversation/index.ts` の問題
+
+**問題点**:
+- 古いスキーマ（個別カラム形式: `talk_ratio_score`, `talk_ratio_detail`等）を使用していた
+- 正規化スキーマ（`indicator_type`, `value`, `score`, `details`）に変更が必要
+
+**修正内容**:
+- `analyze-segment/index.ts`と同様に正規化スキーマへ変更
+- 7つの指標を個別の行としてupsert
+- `analysis_results`テーブルにも後方互換性のため保存
+
+#### ✅ 追加確認済みEdge Functions
+- `trigger-diarization/index.ts` - 問題なし（`audio_chunks`テーブルは存在）
+- `get-training-scenario/index.ts` - 問題なし
+
+### 18周目検証結果: 2つのEdge Function追加修正 ✅
+
+---
+
+## 最終検証完了サマリー（18周目更新）
+
+### 検証ラウンド結果一覧
+| 周 | 検証内容 | 結果 |
+|----|---------|------|
+| 1-7周目 | 初期検証・機能実装確認 | 完了 |
+| 8周目 | DBカラム名整合性 | Salon型修正 |
+| 8周目 | 結合テスト作成 | 51シナリオ作成 |
+| 9周目 | 設計書vs実装比較 | 6点の意図的差異確認 |
+| 10周目 | エラー/外部連携/テスト | 問題なし |
+| 11周目 | データ設計/状態遷移 | 問題なし |
+| 12周目 | アルゴリズム/セキュリティ | 問題なし |
+| 13周目 | Edge Function vs DBスキーマ | analyze-segment/generate-report修正 |
+| 14周目 | 追加Edge Function検証 | process-audio/diarization-callback修正 |
+| 15周目 | 残りEdge Function検証 | invite-staff修正 |
+| 16周目 | 全Edge Function最終確認 | get-report修正 |
+| 17周目 | transcriptsカラム名再検証 | analyze-segment修正 |
+| **18周目** | **包括的再検証** | **create-embedding/analyze-conversation修正** |
+
+### 修正済みファイル（13-18周目）
+1. `supabase/functions/analyze-segment/index.ts` - session_analyses正規化スキーマ対応、transcriptsカラム名修正
+2. `supabase/functions/generate-report/index.ts` - 読み込みロジック修正
+3. `supabase/functions/process-audio/index.ts` - transcriptsスキーマ対応
+4. `supabase/functions/diarization-callback/index.ts` - 秒→ミリ秒変換、speaker_segmentsのみ作成
+5. `supabase/functions/invite-staff/index.ts` - name カラム修正、invitation_logs削除
+6. `supabase/functions/get-report/index.ts` - generated_at → created_at修正
+7. `supabase/functions/create-embedding/index.ts` - speaker_segments使用、speakerフィールド対応
+8. `supabase/functions/analyze-conversation/index.ts` - 正規化スキーマ対応
+
+### DBスキーマ整合性まとめ
+
+#### transcriptsテーブル
+- `start_time`, `end_time`: **秒** (NUMERIC型)
+- `chunk_index`: チャンク番号
+- `audio_url`: 音声ファイルURL
+- **注意**: `speaker_label`カラムは正規化スキーマでは存在しない
+
+#### speaker_segmentsテーブル
+- `start_time_ms`, `end_time_ms`: **ミリ秒** (INTEGER型)
+- `speaker`: 'stylist' | 'customer'
+- `chunk_index`: チャンク番号
+- `text`: 話者付きのテキスト
+
+#### session_analysesテーブル（正規化スキーマ）
+- `indicator_type`: 'talk_ratio' | 'question_analysis' | 'emotion_analysis' | ...
+- `value`: 指標値 (NUMERIC)
+- `score`: スコア (0-100)
+- `details`: 詳細 (JSONB)
+- **UNIQUE制約**: `(session_id, chunk_index, indicator_type)`
+
+### 最終結論
+- **設計書整合性**: ✅ 重大な漏れなし
+- **Edge Function整合性**: ✅ 8つのEdge Functionスキーマ修正完了
+- **テストカバレッジ**: ✅ 51シナリオの結合テスト
+- **機能実装率**: 97% (Phase 1/2完了)
+
+**18周の検証を完了しました。全Edge FunctionsがDBスキーマと整合しています。**
+
+---
+
+*最終更新: 2025-12-04 18周目完了（包括的再検証完了）*
