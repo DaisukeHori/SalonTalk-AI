@@ -3,7 +3,7 @@
  * ドメインサービス定義
  */
 
-import type { AnalysisMetrics, TalkRatio, QuestionAnalysis, EmotionAnalysis } from '../valueObjects';
+import type { AnalysisMetrics, TalkRatio } from '../valueObjects';
 
 /**
  * トーク比率計算サービス
@@ -68,7 +68,7 @@ export function calculateQuestionScore(openCount: number, closedCount: number): 
  */
 export function calculateEmotionScore(
   positiveRatio: number,
-  neutralRatio: number,
+  _neutralRatio: number,
   negativeRatio: number
 ): number {
   const idealPositive = 70;
@@ -801,14 +801,15 @@ export function detectConcernKeywords(
 }
 
 /**
- * 悩みキーワードのカテゴリ分類
+ * 悩みキーワードのカテゴリ分類（日本語版）
+ * Note: ConcernCategory type is also defined in valueObjects with English values
  */
-export type ConcernCategory = '乾燥' | '広がり' | 'ダメージ' | 'うねり' | '薄毛' | '白髪' | '頭皮' | 'その他';
+export type ConcernCategoryJa = '乾燥' | '広がり' | 'ダメージ' | 'うねり' | '薄毛' | '白髪' | '頭皮' | 'その他';
 
 export function categorizeConcerns(
   keywords: string[]
-): Record<ConcernCategory, string[]> {
-  const categories: Record<ConcernCategory, string[]> = {
+): Record<ConcernCategoryJa, string[]> {
+  const categories: Record<ConcernCategoryJa, string[]> = {
     '乾燥': [],
     '広がり': [],
     'ダメージ': [],
@@ -819,7 +820,7 @@ export function categorizeConcerns(
     'その他': [],
   };
 
-  const categoryMapping: Record<string, ConcernCategory> = {
+  const categoryMapping: Record<string, ConcernCategoryJa> = {
     '乾燥': '乾燥',
     'かんそう': '乾燥',
     'パサパサ': '乾燥',

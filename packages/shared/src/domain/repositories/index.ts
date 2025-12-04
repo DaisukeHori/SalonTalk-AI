@@ -8,13 +8,10 @@ import {
   StaffId,
   SessionId,
   SegmentId,
-  AnalysisId,
   SuccessCaseId,
-  ReportId,
   StaffRole,
   SessionStatus,
   Embedding,
-  IndicatorType,
 } from '../valueObjects';
 import {
   Salon,

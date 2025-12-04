@@ -3,8 +3,8 @@
  * 共有型定義
  */
 
-import type { SessionId, SalonId, StaffId } from '../domain/valueObjects';
-import type { SpeakerSegment, AnalysisResult } from '../domain/entities';
+// Note: Importing from domain but using through main exports to avoid duplication
+// These types are re-exported from domain module
 
 // ===========================================
 // API Request/Response Types
@@ -165,7 +165,7 @@ export interface AnalyzeConversationResponse {
     conversion: MetricResult;
   };
   suggestions: string[];
-  matchedSuccessCases: SuccessCaseMatch[];
+  matchedSuccessCases: ApiSuccessCaseMatch[];
 }
 
 export interface MetricResult {
@@ -174,7 +174,7 @@ export interface MetricResult {
   data?: Record<string, unknown>;
 }
 
-export interface SuccessCaseMatch {
+export interface ApiSuccessCaseMatch {
   id: string;
   similarity: number;
   approachText: string;
@@ -209,7 +209,7 @@ export interface SearchSuccessCasesRequest {
 }
 
 export interface SearchSuccessCasesResponse {
-  cases: SuccessCaseMatch[];
+  cases: ApiSuccessCaseMatch[];
   total: number;
 }
 
@@ -240,7 +240,7 @@ export interface RealtimeProposalTiming {
 export interface RealtimeSuccessCaseSuggestion {
   sessionId: string;
   concernKeywords: string[];
-  successCase: SuccessCaseMatch;
+  successCase: ApiSuccessCaseMatch;
   timestamp: string;
 }
 
