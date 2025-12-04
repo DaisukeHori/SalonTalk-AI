@@ -6,6 +6,9 @@
 // Domain exports
 export * from './domain';
 
+// Infrastructure exports
+export * from './infrastructure';
+
 // Type exports
 export * from './types';
 
