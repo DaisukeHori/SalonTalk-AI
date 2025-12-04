@@ -97,7 +97,7 @@ export default function StaffDetailPage() {
 
       const { data: sessionData, error: sessionError } = await supabase
         .from('sessions')
-        .select(\`
+        .select(`
           id,
           started_at,
           ended_at,
@@ -105,7 +105,7 @@ export default function StaffDetailPage() {
           session_reports (
             overall_score
           )
-        \`)
+        `)
         .eq('stylist_id', staffId)
         .gte('started_at', thirtyDaysAgo.toISOString())
         .order('started_at', { ascending: false });
@@ -126,7 +126,7 @@ export default function StaffDetailPage() {
           id: s.id,
           date: startDate.toLocaleDateString('ja-JP'),
           time: startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-          duration: \`\${durationMins}分\`,
+          duration: `\${durationMins}分`,
           score: s.session_reports?.overall_score || 0,
           status: s.status,
         };
@@ -321,7 +321,7 @@ export default function StaffDetailPage() {
                   <td className="py-4 text-gray-600">{session.duration}</td>
                   <td className="py-4">
                     <span
-                      className={\`font-semibold \${
+                      className={`font-semibold \${
                         session.score >= 80
                           ? 'text-green-600'
                           : session.score >= 60
@@ -329,25 +329,25 @@ export default function StaffDetailPage() {
                           : session.score > 0
                           ? 'text-orange-500'
                           : 'text-gray-400'
-                      }\`}
+                      }`}
                     >
-                      {session.score > 0 ? \`\${session.score}点\` : '-'}
+                      {session.score > 0 ? `\${session.score}点` : '-'}
                     </span>
                   </td>
                   <td className="py-4">
                     <span
-                      className={\`px-2 py-1 rounded text-sm \${
+                      className={`px-2 py-1 rounded text-sm \${
                         session.status === 'completed'
                           ? 'bg-green-100 text-green-700'
                           : 'bg-gray-100 text-gray-600'
-                      }\`}
+                      }`}
                     >
                       {session.status === 'completed' ? '完了' : session.status}
                     </span>
                   </td>
                   <td className="py-4">
                     <Link
-                      href={\`/dashboard/sessions/\${session.id}\`}
+                      href={`/dashboard/sessions/\${session.id}`}
                       className="text-primary-600 hover:underline text-sm"
                     >
                       詳細
