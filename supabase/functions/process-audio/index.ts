@@ -159,13 +159,8 @@ Deno.serve(async (req: Request) => {
 
         if (diarizeResponse.ok) {
           diarizationTriggered = true;
-
-          // Update session diarization status
-          await supabase
-            .from("sessions")
-            .update({ status: "processing" })
-            .eq("id", sessionId)
-            .eq("status", "recording");
+          // Note: Session status remains "recording" until end-session is called
+          // Only the diarization callback will update speaker info, not session status
         } else {
           console.error("Diarization trigger failed:", await diarizeResponse.text());
         }
