@@ -45,15 +45,20 @@ Deno.serve(async (req: Request) => {
       return errorResponse("VAL_001", "sessionIdが必要です", 400);
     }
 
-    // Get session with salon info
+    // Get session data
     const { data: session, error: sessionError } = await supabase
       .from("sessions")
-      .select("*, salons(*), staffs(*)")
+      .select("id, salon_id, stylist_id, status, customer_info, started_at, ended_at")
       .eq("id", sessionId)
       .single();
 
     if (sessionError || !session) {
       return errorResponse("SES_001", "セッションが見つかりません", 404);
+    }
+
+    // Validate session status - should be 'processing' or 'analyzing' before generating report
+    if (session.status !== "processing" && session.status !== "analyzing") {
+      return errorResponse("SES_002", `セッションのステータスが不正です: ${session.status}`, 400);
     }
 
     // Get all analysis results for this session

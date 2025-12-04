@@ -63,9 +63,9 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Get existing speaker segments for this chunk
-    const { data: existingSegments } = await supabase
-      .from("speaker_segments")
+    // Get existing transcripts for this chunk
+    const { data: existingTranscripts } = await supabase
+      .from("transcripts")
       .select("*")
       .eq("session_id", session_id)
       .eq("chunk_index", chunk_index);
@@ -89,16 +89,16 @@ Deno.serve(async (req: Request) => {
 
     let updatedCount = 0;
 
-    // Update existing segments with speaker information based on timing overlap
-    if (existingSegments && existingSegments.length > 0) {
-      for (const existing of existingSegments) {
-        // Find the diarization segment that overlaps most with this text segment
+    // Update existing transcripts with speaker information based on timing overlap
+    if (existingTranscripts && existingTranscripts.length > 0) {
+      for (const transcript of existingTranscripts) {
+        // Find the diarization segment that overlaps most with this transcript
         let bestMatch = null;
         let maxOverlap = 0;
 
         for (const diarSeg of diarizationSegments) {
-          const overlapStart = Math.max(existing.start_time_ms, diarSeg.start_time_ms);
-          const overlapEnd = Math.min(existing.end_time_ms, diarSeg.end_time_ms);
+          const overlapStart = Math.max(transcript.start_time_ms, diarSeg.start_time_ms);
+          const overlapEnd = Math.min(transcript.end_time_ms, diarSeg.end_time_ms);
           const overlap = Math.max(0, overlapEnd - overlapStart);
 
           if (overlap > maxOverlap) {
@@ -108,18 +108,32 @@ Deno.serve(async (req: Request) => {
         }
 
         if (bestMatch) {
+          // Update transcript with speaker info
           await supabase
-            .from("speaker_segments")
+            .from("transcripts")
             .update({
               speaker: bestMatch.speaker,
-              confidence: bestMatch.confidence,
+              speaker_label: firstSpeaker === bestMatch.speaker ? "SPEAKER_00" : "SPEAKER_01",
             })
-            .eq("id", existing.id);
+            .eq("id", transcript.id);
+
+          // Also create speaker_segment entry for analyze-segment compatibility
+          await supabase
+            .from("speaker_segments")
+            .upsert({
+              session_id,
+              chunk_index,
+              speaker: bestMatch.speaker,
+              text: transcript.text,
+              start_time_ms: transcript.start_time_ms,
+              end_time_ms: transcript.end_time_ms,
+              confidence: bestMatch.confidence,
+            });
+
           updatedCount++;
         }
       }
     }
-    // Note: We don't insert new segments without text as text is required
 
     // Trigger AI analysis for this chunk
     let analysisTriggered = false;

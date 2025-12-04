@@ -115,13 +115,13 @@ Deno.serve(async (req: Request) => {
       return errorResponse("VAL_003", "文字起こしデータの形式が不正です", 400);
     }
 
-    // Save to speaker_segments table (combining transcript + speaker info)
-    // Initially save without speaker info - diarization callback will update
-    const { data: segment, error: segmentError } = await supabase
-      .from("speaker_segments")
+    // Save to transcripts table (speaker will be assigned by diarization callback)
+    const { data: transcript, error: transcriptError } = await supabase
+      .from("transcripts")
       .insert({
         session_id: sessionId,
         chunk_index: chunkIndex,
+        segment_index: 0, // Single segment per chunk for now
         speaker: "unknown", // Will be updated by diarization callback
         text: transcriptData.text,
         start_time_ms: Math.round(transcriptData.startTime * 1000),
@@ -131,8 +131,8 @@ Deno.serve(async (req: Request) => {
       .select()
       .single();
 
-    if (segmentError) {
-      console.error("Segment save error:", segmentError);
+    if (transcriptError) {
+      console.error("Transcript save error:", transcriptError);
       return errorResponse("DB_001", "文字起こしの保存に失敗しました", 500);
     }
 
@@ -177,7 +177,7 @@ Deno.serve(async (req: Request) => {
 
     return jsonResponse(
       {
-        segmentId: segment.id,
+        transcriptId: transcript.id,
         audioUrl,
         diarizationTriggered,
       },
