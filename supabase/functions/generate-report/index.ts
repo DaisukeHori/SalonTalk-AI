@@ -92,9 +92,9 @@ Deno.serve(async (req: Request) => {
     // Calculate overall score
     const overallScore = calculateOverallScore(aggregatedMetrics);
 
-    // Create report record
+    // Create report record in session_reports table
     const { data: report, error: reportError } = await adminClient
-      .from("reports")
+      .from("session_reports")
       .insert({
         session_id: sessionId,
         summary: aiReport.summary,
@@ -102,8 +102,7 @@ Deno.serve(async (req: Request) => {
         metrics: aggregatedMetrics,
         improvements: aiReport.improvementPoints,
         strengths: aiReport.goodPoints,
-        comparison_with_average: [],
-        matched_success_cases: [],
+        is_converted: aggregatedMetrics.conversion?.value > 0,
       })
       .select()
       .single();

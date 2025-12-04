@@ -99,8 +99,8 @@ serve(async (req: Request) => {
       console.error('Analyses fetch error:', analysesError);
     }
 
-    // Build metrics from analyses
-    const metrics = buildMetricsFromAnalyses(analyses || [], report?.indicator_scores);
+    // Build metrics from analyses (use report.metrics if available)
+    const metrics = buildMetricsFromAnalyses(analyses || [], report?.metrics);
 
     // Calculate duration
     const duration = session.ended_at
@@ -117,14 +117,13 @@ serve(async (req: Request) => {
       duration,
       status: session.status,
       customerInfo: session.customer_info,
-      summary: report?.transcript_summary || null,
+      summary: report?.summary || null,
       overallScore: report?.overall_score || calculateOverallFromAnalyses(analyses || []),
       metrics,
-      improvements: report?.improvement_points || [],
-      strengths: report?.good_points || [],
-      actionItems: report?.action_items || [],
-      aiFeedback: report?.ai_feedback || null,
-      generatedAt: report?.created_at || null,
+      improvements: report?.improvements || [],
+      strengths: report?.strengths || [],
+      isConverted: report?.is_converted || false,
+      generatedAt: report?.generated_at || null,
     };
 
     return new Response(

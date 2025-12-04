@@ -31,7 +31,8 @@ interface SpeakerSegment {
   id: string;
   session_id: string;
   chunk_index: number;
-  speaker_label: string;
+  speaker: 'stylist' | 'customer';
+  text: string;
   start_time_ms: number;
   end_time_ms: number;
   confidence: number;
@@ -150,17 +151,16 @@ function mergeSegments(
 
   for (const transcript of transcripts) {
     // Find overlapping speaker segment
-    const speaker = speakers.find(
+    const speakerSegment = speakers.find(
       (s) =>
         s.start_time_ms <= transcript.start_time_ms &&
         s.end_time_ms >= transcript.end_time_ms
     );
 
-    // Map speaker label to role
+    // Use speaker role from speaker_segments table (already mapped to 'stylist'/'customer')
     let role: 'stylist' | 'customer' | 'unknown' = 'unknown';
-    if (speaker) {
-      // Assume SPEAKER_00 is stylist (usually starts first), SPEAKER_01 is customer
-      role = speaker.speaker_label === 'SPEAKER_00' ? 'stylist' : 'customer';
+    if (speakerSegment) {
+      role = speakerSegment.speaker;
     }
 
     merged.push({

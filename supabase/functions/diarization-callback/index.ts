@@ -46,7 +46,8 @@ Deno.serve(async (req: Request) => {
     if (status === "failed") {
       console.error(`Diarization failed for session ${session_id}:`, error);
 
-      // Don't update session status on failure - let it continue without diarization
+      // Log failure but don't update session status - diarization is per-chunk
+      // and failing one chunk shouldn't fail the entire session
       return jsonResponse({
         processed: false,
         segmentCount: 0,
@@ -78,27 +79,24 @@ Deno.serve(async (req: Request) => {
       return pyannoteSpeaker === firstSpeaker ? "stylist" : "customer";
     };
 
-    // Update existing segments with speaker information
-    // Or insert new segments if diarization provides more detail
-    const speakerSegments = segments.map((segment) => ({
-      session_id,
-      chunk_index,
+    // Build diarization segment map for speaker assignment
+    const diarizationSegments = segments.map((segment) => ({
       speaker: mapSpeaker(segment.speaker),
-      text: null, // Text will be from the original segment
       start_time_ms: Math.round(segment.start * 1000),
       end_time_ms: Math.round(segment.end * 1000),
       confidence: segment.confidence || 0.9,
     }));
 
-    // If we have existing segments with text, try to match them with diarization
+    let updatedCount = 0;
+
+    // Update existing segments with speaker information based on timing overlap
     if (existingSegments && existingSegments.length > 0) {
-      // Update the existing segment's speaker based on timing overlap
       for (const existing of existingSegments) {
         // Find the diarization segment that overlaps most with this text segment
         let bestMatch = null;
         let maxOverlap = 0;
 
-        for (const diarSeg of speakerSegments) {
+        for (const diarSeg of diarizationSegments) {
           const overlapStart = Math.max(existing.start_time_ms, diarSeg.start_time_ms);
           const overlapEnd = Math.min(existing.end_time_ms, diarSeg.end_time_ms);
           const overlap = Math.max(0, overlapEnd - overlapStart);
@@ -117,25 +115,17 @@ Deno.serve(async (req: Request) => {
               confidence: bestMatch.confidence,
             })
             .eq("id", existing.id);
+          updatedCount++;
         }
       }
-    } else {
-      // Insert new segments
-      const { error: insertError } = await supabase
-        .from("speaker_segments")
-        .insert(speakerSegments);
-
-      if (insertError) {
-        console.error("Insert error:", insertError);
-        throw insertError;
-      }
     }
+    // Note: We don't insert new segments without text as text is required
 
     // Trigger AI analysis for this chunk
     let analysisTriggered = false;
     try {
       const analyzeResponse = await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/functions/v1/analyze-conversation`,
+        `${Deno.env.get("SUPABASE_URL")}/functions/v1/analyze-segment`,
         {
           method: "POST",
           headers: {
@@ -160,7 +150,7 @@ Deno.serve(async (req: Request) => {
 
     return jsonResponse({
       processed: true,
-      segmentCount: speakerSegments.length,
+      segmentCount: updatedCount,
       analysisTriggered,
     });
   } catch (error) {

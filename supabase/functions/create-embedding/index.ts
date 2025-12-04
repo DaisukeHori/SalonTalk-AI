@@ -189,6 +189,13 @@ serve(async (req: Request) => {
     // Create embedding
     const embedding = await createEmbedding(embeddingText, openaiApiKey);
 
+    // Extract concern keywords from metadata or use default
+    const concernKeywords = (metadata.concern_keywords as string[]) || ['一般'];
+
+    // Determine result from conversion status
+    const isConverted = metadata.is_converted as boolean;
+    const result = isConverted ? '成約' : '未成約';
+
     // Store in success_cases table
     const { data: successCase, error: insertError } = await supabase
       .from('success_cases')
@@ -196,9 +203,10 @@ serve(async (req: Request) => {
         {
           session_id: body.sessionId,
           salon_id: staff.salon_id,
-          stylist_id: staff.id,
-          embedding: embedding,
+          concern_keywords: concernKeywords,
           approach_text: embeddingText,
+          result: result,
+          embedding: embedding,
         },
         {
           onConflict: 'session_id',
