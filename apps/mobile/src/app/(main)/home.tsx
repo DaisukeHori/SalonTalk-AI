@@ -56,6 +56,21 @@ export default function HomeScreen() {
             <Text className="text-gray-500 mt-1">過去の分析を見る</Text>
           </Pressable>
         </View>
+
+        {/* Training Button */}
+        <Pressable
+          onPress={() => router.push('/(main)/training')}
+          className="bg-green-600 rounded-xl p-6 mt-4"
+        >
+          <View className="flex-row items-center">
+            <Text className="text-4xl mr-4">🎯</Text>
+            <View className="flex-1">
+              <Text className="text-white text-xl font-bold">トレーニング</Text>
+              <Text className="text-white/80 mt-1">AIと接客練習をする</Text>
+            </View>
+            <Text className="text-white text-2xl">→</Text>
+          </View>
+        </Pressable>
       </View>
 
       {/* Recent Sessions */}

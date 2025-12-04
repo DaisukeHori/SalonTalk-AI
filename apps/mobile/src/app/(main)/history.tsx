@@ -1,6 +1,8 @@
 import { View, Text, ScrollView, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 
 export default function HistoryScreen() {
+  const router = useRouter();
   // Mock data
   const sessions = [
     { id: 1, date: '2024-12-04', time: '14:30', duration: '45分', score: 85, converted: true },
@@ -36,6 +38,7 @@ export default function HistoryScreen() {
         {sessions.map((session) => (
           <Pressable
             key={session.id}
+            onPress={() => router.push(`/(main)/report/${session.id}`)}
             className="bg-white rounded-xl p-4 mb-3 flex-row items-center"
           >
             <View className="w-14 h-14 bg-gray-100 rounded-full items-center justify-center">
