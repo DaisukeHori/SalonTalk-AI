@@ -115,19 +115,18 @@ Deno.serve(async (req: Request) => {
       return errorResponse("VAL_003", "文字起こしデータの形式が不正です", 400);
     }
 
-    // Save to transcripts table (speaker will be assigned by diarization callback)
+    // Save to transcripts table (speaker will be assigned by diarization callback to speaker_segments)
+    // transcripts table uses seconds (NUMERIC), not milliseconds
     const { data: transcript, error: transcriptError } = await supabase
       .from("transcripts")
-      .insert({
+      .upsert({
         session_id: sessionId,
         chunk_index: chunkIndex,
-        segment_index: 0, // Single segment per chunk for now
-        speaker: "unknown", // Will be updated by diarization callback
         text: transcriptData.text,
-        start_time_ms: Math.round(transcriptData.startTime * 1000),
-        end_time_ms: Math.round(transcriptData.endTime * 1000),
-        confidence: 1.0,
-      })
+        start_time: transcriptData.startTime, // seconds as NUMERIC
+        end_time: transcriptData.endTime, // seconds as NUMERIC
+        audio_url: audioUrl,
+      }, { onConflict: 'session_id,chunk_index' })
       .select()
       .single();
 

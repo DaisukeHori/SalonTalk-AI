@@ -895,3 +895,101 @@ CREATE TABLE session_analyses (
 ---
 
 *最終更新: 2025-12-04 13周目完了（Edge Function修正）*
+
+---
+
+## 14周目確認結果 (2025-12-04)
+
+### 追加Edge Function整合性確認
+
+#### 🔴 重大なスキーマ不整合を発見・修正（続き）
+
+##### 1. `process-audio/index.ts` の問題
+
+**発見内容**:
+- `transcripts` テーブルに存在しないカラムを使用
+- `segment_index`, `speaker`, `confidence` は存在しない
+- `start_time_ms`, `end_time_ms` ではなく `start_time`, `end_time` (秒単位)
+
+**修正内容**:
+```typescript
+// Before (誤)
+.insert({
+  segment_index: 0,
+  speaker: "unknown",
+  start_time_ms: ...,
+  end_time_ms: ...,
+  confidence: 1.0,
+})
+
+// After (正)
+.upsert({
+  text: transcriptData.text,
+  start_time: transcriptData.startTime,  // 秒単位
+  end_time: transcriptData.endTime,
+  audio_url: audioUrl,
+})
+```
+
+##### 2. `diarization-callback/index.ts` の問題
+
+**発見内容**:
+- `transcripts` テーブルの `start_time_ms` を参照（存在しない）
+- `transcripts` テーブルに `speaker`, `speaker_label` を更新しようとしていた（カラム不在）
+
+**修正内容**:
+- `transcript.start_time` (秒) → ミリ秒に変換してから比較
+- transcripts更新の削除（speaker_segmentsのみ作成）
+
+### 正しいデータフロー（修正後）
+
+```
+process-audio
+    ↓
+transcripts テーブル (text + start_time/end_time 秒単位)
+    ↓
+diarization-callback
+    ↓
+speaker_segments テーブル (speaker + text + start_time_ms/end_time_ms)
+    ↓
+analyze-segment
+    ↓
+session_analyses テーブル (indicator_type + score + value + details)
+```
+
+### 14周目検証結果: 追加の重大不整合を発見・修正 ✅
+
+---
+
+## 最終検証完了サマリー（14周目更新）
+
+### 検証ラウンド結果一覧
+| 周 | 検証内容 | 結果 |
+|----|---------|------|
+| 1-7周目 | 初期検証・機能実装確認 | 完了 |
+| 8周目 | DBカラム名整合性 | Salon型修正 |
+| 8周目 | 結合テスト作成 | 51シナリオ作成 |
+| 9周目 | 設計書vs実装比較 | 6点の意図的差異確認 |
+| 10周目 | エラー/外部連携/テスト | 問題なし |
+| 11周目 | データ設計/状態遷移 | 問題なし |
+| 12周目 | アルゴリズム/セキュリティ | 問題なし |
+| 13周目 | Edge Function vs DBスキーマ | analyze-segment/generate-report修正 |
+| **14周目** | **追加Edge Function検証** | **process-audio/diarization-callback修正** |
+
+### 修正済みファイル（13-14周目）
+- `supabase/functions/analyze-segment/index.ts` - session_analyses正規化スキーマ対応
+- `supabase/functions/generate-report/index.ts` - 読み込みロジック修正
+- `supabase/functions/process-audio/index.ts` - transcriptsスキーマ対応
+- `supabase/functions/diarization-callback/index.ts` - 秒→ミリ秒変換、speaker_segmentsのみ作成
+
+### 最終結論
+- **設計書整合性**: ✅ 重大な漏れなし
+- **Edge Function整合性**: ✅ 4つのEdge Functionスキーマ修正完了
+- **テストカバレッジ**: ✅ 51シナリオの結合テスト
+- **機能実装率**: 97% (Phase 1/2完了)
+
+**14周の検証を完了しました。**
+
+---
+
+*最終更新: 2025-12-04 14周目完了（Edge Function追加修正）*
