@@ -14,6 +14,14 @@ export type SegmentId = Brand<string, 'SegmentId'>;
 export type AnalysisId = Brand<string, 'AnalysisId'>;
 export type SuccessCaseId = Brand<string, 'SuccessCaseId'>;
 export type ReportId = Brand<string, 'ReportId'>;
+export type TranscriptId = Brand<string, 'TranscriptId'>;
+export type SpeakerSegmentId = Brand<string, 'SpeakerSegmentId'>;
+export type SessionAnalysisId = Brand<string, 'SessionAnalysisId'>;
+export type SessionReportId = Brand<string, 'SessionReportId'>;
+export type NotificationId = Brand<string, 'NotificationId'>;
+export type PushTokenId = Brand<string, 'PushTokenId'>;
+export type ScenarioId = Brand<string, 'ScenarioId'>;
+export type RoleplaySessionId = Brand<string, 'RoleplaySessionId'>;
 
 // ID Factory functions
 export const createSalonId = (id: string): SalonId => id as SalonId;
@@ -23,6 +31,14 @@ export const createSegmentId = (id: string): SegmentId => id as SegmentId;
 export const createAnalysisId = (id: string): AnalysisId => id as AnalysisId;
 export const createSuccessCaseId = (id: string): SuccessCaseId => id as SuccessCaseId;
 export const createReportId = (id: string): ReportId => id as ReportId;
+export const createTranscriptId = (id: string): TranscriptId => id as TranscriptId;
+export const createSpeakerSegmentId = (id: string): SpeakerSegmentId => id as SpeakerSegmentId;
+export const createSessionAnalysisId = (id: string): SessionAnalysisId => id as SessionAnalysisId;
+export const createSessionReportId = (id: string): SessionReportId => id as SessionReportId;
+export const createNotificationId = (id: string): NotificationId => id as NotificationId;
+export const createPushTokenId = (id: string): PushTokenId => id as PushTokenId;
+export const createScenarioId = (id: string): ScenarioId => id as ScenarioId;
+export const createRoleplaySessionId = (id: string): RoleplaySessionId => id as RoleplaySessionId;
 
 /**
  * プラン種別
@@ -40,9 +56,47 @@ export type StaffRole = 'stylist' | 'manager' | 'owner' | 'admin';
 export type SessionStatus = 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
 
 /**
+ * 話者分離ステータス
+ */
+export type DiarizationStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+/**
+ * ロールプレイステータス
+ */
+export type RoleplayStatus = 'in_progress' | 'completed' | 'abandoned' | 'evaluated';
+
+/**
+ * 通知タイプ
+ */
+export type NotificationType =
+  | 'session_complete'
+  | 'training_reminder'
+  | 'score_alert'
+  | 'success_case'
+  | 'proposal_chance'
+  | 'concern_detected'
+  | 'achievement'
+  | 'custom';
+
+/**
+ * 通知ステータス
+ */
+export type NotificationStatus = 'sent' | 'delivered' | 'failed' | 'read';
+
+/**
+ * プラットフォーム種別
+ */
+export type Platform = 'ios' | 'android' | 'web';
+
+/**
  * 話者種別
  */
 export type SpeakerType = 'stylist' | 'customer';
+
+/**
+ * 話者ラベル（pyannote出力）
+ */
+export type SpeakerLabel = 'SPEAKER_00' | 'SPEAKER_01' | string;
 
 /**
  * 顧客年代

@@ -1,0 +1,33 @@
+# Pyannote Speaker Diarization Server
+# Python 3.10+
+
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Pyannote for speaker diarization
+pyannote.audio==3.1.1
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# Audio processing
+pydub==0.25.1
+librosa==0.10.1
+soundfile==0.12.1
+
+# HTTP client for callbacks
+httpx==0.26.0
+aiofiles==23.2.1
+
+# Utilities
+python-dotenv==1.0.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# For downloading audio from URLs
+requests==2.31.0
+
+# Async task queue (optional, for production)
+# celery==5.3.4
+# redis==5.0.1
