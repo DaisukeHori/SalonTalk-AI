@@ -1,0 +1,13 @@
+[project]
+name = "salontalk-pyannote"
+version = "0.1.0"
+description = "Speaker diarization server for SalonTalk AI"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.ruff.isort]
+known-first-party = ["app"]

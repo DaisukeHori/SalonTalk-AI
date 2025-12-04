@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+.expo/
+*.tsbuildinfo
+
+# Turbo
+.turbo/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+
+# Python (pyannote server)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.venv/
+venv/
+ENV/
+.eggs/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+
+# Mobile
+*.ipa
+*.apk
+*.aab
+ios/Pods/
+android/.gradle/
+android/app/build/
+
+# Secrets & credentials
+*.pem
+*.key
+credentials.json
+serviceAccountKey.json
