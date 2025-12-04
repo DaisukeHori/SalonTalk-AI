@@ -123,7 +123,7 @@ serve(async (req: Request) => {
       improvements: report?.improvements || [],
       strengths: report?.strengths || [],
       isConverted: report?.is_converted || false,
-      generatedAt: report?.generated_at || null,
+      generatedAt: report?.created_at || null, // column renamed from generated_at to created_at
     };
 
     return new Response(

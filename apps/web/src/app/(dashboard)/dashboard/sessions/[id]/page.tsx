@@ -24,7 +24,6 @@ import {
   AlertCircle,
   CheckCircle,
   User,
-  Calendar,
 } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
@@ -125,13 +124,6 @@ function MetricBar({
   details: string;
   icon: string;
 }) {
-  const color =
-    score >= 80
-      ? 'bg-green-500'
-      : score >= 60
-      ? 'bg-blue-500'
-      : 'bg-orange-500';
-
   return (
     <div className="p-4 border rounded-lg">
       <div className="flex items-center justify-between mb-2">
@@ -211,7 +203,7 @@ export default function SessionDetailPage() {
             staffs (id, name)
           `)
           .eq('id', params.id)
-          .single();
+          .single() as { data: any; error: any };
 
         if (sessionError || !sessionData) {
           console.error('Failed to fetch session:', sessionError);
@@ -224,14 +216,14 @@ export default function SessionDetailPage() {
           .from('session_reports')
           .select('*')
           .eq('session_id', params.id)
-          .single();
+          .single() as { data: any };
 
         // Fetch transcript segments
         const { data: segments } = await supabase
           .from('speaker_segments')
           .select('*')
           .eq('session_id', params.id)
-          .order('start_time_ms', { ascending: true });
+          .order('start_time_ms', { ascending: true }) as { data: any[] | null };
 
         const metrics = reportData?.metrics || {};
         const customerInfo = sessionData.customer_info || {};

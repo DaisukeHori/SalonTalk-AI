@@ -8,9 +8,10 @@ import { useAuthStore } from '@/stores/auth';
 import { apiService, realtimeService, audioRecorderService, speechRecognitionService } from '@/services';
 
 interface CustomerInfo {
-  ageGroup?: string;
+  ageGroup?: '10s' | '20s' | '30s' | '40s' | '50s' | '60s+';
   gender?: 'male' | 'female' | 'other';
   visitType: 'new' | 'repeat';
+  visitFrequency?: 'first' | 'monthly' | 'bimonthly' | 'quarterly' | 'irregular';
   notes?: string;
 }
 

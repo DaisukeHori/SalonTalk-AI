@@ -15,12 +15,8 @@ export function useAuth() {
     accessToken,
     isAuthenticated,
     isLoading,
-    setUser,
-    setSalon,
-    setAccessToken,
-    setIsAuthenticated,
-    setIsLoading,
-    logout: logoutStore,
+    login: storeLogin,
+    logout: storeLogout,
   } = useAuthStore();
 
   // Update API service token when accessToken changes
@@ -32,13 +28,8 @@ export function useAuth() {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      setIsLoading(true);
       try {
-        const result = await apiService.login(email, password);
-        setUser(result.user);
-        setSalon(result.salon);
-        setAccessToken(result.accessToken);
-        setIsAuthenticated(true);
+        await storeLogin(email, password);
         router.replace('/(main)/home');
         return { success: true };
       } catch (error) {
@@ -47,37 +38,19 @@ export function useAuth() {
           success: false,
           error: error instanceof Error ? error.message : 'ログインに失敗しました',
         };
-      } finally {
-        setIsLoading(false);
       }
     },
-    [router, setUser, setSalon, setAccessToken, setIsAuthenticated, setIsLoading]
+    [router, storeLogin]
   );
 
   const logout = useCallback(async () => {
     try {
-      await apiService.logout();
+      await storeLogout();
+      router.replace('/(auth)/login');
     } catch (error) {
       console.error('Logout error:', error);
-    } finally {
-      logoutStore();
-      router.replace('/(auth)/login');
     }
-  }, [router, logoutStore]);
-
-  const refreshToken = useCallback(async () => {
-    try {
-      const newToken = await apiService.refreshToken();
-      if (newToken) {
-        setAccessToken(newToken);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Token refresh error:', error);
-      return false;
-    }
-  }, [setAccessToken]);
+  }, [router, storeLogout]);
 
   return {
     user,
@@ -87,7 +60,6 @@ export function useAuth() {
     isLoading,
     login,
     logout,
-    refreshToken,
   };
 }
 

@@ -11,7 +11,23 @@ import { createSupabaseClient, createSupabaseAdminClient, getUser, getStaff } fr
 import { jsonResponse, errorResponse, unauthorizedResponse } from '../_shared/response.ts';
 
 interface SendNotificationRequest {
-  type: 'session_complete' | 'training_reminder' | 'score_alert' | 'success_case' | 'custom';
+  type:
+    | 'session_complete'
+    | 'training_reminder'
+    | 'score_alert'
+    | 'success_case'
+    | 'custom'
+    | 'proposal_chance'
+    | 'concern_detected'
+    | 'achievement'
+    // FR-304: 詳細アラート種別
+    | 'risk_warning'
+    | 'talk_ratio_alert'
+    | 'low_engagement_alert'
+    | 'emotion_negative_alert'
+    | 'question_shortage_alert'
+    | 'long_silence_alert'
+    | 'proposal_missed_alert';
   recipientId?: string; // Staff ID
   recipientIds?: string[]; // Multiple staff IDs
   title?: string;
@@ -55,6 +71,47 @@ const NOTIFICATION_TEMPLATES: Record<string, { title: string; body: string }> = 
   success_case: {
     title: '成功事例が見つかりました',
     body: '類似の悩みに対する成功事例があります。参考にしてください。',
+  },
+  proposal_chance: {
+    title: '🎯 提案チャンス！',
+    body: 'お客様が悩みを口にしました。適切な商品を提案しましょう。',
+  },
+  concern_detected: {
+    title: '💡 悩みキーワード検出',
+    body: 'お客様の悩みが検出されました。詳細を確認してください。',
+  },
+  achievement: {
+    title: '🏆 アチーブメント達成！',
+    body: '新しい実績を獲得しました。',
+  },
+  // FR-304: 詳細アラート種別テンプレート
+  risk_warning: {
+    title: '⚠️ リスク警告',
+    body: '接客スコアが低下しています。会話のバランスを見直してください。',
+  },
+  talk_ratio_alert: {
+    title: '📊 トーク比率アラート',
+    body: '話しすぎています。お客様の話をもっと聞いてみましょう。',
+  },
+  low_engagement_alert: {
+    title: '😐 エンゲージメント低下',
+    body: 'お客様の反応が少なくなっています。質問で会話を活性化しましょう。',
+  },
+  emotion_negative_alert: {
+    title: '😟 お客様の反応に注意',
+    body: 'ネガティブな反応が検出されました。お客様の気持ちに寄り添いましょう。',
+  },
+  question_shortage_alert: {
+    title: '❓ 質問を増やしましょう',
+    body: '質問が少なくなっています。オープンクエスチョンで悩みを引き出しましょう。',
+  },
+  long_silence_alert: {
+    title: '🔇 沈黙が続いています',
+    body: '会話が途切れています。話題を変えてみましょう。',
+  },
+  proposal_missed_alert: {
+    title: '💭 提案機会を逃しています',
+    body: '悩みを検出してから時間が経過しました。早めに提案しましょう。',
   },
 };
 

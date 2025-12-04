@@ -141,67 +141,56 @@ Deno.serve(async (req: Request) => {
 function aggregateAnalysisResults(
   analyses: Array<{
     chunk_index: number;
-    overall_score: number;
-    talk_ratio_score?: number;
-    talk_ratio_detail?: Record<string, unknown>;
-    question_score?: number;
-    question_detail?: Record<string, unknown>;
-    emotion_score?: number;
-    emotion_detail?: Record<string, unknown>;
-    concern_keywords_score?: number;
-    concern_keywords_detail?: Record<string, unknown>;
-    proposal_timing_score?: number;
-    proposal_timing_detail?: Record<string, unknown>;
-    proposal_quality_score?: number;
-    proposal_quality_detail?: Record<string, unknown>;
-    conversion_score?: number;
-    conversion_detail?: Record<string, unknown>;
+    indicator_type: string;
+    value: number;
+    score: number;
+    details?: Record<string, unknown>;
   }>
 ): Record<string, IndicatorScore> {
+  const defaultMetrics = {
+    talkRatio: { score: 50, value: 50 },
+    questionAnalysis: { score: 50, value: 0 },
+    emotionAnalysis: { score: 50, value: 50 },
+    concernKeywords: { score: 50, value: 0 },
+    proposalTiming: { score: 50, value: 0 },
+    proposalQuality: { score: 50, value: 0 },
+    conversion: { score: 50, value: 0 },
+  };
+
   if (analyses.length === 0) {
-    return {
-      talkRatio: { score: 50, value: 50 },
-      questionAnalysis: { score: 50, value: 0 },
-      emotionAnalysis: { score: 50, value: 50 },
-      concernKeywords: { score: 50, value: 0 },
-      proposalTiming: { score: 50, value: 0 },
-      proposalQuality: { score: 50, value: 0 },
-      conversion: { score: 50, value: 0 },
-    };
+    return defaultMetrics;
   }
 
-  // Get the latest (last) analysis and build metrics from individual columns
-  const latest = analyses[analyses.length - 1];
-  return {
-    talkRatio: {
-      score: latest.talk_ratio_score || 50,
-      value: (latest.talk_ratio_detail as any)?.stylistRatio || 50,
-    },
-    questionAnalysis: {
-      score: latest.question_score || 50,
-      value: (latest.question_detail as any)?.openCount || 0,
-    },
-    emotionAnalysis: {
-      score: latest.emotion_score || 50,
-      value: (latest.emotion_detail as any)?.positiveRatio || 50,
-    },
-    concernKeywords: {
-      score: latest.concern_keywords_score || 50,
-      value: ((latest.concern_keywords_detail as any)?.keywords?.length) || 0,
-    },
-    proposalTiming: {
-      score: latest.proposal_timing_score || 50,
-      value: (latest.proposal_timing_detail as any)?.timingMs || 0,
-    },
-    proposalQuality: {
-      score: latest.proposal_quality_score || 50,
-      value: (latest.proposal_quality_detail as any)?.matchRate || 0,
-    },
-    conversion: {
-      score: latest.conversion_score || 50,
-      value: (latest.conversion_detail as any)?.isConverted ? 100 : 0,
-    },
+  // Map indicator_type to metric key
+  const indicatorMapping: Record<string, string> = {
+    'talk_ratio': 'talkRatio',
+    'question_analysis': 'questionAnalysis',
+    'emotion_analysis': 'emotionAnalysis',
+    'concern_keywords': 'concernKeywords',
+    'proposal_timing': 'proposalTiming',
+    'proposal_quality': 'proposalQuality',
+    'conversion': 'conversion',
   };
+
+  // Get the latest chunk index
+  const maxChunkIndex = Math.max(...analyses.map(a => a.chunk_index));
+
+  // Get analyses from the latest chunk
+  const latestAnalyses = analyses.filter(a => a.chunk_index === maxChunkIndex);
+
+  // Build metrics from normalized schema
+  const result = { ...defaultMetrics };
+  for (const analysis of latestAnalyses) {
+    const metricKey = indicatorMapping[analysis.indicator_type];
+    if (metricKey && result[metricKey as keyof typeof result]) {
+      result[metricKey as keyof typeof result] = {
+        score: analysis.score || 50,
+        value: analysis.value || 0,
+      };
+    }
+  }
+
+  return result;
 }
 
 function calculateOverallScore(metrics: Record<string, IndicatorScore>): number {

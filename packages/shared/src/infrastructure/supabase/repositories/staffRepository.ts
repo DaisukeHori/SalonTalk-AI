@@ -97,11 +97,12 @@ export function createStaffRepository(
     },
 
     async create(
+      id: StaffId,
       data: Omit<Staff, 'id' | 'createdAt' | 'updatedAt'>
     ): Promise<Staff> {
       const insertData: StaffInsert = {
-        id: data.id as string,
-        salon_id: data.salonId,
+        id: id as string,
+        salon_id: data.salonId as string,
         email: data.email,
         name: data.name,
         role: data.role,
@@ -109,7 +110,9 @@ export function createStaffRepository(
         is_active: data.isActive,
       };
 
-      const { data: result, error } = await supabase
+      // Use type assertion due to Supabase type inference limitations
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: result, error } = await (supabase as any)
         .from('staffs')
         .insert(insertData)
         .select()
@@ -119,14 +122,14 @@ export function createStaffRepository(
         throw new Error(`Failed to create staff: ${error?.message}`);
       }
 
-      return toEntity(result);
+      return toEntity(result as StaffRow);
     },
 
     async update(
       id: StaffId,
       data: Partial<Omit<Staff, 'id' | 'createdAt' | 'updatedAt'>>
     ): Promise<Staff> {
-      const updateData: Database['public']['Tables']['staffs']['Update'] = {};
+      const updateData: Partial<Database['public']['Tables']['staffs']['Update']> = {};
 
       if (data.salonId !== undefined) updateData.salon_id = data.salonId;
       if (data.email !== undefined) updateData.email = data.email;
@@ -135,7 +138,9 @@ export function createStaffRepository(
       if (data.avatarUrl !== undefined) updateData.avatar_url = data.avatarUrl;
       if (data.isActive !== undefined) updateData.is_active = data.isActive;
 
-      const { data: result, error } = await supabase
+      // Use type assertion due to Supabase type inference limitations
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: result, error } = await (supabase as any)
         .from('staffs')
         .update(updateData)
         .eq('id', id)

@@ -25,12 +25,27 @@ export interface AnalysisUpdate {
 }
 
 export interface NotificationPayload {
-  type: 'proposal_chance' | 'concern_detected' | 'achievement' | 'reminder';
+  type:
+    | 'proposal_chance'
+    | 'concern_detected'
+    | 'achievement'
+    | 'reminder'
+    // FR-304: 詳細アラート種別
+    | 'risk_warning'
+    | 'talk_ratio_alert'
+    | 'low_engagement_alert'
+    | 'emotion_negative_alert'
+    | 'question_shortage_alert'
+    | 'long_silence_alert'
+    | 'proposal_missed_alert';
   title: string;
   message: string;
   recommendedProduct?: string;
   approachText?: string;
   concernKeywords?: string[];
+  successTalk?: string;
+  severity?: 'info' | 'warning' | 'critical';
+  data?: Record<string, unknown>;
 }
 
 export type RealtimeEventListener = (event: RealtimeEvent) => void;
@@ -127,8 +142,16 @@ export class RealtimeService {
       });
     });
 
+    // FR-304: Listen for alert events (detailed alert types)
+    this.channel.on('broadcast', { event: 'alert' }, (payload) => {
+      this.emit({
+        type: 'notification',
+        payload: payload.payload as NotificationPayload,
+      });
+    });
+
     // Subscribe to the channel
-    const status = await this.channel.subscribe((status) => {
+    await this.channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         this.isConnected = true;
         this.emit({ type: 'connected' });

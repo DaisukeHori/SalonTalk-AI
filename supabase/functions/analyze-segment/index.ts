@@ -21,9 +21,9 @@ interface TranscriptSegment {
   session_id: string;
   chunk_index: number;
   text: string;
-  start_time_ms: number;
-  end_time_ms: number;
-  confidence: number;
+  start_time: number;  // seconds (NUMERIC from DB)
+  end_time: number;    // seconds (NUMERIC from DB)
+  confidence?: number;
   created_at: string;
 }
 
@@ -142,6 +142,7 @@ const ANALYSIS_SYSTEM_PROMPT = `あなたは美容室の接客会話を分析す
 
 /**
  * Merge transcript segments with speaker diarization results
+ * Note: transcripts use seconds (NUMERIC), speaker_segments use milliseconds (INTEGER)
  */
 function mergeSegments(
   transcripts: TranscriptSegment[],
@@ -150,11 +151,15 @@ function mergeSegments(
   const merged: MergedSegment[] = [];
 
   for (const transcript of transcripts) {
-    // Find overlapping speaker segment
+    // Convert transcript time from seconds to milliseconds for comparison
+    const transcriptStartMs = Math.round(Number(transcript.start_time) * 1000);
+    const transcriptEndMs = Math.round(Number(transcript.end_time) * 1000);
+
+    // Find overlapping speaker segment (speaker_segments uses milliseconds)
     const speakerSegment = speakers.find(
       (s) =>
-        s.start_time_ms <= transcript.start_time_ms &&
-        s.end_time_ms >= transcript.end_time_ms
+        s.start_time_ms <= transcriptStartMs &&
+        s.end_time_ms >= transcriptEndMs
     );
 
     // Use speaker role from speaker_segments table (already mapped to 'stylist'/'customer')
@@ -166,9 +171,9 @@ function mergeSegments(
     merged.push({
       speaker: role,
       text: transcript.text,
-      startTimeMs: transcript.start_time_ms,
-      endTimeMs: transcript.end_time_ms,
-      confidence: transcript.confidence,
+      startTimeMs: transcriptStartMs,
+      endTimeMs: transcriptEndMs,
+      confidence: transcript.confidence || 1.0,
     });
   }
 
@@ -224,12 +229,13 @@ serve(async (req: Request) => {
     }
 
     // Fetch transcripts for this chunk
+    // Note: transcripts table uses start_time/end_time in seconds (NUMERIC)
     const { data: transcripts, error: transcriptError } = await supabase
       .from('transcripts')
       .select('*')
       .eq('session_id', body.sessionId)
       .eq('chunk_index', body.chunkIndex)
-      .order('start_time_ms', { ascending: true });
+      .order('start_time', { ascending: true });
 
     if (transcriptError) {
       console.error('Failed to fetch transcripts:', transcriptError);
@@ -321,35 +327,91 @@ serve(async (req: Request) => {
       return errorResponse('AI_003', 'Failed to parse analysis result', 500);
     }
 
-    // Save analysis result to database
-    const { data: analysisRecord, error: insertError } = await supabase
-      .from('session_analyses')
-      .insert({
+    // Save analysis results to database - one row per indicator type (normalized schema)
+    const analysisRows = [
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'talk_ratio',
+        value: analysis.metrics.talkRatio.stylistRatio || 0,
+        score: analysis.metrics.talkRatio.score,
+        details: analysis.metrics.talkRatio,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'question_analysis',
+        value: analysis.metrics.questionQuality.openCount || 0,
+        score: analysis.metrics.questionQuality.score,
+        details: analysis.metrics.questionQuality,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'emotion_analysis',
+        value: analysis.metrics.emotion.positiveRatio || 0,
+        score: analysis.metrics.emotion.score,
+        details: analysis.metrics.emotion,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'concern_keywords',
+        value: (analysis.metrics.concernKeywords.keywords?.length || 0),
+        score: analysis.metrics.concernKeywords.score,
+        details: analysis.metrics.concernKeywords,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'proposal_timing',
+        value: analysis.metrics.proposalTiming.timingMs || 0,
+        score: analysis.metrics.proposalTiming.score,
+        details: analysis.metrics.proposalTiming,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'proposal_quality',
+        value: analysis.metrics.proposalQuality.matchRate || 0,
+        score: analysis.metrics.proposalQuality.score,
+        details: analysis.metrics.proposalQuality,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'conversion',
+        value: analysis.metrics.conversion.isConverted ? 100 : 0,
+        score: analysis.metrics.conversion.score,
+        details: analysis.metrics.conversion,
+      },
+    ];
+
+    // Upsert each indicator (in case of reprocessing)
+    for (const row of analysisRows) {
+      const { error: insertError } = await supabase
+        .from('session_analyses')
+        .upsert(row, { onConflict: 'session_id,chunk_index,indicator_type' });
+
+      if (insertError) {
+        console.error(`Failed to save ${row.indicator_type} analysis:`, insertError);
+      }
+    }
+
+    // Also save to analysis_results for backwards compatibility
+    const { error: resultsError } = await supabase
+      .from('analysis_results')
+      .upsert({
         session_id: body.sessionId,
         chunk_index: body.chunkIndex,
         overall_score: analysis.overallScore,
-        talk_ratio_score: analysis.metrics.talkRatio.score,
-        talk_ratio_detail: analysis.metrics.talkRatio,
-        question_score: analysis.metrics.questionQuality.score,
-        question_detail: analysis.metrics.questionQuality,
-        emotion_score: analysis.metrics.emotion.score,
-        emotion_detail: analysis.metrics.emotion,
-        concern_keywords_score: analysis.metrics.concernKeywords.score,
-        concern_keywords_detail: analysis.metrics.concernKeywords,
-        proposal_timing_score: analysis.metrics.proposalTiming.score,
-        proposal_timing_detail: analysis.metrics.proposalTiming,
-        proposal_quality_score: analysis.metrics.proposalQuality.score,
-        proposal_quality_detail: analysis.metrics.proposalQuality,
-        conversion_score: analysis.metrics.conversion.score,
-        conversion_detail: analysis.metrics.conversion,
+        metrics: analysis.metrics,
         suggestions: analysis.suggestions,
         highlights: analysis.highlights,
-      })
-      .select()
-      .single();
+      }, { onConflict: 'session_id,chunk_index' });
 
-    if (insertError) {
-      console.error('Failed to save analysis:', insertError);
+    if (resultsError) {
+      console.error('Failed to save analysis_results:', resultsError);
     }
 
     // Broadcast score update via realtime
