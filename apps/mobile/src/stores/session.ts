@@ -1,9 +1,19 @@
 import { create } from 'zustand';
-import type { Session, SpeakerSegment, AnalysisResult } from '@salontalk/shared';
+import type { SpeakerSegment, AnalysisResult } from '@salontalk/shared';
+
+/**
+ * Current session info (subset of full Session entity, plus realtime channel)
+ */
+export interface CurrentSession {
+  id: string;
+  status: string;
+  startedAt: Date;
+  realtimeChannel: string;
+}
 
 interface SessionState {
   // Current session
-  currentSession: Session | null;
+  currentSession: CurrentSession | null;
   isRecording: boolean;
   elapsedTimeMs: number;
 
@@ -16,7 +26,7 @@ interface SessionState {
   talkRatio: { stylist: number; customer: number } | null;
 
   // Actions
-  startSession: (session: Session) => void;
+  startSession: (session: CurrentSession) => void;
   endSession: () => void;
   updateElapsedTime: (ms: number) => void;
   addSegment: (segment: SpeakerSegment) => void;
@@ -26,7 +36,7 @@ interface SessionState {
   reset: () => void;
 
   // Direct setters
-  setCurrentSession: (session: Session | null) => void;
+  setCurrentSession: (session: CurrentSession | null) => void;
   setIsRecording: (isRecording: boolean) => void;
   setCurrentScore: (score: number | null) => void;
   setTalkRatio: (talkRatio: { stylist: number; customer: number } | null) => void;
@@ -41,7 +51,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   currentScore: null,
   talkRatio: null,
 
-  startSession: (session: Session) => {
+  startSession: (session: CurrentSession) => {
     set({
       currentSession: session,
       isRecording: true,
