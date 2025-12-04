@@ -34,8 +34,8 @@ serve(async (req: Request) => {
       return errorResponse('VAL_001', 'token is required', 400);
     }
 
-    if (!body.platform || !['ios', 'android'].includes(body.platform)) {
-      return errorResponse('VAL_001', 'platform must be ios or android', 400);
+    if (!body.platform || !['ios', 'android', 'web'].includes(body.platform)) {
+      return errorResponse('VAL_001', 'platform must be ios, android, or web', 400);
     }
 
     // Validate Expo push token format
