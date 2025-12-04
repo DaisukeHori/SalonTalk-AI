@@ -131,13 +131,22 @@ export default function DashboardPage() {
       // Get unique active staff
       const activeStaffIds = new Set(sessions?.map((s: any) => s.stylist_id));
 
+      // Calculate yesterday's session count for comparison
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdaySessions = sessions?.filter((s: any) => {
+        const sessionDate = new Date(s.started_at);
+        return sessionDate >= yesterday && sessionDate < today;
+      }) || [];
+      const sessionChange = todaySessions.length - yesterdaySessions.length;
+
       setStats({
         todaySessions: todaySessions.length,
         avgScore,
-        conversionRate: 58, // Would need conversion tracking
+        conversionRate: 0, // Would need conversion tracking
         activeStaff: activeStaffIds.size,
-        sessionChange: 3, // Would need to compare with yesterday
-        scoreChange: 5, // Would need to compare with previous period
+        sessionChange,
+        scoreChange: 0, // Would need historical comparison
       });
 
       // Calculate weekly scores by day
@@ -227,10 +236,20 @@ export default function DashboardPage() {
   }
 
   const statCards = [
-    { label: '本日のセッション', value: stats.todaySessions.toString(), change: `+${stats.sessionChange}`, positive: true },
-    { label: '平均スコア', value: stats.avgScore.toString(), change: `+${stats.scoreChange}`, positive: true },
-    { label: '成約率', value: `${stats.conversionRate}%`, change: '+8%', positive: true },
-    { label: 'アクティブスタッフ', value: stats.activeStaff.toString(), change: '0', positive: null },
+    {
+      label: '本日のセッション',
+      value: stats.todaySessions.toString(),
+      change: stats.sessionChange !== 0 ? `${stats.sessionChange > 0 ? '+' : ''}${stats.sessionChange}` : '',
+      positive: stats.sessionChange >= 0
+    },
+    {
+      label: '平均スコア',
+      value: stats.avgScore.toString(),
+      change: stats.scoreChange !== 0 ? `${stats.scoreChange > 0 ? '+' : ''}${stats.scoreChange}` : '',
+      positive: stats.scoreChange >= 0
+    },
+    { label: '成約率', value: `${stats.conversionRate}%`, change: '', positive: null },
+    { label: 'アクティブスタッフ', value: stats.activeStaff.toString(), change: '', positive: null },
   ];
 
   return (
@@ -247,7 +266,7 @@ export default function DashboardPage() {
             <p className="text-gray-500 text-sm">{stat.label}</p>
             <div className="flex items-end mt-2">
               <span className="text-3xl font-bold text-gray-800">{stat.value}</span>
-              {stat.change !== '0' && stat.positive !== null && (
+              {stat.change && stat.positive !== null && (
                 <span
                   className={`ml-2 text-sm ${
                     stat.positive ? 'text-green-600' : 'text-red-600'

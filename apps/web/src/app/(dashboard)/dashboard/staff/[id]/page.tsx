@@ -145,8 +145,8 @@ export default function StaffDetailPage() {
       setStats({
         totalSessions: (sessionData || []).length,
         avgScore,
-        conversionRate: Math.round(Math.random() * 30 + 40), // Placeholder
-        monthlyGrowth: 5, // Placeholder
+        conversionRate: 0, // Would need conversion tracking
+        monthlyGrowth: 0, // Would need historical comparison
       });
 
       // Calculate performance trend (last 7 days)

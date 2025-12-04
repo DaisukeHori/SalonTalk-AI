@@ -95,7 +95,7 @@ export default function StaffPage() {
             ...s,
             sessionCount,
             avgScore,
-            conversionRate: Math.round(Math.random() * 30 + 40), // Placeholder - would need conversion tracking
+            conversionRate: 0, // Would need conversion tracking
           };
         })
       );
