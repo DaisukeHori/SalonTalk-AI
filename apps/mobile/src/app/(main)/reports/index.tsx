@@ -7,7 +7,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { Header, LoadingScreen } from '@/components/common';
 import { ReportCard } from '@/components/report';
-import { apiService } from '@/services';
+import { getSupabaseClient } from '@/lib/supabase';
+import { useAuthStore } from '@/stores/auth';
 
 interface Report {
   id: string;
@@ -24,6 +25,7 @@ interface Report {
 
 export default function ReportsListScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const [reports, setReports] = useState<Report[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -31,8 +33,53 @@ export default function ReportsListScreen() {
 
   const fetchReports = useCallback(async () => {
     try {
-      const data = await apiService.getReports();
-      setReports(data);
+      const supabase = getSupabaseClient();
+
+      // Fetch sessions with reports for current user
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('sessions')
+        .select(`
+          id,
+          started_at,
+          ended_at,
+          customer_info,
+          session_reports (
+            id,
+            overall_score,
+            created_at
+          )
+        `)
+        .eq('stylist_id', user?.id)
+        .eq('status', 'completed')
+        .order('started_at', { ascending: false })
+        .limit(50);
+
+      if (sessionsError) throw sessionsError;
+
+      const formattedReports: Report[] = (sessions || [])
+        .filter((s: any) => s.session_reports)
+        .map((s: any) => {
+          const startDate = new Date(s.started_at);
+          const endDate = s.ended_at ? new Date(s.ended_at) : null;
+          const durationMins = endDate
+            ? Math.round((endDate.getTime() - startDate.getTime()) / 1000 / 60)
+            : 0;
+
+          return {
+            id: s.session_reports.id,
+            sessionId: s.id,
+            createdAt: s.session_reports.created_at || s.started_at,
+            overallScore: s.session_reports.overall_score || 0,
+            isConverted: false, // Would need conversion tracking
+            durationMinutes: durationMins,
+            customerInfo: s.customer_info ? {
+              ageGroup: s.customer_info.ageGroup,
+              visitType: s.customer_info.visitFrequency === 'first' ? 'new' : 'repeat',
+            } : undefined,
+          };
+        });
+
+      setReports(formattedReports);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'レポートの取得に失敗しました');
@@ -40,7 +87,7 @@ export default function ReportsListScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     fetchReports();

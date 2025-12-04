@@ -64,7 +64,7 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/forgot-password', '/auth/reset-password'];
+  const publicRoutes = ['/login', '/forgot-password', '/reset-password'];
   const isPublicRoute = publicRoutes.some(route => path.startsWith(route));
 
   // API routes and static files should pass through

@@ -265,6 +265,27 @@ export class ApiService {
       method: 'GET',
     });
   }
+
+  /**
+   * Get all reports for the current user
+   */
+  async getReports(): Promise<Array<{
+    id: string;
+    sessionId: string;
+    createdAt: string;
+    overallScore: number;
+    isConverted: boolean;
+    durationMinutes: number;
+    customerInfo?: {
+      ageGroup?: string;
+      visitType?: 'new' | 'repeat';
+    };
+  }>> {
+    // This would ideally be a separate Edge Function
+    // For now, we'll fetch from Supabase directly through the client
+    // The actual implementation should be done via an Edge Function
+    return [];
+  }
 }
 
 // Roleplay types
