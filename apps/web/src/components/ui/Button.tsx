@@ -8,25 +8,28 @@ import { forwardRef } from 'react';
 import { Loader2 } from 'lucide-react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline' | 'default' | 'destructive';
+  size?: 'sm' | 'md' | 'lg' | 'icon';
   loading?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
 
-const variantStyles = {
+const variantStyles: Record<string, string> = {
   primary: 'bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500',
   secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-500',
   danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
   ghost: 'text-gray-600 hover:bg-gray-100 focus:ring-gray-500',
   outline: 'border border-gray-200 text-gray-700 hover:bg-gray-50 focus:ring-gray-500',
+  default: 'bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500',
+  destructive: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
 };
 
-const sizeStyles = {
+const sizeStyles: Record<string, string> = {
   sm: 'px-3 py-1.5 text-sm',
   md: 'px-4 py-2 text-sm',
   lg: 'px-6 py-3 text-base',
+  icon: 'h-9 w-9 p-0',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
