@@ -99,7 +99,7 @@ export default function ReportsListScreen() {
   }, [fetchReports]);
 
   const handleReportPress = useCallback((reportId: string) => {
-    router.push(`/report/${reportId}`);
+    router.push(`/reports/${reportId}`);
   }, [router]);
 
   if (isLoading) {

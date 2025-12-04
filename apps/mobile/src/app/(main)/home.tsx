@@ -201,7 +201,7 @@ export default function HomeScreen() {
           recentSessions.map((session) => (
             <Pressable
               key={session.id}
-              onPress={() => router.push(`/(main)/report/${session.id}`)}
+              onPress={() => router.push(`/(main)/reports/${session.id}`)}
               className="bg-white rounded-xl p-4 mb-3 flex-row items-center"
             >
               <View className="w-12 h-12 bg-primary-100 rounded-full items-center justify-center">

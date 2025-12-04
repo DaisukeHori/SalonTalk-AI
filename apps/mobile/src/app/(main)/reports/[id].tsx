@@ -206,7 +206,7 @@ export default function ReportDetailScreen() {
       <View className="p-6">
         {/* Strengths */}
         <View className="bg-green-50 rounded-xl p-4 mb-6">
-          <Text className="text-green-800 font-bold text-lg mb-3">💪 良かった点</Text>
+          <Text className="text-green-800 font-bold text-lg mb-3">良かった点</Text>
           {report.strengths.map((strength, index) => (
             <View key={index} className="flex-row mb-2">
               <Text className="text-green-600 mr-2">✓</Text>
@@ -217,7 +217,7 @@ export default function ReportDetailScreen() {
 
         {/* Improvements */}
         <View className="bg-orange-50 rounded-xl p-4 mb-6">
-          <Text className="text-orange-800 font-bold text-lg mb-3">📝 改善ポイント</Text>
+          <Text className="text-orange-800 font-bold text-lg mb-3">改善ポイント</Text>
           {report.improvements.map((improvement, index) => (
             <View key={index} className="flex-row mb-2">
               <Text className="text-orange-600 mr-2">•</Text>
@@ -340,7 +340,7 @@ export default function ReportDetailScreen() {
             className="bg-primary-600 rounded-xl p-4 mb-3"
           >
             <Text className="text-white text-center font-bold text-lg">
-              🎯 トレーニングで練習する
+              トレーニングで練習する
             </Text>
           </Pressable>
           <Pressable onPress={() => router.back()} className="bg-gray-200 rounded-xl p-4">
