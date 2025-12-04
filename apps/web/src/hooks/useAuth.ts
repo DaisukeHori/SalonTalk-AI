@@ -2,16 +2,21 @@
 
 /**
  * useAuth Hook
- * 認証フック
+ * 認証フック - Supabase Authを使用
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  getSupabaseBrowserClient,
+  signInWithEmail,
+  signOut as supabaseSignOut,
+} from '@/lib/supabase/client';
 
 interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'manager' | 'staff';
+  role: string;
   salonId: string;
   salonName: string;
   avatarUrl?: string;
@@ -27,7 +32,6 @@ interface UseAuthReturn extends AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
-  updateProfile: (data: Partial<User>) => Promise<void>;
 }
 
 export function useAuth(): UseAuthReturn {
@@ -40,14 +44,50 @@ export function useAuth(): UseAuthReturn {
 
   const fetchUser = useCallback(async () => {
     try {
-      // In a real implementation, this would call the Supabase auth API
-      const response = await fetch('/api/auth/me');
-      if (response.ok) {
-        const user = await response.json();
-        setState({ user, loading: false, error: null });
-      } else {
+      const supabase = getSupabaseBrowserClient();
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !authUser) {
         setState({ user: null, loading: false, error: null });
+        return;
       }
+
+      // Fetch staff and salon info
+      const { data: staff, error: staffError } = await supabase
+        .from('staffs')
+        .select(`
+          id,
+          name,
+          email,
+          role,
+          avatar_url,
+          salon_id,
+          salons (
+            id,
+            name
+          )
+        `)
+        .eq('id', authUser.id)
+        .single();
+
+      if (staffError || !staff) {
+        setState({ user: null, loading: false, error: 'スタッフ情報の取得に失敗しました' });
+        return;
+      }
+
+      setState({
+        user: {
+          id: staff.id,
+          email: staff.email,
+          name: staff.name,
+          role: staff.role,
+          salonId: staff.salon_id,
+          salonName: (staff.salons as any)?.name || '',
+          avatarUrl: staff.avatar_url || undefined,
+        },
+        loading: false,
+        error: null,
+      });
     } catch (error) {
       setState({ user: null, loading: false, error: 'セッション取得に失敗しました' });
     }
@@ -55,24 +95,32 @@ export function useAuth(): UseAuthReturn {
 
   useEffect(() => {
     fetchUser();
+
+    // Subscribe to auth changes
+    const supabase = getSupabaseBrowserClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        fetchUser();
+      } else if (event === 'SIGNED_OUT') {
+        setState({ user: null, loading: false, error: null });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [fetchUser]);
 
   const signIn = async (email: string, password: string) => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const { error } = await signInWithEmail(email, password);
 
-      if (!response.ok) {
-        const error = await response.json();
+      if (error) {
         throw new Error(error.message || 'ログインに失敗しました');
       }
 
-      const user = await response.json();
-      setState({ user, loading: false, error: null });
+      await fetchUser();
       router.push('/dashboard');
     } catch (error) {
       setState((prev) => ({
@@ -86,7 +134,7 @@ export function useAuth(): UseAuthReturn {
   const signOut = async () => {
     setState((prev) => ({ ...prev, loading: true }));
     try {
-      await fetch('/api/auth/signout', { method: 'POST' });
+      await supabaseSignOut();
       setState({ user: null, loading: false, error: null });
       router.push('/login');
     } catch (error) {
@@ -102,38 +150,11 @@ export function useAuth(): UseAuthReturn {
     await fetchUser();
   };
 
-  const updateProfile = async (data: Partial<User>) => {
-    if (!state.user) return;
-
-    setState((prev) => ({ ...prev, loading: true }));
-    try {
-      const response = await fetch('/api/auth/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        throw new Error('プロフィール更新に失敗しました');
-      }
-
-      const updatedUser = await response.json();
-      setState({ user: updatedUser, loading: false, error: null });
-    } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        error: error instanceof Error ? error.message : 'プロフィール更新に失敗しました',
-      }));
-    }
-  };
-
   return {
     ...state,
     signIn,
     signOut,
     refreshSession,
-    updateProfile,
   };
 }
 
