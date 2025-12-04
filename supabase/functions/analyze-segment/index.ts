@@ -321,35 +321,91 @@ serve(async (req: Request) => {
       return errorResponse('AI_003', 'Failed to parse analysis result', 500);
     }
 
-    // Save analysis result to database
-    const { data: analysisRecord, error: insertError } = await supabase
-      .from('session_analyses')
-      .insert({
+    // Save analysis results to database - one row per indicator type (normalized schema)
+    const analysisRows = [
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'talk_ratio',
+        value: analysis.metrics.talkRatio.stylistRatio || 0,
+        score: analysis.metrics.talkRatio.score,
+        details: analysis.metrics.talkRatio,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'question_analysis',
+        value: analysis.metrics.questionQuality.openCount || 0,
+        score: analysis.metrics.questionQuality.score,
+        details: analysis.metrics.questionQuality,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'emotion_analysis',
+        value: analysis.metrics.emotion.positiveRatio || 0,
+        score: analysis.metrics.emotion.score,
+        details: analysis.metrics.emotion,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'concern_keywords',
+        value: (analysis.metrics.concernKeywords.keywords?.length || 0),
+        score: analysis.metrics.concernKeywords.score,
+        details: analysis.metrics.concernKeywords,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'proposal_timing',
+        value: analysis.metrics.proposalTiming.timingMs || 0,
+        score: analysis.metrics.proposalTiming.score,
+        details: analysis.metrics.proposalTiming,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'proposal_quality',
+        value: analysis.metrics.proposalQuality.matchRate || 0,
+        score: analysis.metrics.proposalQuality.score,
+        details: analysis.metrics.proposalQuality,
+      },
+      {
+        session_id: body.sessionId,
+        chunk_index: body.chunkIndex,
+        indicator_type: 'conversion',
+        value: analysis.metrics.conversion.isConverted ? 100 : 0,
+        score: analysis.metrics.conversion.score,
+        details: analysis.metrics.conversion,
+      },
+    ];
+
+    // Upsert each indicator (in case of reprocessing)
+    for (const row of analysisRows) {
+      const { error: insertError } = await supabase
+        .from('session_analyses')
+        .upsert(row, { onConflict: 'session_id,chunk_index,indicator_type' });
+
+      if (insertError) {
+        console.error(`Failed to save ${row.indicator_type} analysis:`, insertError);
+      }
+    }
+
+    // Also save to analysis_results for backwards compatibility
+    const { error: resultsError } = await supabase
+      .from('analysis_results')
+      .upsert({
         session_id: body.sessionId,
         chunk_index: body.chunkIndex,
         overall_score: analysis.overallScore,
-        talk_ratio_score: analysis.metrics.talkRatio.score,
-        talk_ratio_detail: analysis.metrics.talkRatio,
-        question_score: analysis.metrics.questionQuality.score,
-        question_detail: analysis.metrics.questionQuality,
-        emotion_score: analysis.metrics.emotion.score,
-        emotion_detail: analysis.metrics.emotion,
-        concern_keywords_score: analysis.metrics.concernKeywords.score,
-        concern_keywords_detail: analysis.metrics.concernKeywords,
-        proposal_timing_score: analysis.metrics.proposalTiming.score,
-        proposal_timing_detail: analysis.metrics.proposalTiming,
-        proposal_quality_score: analysis.metrics.proposalQuality.score,
-        proposal_quality_detail: analysis.metrics.proposalQuality,
-        conversion_score: analysis.metrics.conversion.score,
-        conversion_detail: analysis.metrics.conversion,
+        metrics: analysis.metrics,
         suggestions: analysis.suggestions,
         highlights: analysis.highlights,
-      })
-      .select()
-      .single();
+      }, { onConflict: 'session_id,chunk_index' });
 
-    if (insertError) {
-      console.error('Failed to save analysis:', insertError);
+    if (resultsError) {
+      console.error('Failed to save analysis_results:', resultsError);
     }
 
     // Broadcast score update via realtime
