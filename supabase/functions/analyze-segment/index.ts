@@ -21,9 +21,9 @@ interface TranscriptSegment {
   session_id: string;
   chunk_index: number;
   text: string;
-  start_time_ms: number;
-  end_time_ms: number;
-  confidence: number;
+  start_time: number;  // seconds (NUMERIC from DB)
+  end_time: number;    // seconds (NUMERIC from DB)
+  confidence?: number;
   created_at: string;
 }
 
@@ -142,6 +142,7 @@ const ANALYSIS_SYSTEM_PROMPT = `あなたは美容室の接客会話を分析す
 
 /**
  * Merge transcript segments with speaker diarization results
+ * Note: transcripts use seconds (NUMERIC), speaker_segments use milliseconds (INTEGER)
  */
 function mergeSegments(
   transcripts: TranscriptSegment[],
@@ -150,11 +151,15 @@ function mergeSegments(
   const merged: MergedSegment[] = [];
 
   for (const transcript of transcripts) {
-    // Find overlapping speaker segment
+    // Convert transcript time from seconds to milliseconds for comparison
+    const transcriptStartMs = Math.round(Number(transcript.start_time) * 1000);
+    const transcriptEndMs = Math.round(Number(transcript.end_time) * 1000);
+
+    // Find overlapping speaker segment (speaker_segments uses milliseconds)
     const speakerSegment = speakers.find(
       (s) =>
-        s.start_time_ms <= transcript.start_time_ms &&
-        s.end_time_ms >= transcript.end_time_ms
+        s.start_time_ms <= transcriptStartMs &&
+        s.end_time_ms >= transcriptEndMs
     );
 
     // Use speaker role from speaker_segments table (already mapped to 'stylist'/'customer')
@@ -166,9 +171,9 @@ function mergeSegments(
     merged.push({
       speaker: role,
       text: transcript.text,
-      startTimeMs: transcript.start_time_ms,
-      endTimeMs: transcript.end_time_ms,
-      confidence: transcript.confidence,
+      startTimeMs: transcriptStartMs,
+      endTimeMs: transcriptEndMs,
+      confidence: transcript.confidence || 1.0,
     });
   }
 
@@ -224,12 +229,13 @@ serve(async (req: Request) => {
     }
 
     // Fetch transcripts for this chunk
+    // Note: transcripts table uses start_time/end_time in seconds (NUMERIC)
     const { data: transcripts, error: transcriptError } = await supabase
       .from('transcripts')
       .select('*')
       .eq('session_id', body.sessionId)
       .eq('chunk_index', body.chunkIndex)
-      .order('start_time_ms', { ascending: true });
+      .order('start_time', { ascending: true });
 
     if (transcriptError) {
       console.error('Failed to fetch transcripts:', transcriptError);
