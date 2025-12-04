@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signInWithEmail } from '@/lib/supabase/client';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,10 +17,22 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // TODO: Implement actual Supabase auth
-      // For now, mock login
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      router.replace('/dashboard');
+      const { data, error: authError } = await signInWithEmail(email, password);
+
+      if (authError) {
+        if (authError.message.includes('Invalid login credentials')) {
+          setError('メールアドレスまたはパスワードが正しくありません');
+        } else if (authError.message.includes('Email not confirmed')) {
+          setError('メールアドレスが確認されていません');
+        } else {
+          setError(authError.message);
+        }
+        return;
+      }
+
+      if (data.session) {
+        router.replace('/dashboard');
+      }
     } catch (err) {
       setError('ログインに失敗しました');
     } finally {
@@ -84,7 +97,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6 text-center">
-          <a href="#" className="text-sm text-primary-600 hover:underline">
+          <a href="/forgot-password" className="text-sm text-primary-600 hover:underline">
             パスワードをお忘れですか？
           </a>
         </div>

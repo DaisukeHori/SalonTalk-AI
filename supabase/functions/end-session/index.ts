@@ -67,8 +67,23 @@ serve(async (req: Request) => {
       return errorResponse('DB_002', 'Failed to end session', 500);
     }
 
-    // TODO: Trigger final analysis and report generation
-    // This would be done via pg_net or another Edge Function call
+    // Trigger report generation asynchronously
+    const generateReportUrl = Deno.env.get('SUPABASE_URL') + '/functions/v1/generate-report';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    // Fire and forget - don't wait for report generation
+    fetch(generateReportUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({
+        sessionId: body.sessionId,
+      }),
+    }).catch((err) => {
+      console.error('Failed to trigger report generation:', err);
+    });
 
     return jsonResponse({
       sessionId: updatedSession.id,

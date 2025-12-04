@@ -23,6 +23,7 @@ import {
   User,
   Calendar,
 } from 'lucide-react';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface MetricData {
   score: number;
@@ -190,101 +191,117 @@ export default function SessionDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // TODO: Fetch session data from API
-    // Mock data for now
-    setSession({
-      id: params.id as string,
-      stylistName: '山田太郎',
-      stylistId: 'staff-1',
-      startedAt: '2024-12-04T14:00:00Z',
-      endedAt: '2024-12-04T14:45:00Z',
-      duration: 45,
-      status: 'completed',
-      customerInfo: {
-        ageGroup: '30代',
-        gender: '女性',
-        visitType: 'リピーター',
-      },
-      overallScore: 78,
-      metrics: {
-        talkRatio: {
-          score: 85,
-          stylistRatio: 42,
-          customerRatio: 58,
-          details: '美容師42%・お客様58%と理想的な比率です',
-        },
-        questionQuality: {
-          score: 70,
-          openCount: 6,
-          closedCount: 4,
-          details: 'オープン質問6回・クローズド質問4回',
-        },
-        emotion: {
-          score: 82,
-          positiveRatio: 75,
-          details: 'お客様のポジティブな反応が75%',
-        },
-        concernKeywords: {
-          score: 90,
-          keywords: ['乾燥', 'パサつき', '広がり'],
-          details: '3つの悩みキーワードを検出',
-        },
-        proposalTiming: {
-          score: 75,
-          details: '悩み検出から4分後に提案',
-        },
-        proposalQuality: {
-          score: 80,
-          matchRate: 85,
-          details: '悩みに対応した商品提案ができています',
-        },
-        conversion: {
-          score: 0,
-          isConverted: false,
-          details: '今回は成約に至りませんでした',
-        },
-      },
-      transcript: [
-        { speaker: 'stylist', text: '今日はどのようにされますか？', timestamp: 0 },
-        { speaker: 'customer', text: 'いつも通りのカットでお願いします', timestamp: 5 },
-        {
-          speaker: 'stylist',
-          text: '最近、髪の調子はいかがですか？',
-          timestamp: 30,
-        },
-        {
-          speaker: 'customer',
-          text: '実は最近、髪の乾燥が気になっていて...',
-          timestamp: 45,
-        },
-        {
-          speaker: 'stylist',
-          text: 'どんな時に特に気になりますか？',
-          timestamp: 60,
-        },
-        {
-          speaker: 'customer',
-          text: '朝起きた時とか、パサパサしていて広がるんですよね',
-          timestamp: 75,
-        },
-        {
-          speaker: 'stylist',
-          text: 'なるほど、乾燥と広がりが気になるんですね。同じお悩みのお客様に人気のシャンプーがあるんですが...',
-          timestamp: 120,
-        },
-      ],
-      improvements: [
-        'オープン質問をもう少し増やしましょう',
-        '悩み検出から2-3分以内に提案するとより効果的です',
-        '価格への異議に対する切り返しを準備しておきましょう',
-      ],
-      strengths: [
-        'トーク比率が理想的で、お客様の話をしっかり聞けています',
-        '複数の悩みキーワードを引き出せています',
-        'お客様からポジティブな反応を得られています',
-      ],
-    });
-    setLoading(false);
+    async function fetchSessionData() {
+      if (!params.id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const supabase = getSupabaseBrowserClient();
+
+        // Fetch session with staff info
+        const { data: sessionData, error: sessionError } = await supabase
+          .from('sessions')
+          .select(`
+            *,
+            staffs (id, name)
+          `)
+          .eq('id', params.id)
+          .single();
+
+        if (sessionError || !sessionData) {
+          console.error('Failed to fetch session:', sessionError);
+          setLoading(false);
+          return;
+        }
+
+        // Fetch report for this session
+        const { data: reportData } = await supabase
+          .from('session_reports')
+          .select('*')
+          .eq('session_id', params.id)
+          .single();
+
+        // Fetch transcript segments
+        const { data: segments } = await supabase
+          .from('speaker_segments')
+          .select('*')
+          .eq('session_id', params.id)
+          .order('start_time_ms', { ascending: true });
+
+        const metrics = reportData?.metrics || {};
+        const customerInfo = sessionData.customer_info || {};
+        const durationMs = sessionData.total_duration_ms || 0;
+
+        setSession({
+          id: sessionData.id,
+          stylistName: sessionData.staffs?.name || '不明',
+          stylistId: sessionData.stylist_id,
+          startedAt: sessionData.started_at,
+          endedAt: sessionData.ended_at || sessionData.started_at,
+          duration: Math.round(durationMs / 60000),
+          status: sessionData.status as 'completed' | 'processing' | 'error',
+          customerInfo: {
+            ageGroup: customerInfo.age_group || '不明',
+            gender: customerInfo.gender === 'male' ? '男性' : customerInfo.gender === 'female' ? '女性' : '不明',
+            visitType: customerInfo.visit_frequency === 'first' ? '新規' : 'リピーター',
+          },
+          overallScore: reportData?.overall_score || 0,
+          metrics: {
+            talkRatio: {
+              score: metrics.talk_ratio?.score || 0,
+              stylistRatio: metrics.talk_ratio?.stylist_ratio || 50,
+              customerRatio: metrics.talk_ratio?.customer_ratio || 50,
+              details: metrics.talk_ratio?.details || '',
+            },
+            questionQuality: {
+              score: metrics.question_analysis?.score || 0,
+              openCount: metrics.question_analysis?.open_count || 0,
+              closedCount: metrics.question_analysis?.closed_count || 0,
+              details: metrics.question_analysis?.details || '',
+            },
+            emotion: {
+              score: metrics.emotion_analysis?.score || 0,
+              positiveRatio: metrics.emotion_analysis?.positive_ratio || 0,
+              details: metrics.emotion_analysis?.details || '',
+            },
+            concernKeywords: {
+              score: metrics.concern_keywords?.score || 0,
+              keywords: metrics.concern_keywords?.keywords || [],
+              details: metrics.concern_keywords?.details || '',
+            },
+            proposalTiming: {
+              score: metrics.proposal_timing?.score || 0,
+              details: metrics.proposal_timing?.details || '',
+            },
+            proposalQuality: {
+              score: metrics.proposal_quality?.score || 0,
+              matchRate: metrics.proposal_quality?.match_rate || 0,
+              details: metrics.proposal_quality?.details || '',
+            },
+            conversion: {
+              score: metrics.conversion?.score || 0,
+              isConverted: metrics.conversion?.is_converted || false,
+              details: metrics.conversion?.details || '',
+            },
+          },
+          transcript: (segments || []).map((seg: any) => ({
+            speaker: seg.speaker as 'stylist' | 'customer',
+            text: seg.text,
+            timestamp: Math.round(seg.start_time_ms / 1000),
+          })),
+          improvements: reportData?.improvement_points || [],
+          strengths: reportData?.good_points || [],
+        });
+      } catch (error) {
+        console.error('Failed to fetch session data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchSessionData();
   }, [params.id]);
 
   if (loading) {

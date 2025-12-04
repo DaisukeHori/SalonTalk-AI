@@ -22,4 +22,11 @@ export type {
   EndSessionResponse,
   GenerateReportResponse,
   ApiError,
+  RoleplayMessage,
+  RoleplayChatRequest,
+  RoleplayChatResponse,
+  RoleplayEvaluation,
+  EvaluateRoleplayRequest,
+  RoleplayEvaluationResult,
+  ReportData,
 } from './ApiService';

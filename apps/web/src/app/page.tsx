@@ -1,16 +1,39 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getSession } from '@/lib/supabase/client';
 
 export default function Home() {
   const router = useRouter();
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // TODO: Check authentication status
-    // For now, redirect to login
-    router.replace('/login');
+    async function checkAuth() {
+      try {
+        const session = await getSession();
+
+        if (session) {
+          // User is authenticated, redirect to dashboard
+          router.replace('/dashboard');
+        } else {
+          // User is not authenticated, redirect to login
+          router.replace('/login');
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        router.replace('/login');
+      } finally {
+        setIsChecking(false);
+      }
+    }
+
+    checkAuth();
   }, [router]);
+
+  if (!isChecking) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center">

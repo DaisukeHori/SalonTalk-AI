@@ -236,6 +236,121 @@ export class ApiService {
       body: JSON.stringify({ sessionId, segments }),
     });
   }
+
+  /**
+   * Roleplay chat - get AI customer response
+   */
+  async roleplayChat(request: RoleplayChatRequest): Promise<RoleplayChatResponse> {
+    return this.request<RoleplayChatResponse>('roleplay-chat', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Evaluate roleplay session
+   */
+  async evaluateRoleplay(request: EvaluateRoleplayRequest): Promise<RoleplayEvaluationResult> {
+    return this.request<RoleplayEvaluationResult>('evaluate-roleplay', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Get report details
+   */
+  async getReport(sessionId: string): Promise<ReportData> {
+    return this.request<ReportData>(`get-report?sessionId=${sessionId}`, {
+      method: 'GET',
+    });
+  }
+}
+
+// Roleplay types
+export interface RoleplayMessage {
+  role: 'customer' | 'stylist';
+  content: string;
+  timestamp: string;
+}
+
+export interface RoleplayChatRequest {
+  scenarioId?: string;
+  sessionId?: string;
+  userMessage: string;
+  conversationHistory?: RoleplayMessage[];
+}
+
+export interface RoleplayChatResponse {
+  aiResponse: string;
+  hint: string | null;
+  isCompleted: boolean;
+  evaluation: RoleplayEvaluation | null;
+  messageCount: number;
+}
+
+export interface RoleplayEvaluation {
+  overallScore: number;
+  metrics: {
+    talkRatio?: { score: number; details: string };
+    questionQuality?: { score: number; details: string };
+    emotion?: { score: number; details: string };
+    proposalTiming?: { score: number; details: string };
+    proposalQuality?: { score: number; details: string };
+  };
+  feedback: string;
+  improvements: string[];
+  modelAnswer: string;
+}
+
+export interface EvaluateRoleplayRequest {
+  sessionId?: string;
+  scenarioId?: string;
+  messages: RoleplayMessage[];
+  objectives?: string[];
+}
+
+export interface RoleplayEvaluationResult {
+  overallScore: number;
+  metrics: {
+    empathy: { score: number; details: string };
+    productKnowledge: { score: number; details: string };
+    questioningSkill: { score: number; details: string };
+    objectionHandling: { score: number; details: string };
+    closingSkill: { score: number; details: string };
+  };
+  feedback: string;
+  improvements: string[];
+  strengths: string[];
+  modelAnswers: Array<{
+    situation: string;
+    stylistResponse: string;
+    modelAnswer: string;
+    reasoning: string;
+  }>;
+  sessionId?: string;
+  scenarioId?: string;
+  messageCount: number;
+  evaluatedAt: string;
+}
+
+export interface ReportData {
+  id: string;
+  sessionId: string;
+  summary: string;
+  overallScore: number;
+  metrics: {
+    talkRatio: { score: number; details: string; stylistRatio: number; customerRatio: number };
+    questionQuality: { score: number; details: string; openCount: number; closedCount: number };
+    emotion: { score: number; details: string; positiveRatio: number };
+    concernKeywords: { score: number; details: string; keywords: string[] };
+    proposalTiming: { score: number; details: string };
+    proposalQuality: { score: number; details: string; matchRate: number };
+    conversion: { score: number; details: string; isConverted: boolean };
+  };
+  improvements: string[];
+  strengths: string[];
+  generatedAt: string;
 }
 
 // Singleton instance

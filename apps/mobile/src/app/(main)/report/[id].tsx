@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface MetricScore {
   score: number;
@@ -94,65 +95,87 @@ export default function ReportDetailScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // TODO: Fetch report data from API
-    // Mock data for now
-    setReport({
-      id: id || '1',
-      sessionId: 'session-1',
-      summary:
-        'お客様の悩みをしっかり引き出し、適切な商品提案ができました。質問の質をさらに向上させることで、より高いスコアが期待できます。',
-      overallScore: 78,
-      metrics: {
-        talkRatio: {
-          score: 85,
-          stylistRatio: 42,
-          customerRatio: 58,
-          details: '美容師42%・お客様58%と理想的な比率です',
-        },
-        questionQuality: {
-          score: 70,
-          openCount: 6,
-          closedCount: 4,
-          details: 'オープン質問6回・クローズド質問4回。オープン質問をもう少し増やしましょう',
-        },
-        emotion: {
-          score: 82,
-          positiveRatio: 75,
-          details: 'お客様のポジティブな反応が75%と良好です',
-        },
-        concernKeywords: {
-          score: 90,
-          keywords: ['乾燥', 'パサつき', '広がり'],
-          details: '3つの悩みキーワードを検出。しっかりヒアリングできています',
-        },
-        proposalTiming: {
-          score: 75,
-          details: '悩み検出から4分後に提案。もう少し早めの提案を心がけましょう',
-        },
-        proposalQuality: {
-          score: 80,
-          matchRate: 85,
-          details: '悩みに対応した商品提案ができています',
-        },
-        conversion: {
-          score: 0,
-          isConverted: false,
-          details: '今回は成約に至りませんでした',
-        },
-      },
-      improvements: [
-        'オープン質問（「どのように〜」「何が〜」など）を増やしましょう',
-        '悩みを検出したら2-3分以内に提案するとより効果的です',
-        '価格への異議に対する切り返しを準備しておきましょう',
-      ],
-      strengths: [
-        'トーク比率が理想的で、お客様の話をしっかり聞けています',
-        '複数の悩みキーワードを引き出せています',
-        'お客様からポジティブな反応を得られています',
-      ],
-      generatedAt: new Date().toISOString(),
-    });
-    setLoading(false);
+    async function fetchReport() {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const supabase = getSupabaseClient();
+
+        // Fetch report from session_reports table
+        const { data: reportData, error } = await supabase
+          .from('session_reports')
+          .select('*')
+          .eq('session_id', id)
+          .single();
+
+        if (error) {
+          console.error('Failed to fetch report:', error);
+          setLoading(false);
+          return;
+        }
+
+        if (reportData) {
+          // Map database format to component format
+          const metrics = reportData.metrics || {};
+          setReport({
+            id: reportData.id,
+            sessionId: reportData.session_id,
+            summary: reportData.summary || '',
+            overallScore: reportData.overall_score || 0,
+            metrics: {
+              talkRatio: {
+                score: metrics.talk_ratio?.score || 0,
+                stylistRatio: metrics.talk_ratio?.stylist_ratio || 50,
+                customerRatio: metrics.talk_ratio?.customer_ratio || 50,
+                details: metrics.talk_ratio?.details || '',
+              },
+              questionQuality: {
+                score: metrics.question_analysis?.score || 0,
+                openCount: metrics.question_analysis?.open_count || 0,
+                closedCount: metrics.question_analysis?.closed_count || 0,
+                details: metrics.question_analysis?.details || '',
+              },
+              emotion: {
+                score: metrics.emotion_analysis?.score || 0,
+                positiveRatio: metrics.emotion_analysis?.positive_ratio || 0,
+                details: metrics.emotion_analysis?.details || '',
+              },
+              concernKeywords: {
+                score: metrics.concern_keywords?.score || 0,
+                keywords: metrics.concern_keywords?.keywords || [],
+                details: metrics.concern_keywords?.details || '',
+              },
+              proposalTiming: {
+                score: metrics.proposal_timing?.score || 0,
+                details: metrics.proposal_timing?.details || '',
+              },
+              proposalQuality: {
+                score: metrics.proposal_quality?.score || 0,
+                matchRate: metrics.proposal_quality?.match_rate || 0,
+                details: metrics.proposal_quality?.details || '',
+              },
+              conversion: {
+                score: metrics.conversion?.score || 0,
+                isConverted: metrics.conversion?.is_converted || false,
+                details: metrics.conversion?.details || '',
+              },
+            },
+            improvements: reportData.improvement_points || [],
+            strengths: reportData.good_points || [],
+            generatedAt: reportData.created_at,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch report:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchReport();
   }, [id]);
 
   if (loading) {

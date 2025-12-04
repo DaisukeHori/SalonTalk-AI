@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'expo-router';
+import { apiService, RoleplayMessage, RoleplayEvaluation } from '@/services';
 
 interface Message {
   role: 'customer' | 'stylist';
@@ -216,7 +217,7 @@ export default function TrainingScreen() {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!inputText.trim() || isLoading) return;
+    if (!inputText.trim() || isLoading || !selectedScenario) return;
 
     const userMessage: Message = {
       role: 'stylist',
@@ -230,52 +231,48 @@ export default function TrainingScreen() {
     setHint(null);
 
     try {
-      // TODO: Call roleplay-chat API
-      // Mock response for now
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Convert messages to API format
+      const conversationHistory: RoleplayMessage[] = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp.toISOString(),
+      }));
 
-      const mockResponses = [
-        'そうなんですね...でも、シャンプー変えても大丈夫かな。今使ってるのがあるので...',
-        '値段はいくらくらいですか？',
-        'そうですか...考えておきます。',
-        'なるほど、それは良さそうですね！',
-      ];
+      // Call roleplay-chat API
+      const response = await apiService.roleplayChat({
+        scenarioId: selectedScenario.id,
+        userMessage: inputText.trim(),
+        conversationHistory,
+      });
 
-      const isLastMessage = messages.length >= 6;
       const aiResponse: Message = {
         role: 'customer',
-        content: isLastMessage
-          ? 'なるほど、そこまで考えてくれているんですね。検討してみます！'
-          : mockResponses[Math.floor(Math.random() * mockResponses.length)],
+        content: response.aiResponse,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, aiResponse]);
 
-      // Show hint sometimes
-      if (Math.random() > 0.5 && !isLastMessage) {
-        setHint('お客様の不安に寄り添いながら、具体的なベネフィットを伝えてみましょう。');
+      // Show hint if provided
+      if (response.hint) {
+        setHint(response.hint);
       }
 
       // Show evaluation if conversation is complete
-      if (isLastMessage) {
+      if (response.isCompleted && response.evaluation) {
         setTimeout(() => {
           setEvaluation({
-            overallScore: 72,
-            feedback:
-              'お客様の悩みに対して適切な提案ができています。ただし、もう少し具体的な効果説明があると説得力が増します。',
-            improvements: [
-              'お客様の言葉を繰り返して共感を示す',
-              '具体的な使用感や効果を説明する',
-              '他のお客様の声を活用する',
-            ],
-            modelAnswer:
-              '同じ乾燥のお悩みをお持ちだったお客様から、「1週間で違いを感じた」というお声をいただいています。まずはサンプルをお試しになりませんか？',
+            overallScore: response.evaluation!.overallScore,
+            feedback: response.evaluation!.feedback,
+            improvements: response.evaluation!.improvements,
+            modelAnswer: response.evaluation!.modelAnswer,
           });
         }, 500);
       }
     } catch (error) {
       console.error('Failed to send message:', error);
+      // Show error to user
+      setHint('エラーが発生しました。もう一度お試しください。');
     } finally {
       setIsLoading(false);
     }
