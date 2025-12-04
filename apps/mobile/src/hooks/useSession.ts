@@ -54,10 +54,10 @@ export function useSession() {
         });
 
         // Connect to realtime channel
-        await realtimeService.connect(session.realtimeChannel);
+        await realtimeService.subscribeToSession(session.sessionId);
 
         // Start audio recording
-        await audioRecorderService.start();
+        await audioRecorderService.startRecording();
 
         // Start speech recognition
         await speechRecognitionService.start();
@@ -81,15 +81,15 @@ export function useSession() {
 
     try {
       // Stop recording
-      audioRecorderService.stop();
-      speechRecognitionService.stop();
+      await audioRecorderService.stopRecording();
+      await speechRecognitionService.stop();
       setIsRecording(false);
 
       // End session via API (report generation is triggered asynchronously)
       const response = await apiService.endSession({ sessionId: currentSession.id });
 
       // Disconnect realtime
-      realtimeService.disconnect();
+      await realtimeService.unsubscribe();
 
       // Reset session state
       reset();
@@ -103,9 +103,9 @@ export function useSession() {
 
   const cancelSession = useCallback(async () => {
     try {
-      audioRecorderService.stop();
-      speechRecognitionService.stop();
-      realtimeService.disconnect();
+      await audioRecorderService.stopRecording();
+      await speechRecognitionService.stop();
+      await realtimeService.unsubscribe();
       reset();
     } catch (error) {
       console.error('Failed to cancel session:', error);
