@@ -76,7 +76,15 @@ export type NotificationType =
   | 'proposal_chance'
   | 'concern_detected'
   | 'achievement'
-  | 'custom';
+  | 'custom'
+  // FR-304: 詳細アラート種別
+  | 'risk_warning'              // リスク警告（総合スコア低下）
+  | 'talk_ratio_alert'          // トーク比率アラート（話しすぎ警告）
+  | 'low_engagement_alert'      // 低エンゲージメント警告
+  | 'emotion_negative_alert'    // お客様ネガティブ反応警告
+  | 'question_shortage_alert'   // 質問不足警告
+  | 'long_silence_alert'        // 長時間沈黙警告
+  | 'proposal_missed_alert';    // 提案機会見逃し警告
 
 /**
  * 通知ステータス

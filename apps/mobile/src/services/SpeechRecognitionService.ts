@@ -2,11 +2,16 @@
  * SpeechRecognitionService
  * Handles on-device speech-to-text using expo-speech-recognition
  *
- * This service provides real-time transcription during recording sessions.
+ * This service provides real-time transcription during recording sessions
+ * using iOS SFSpeechRecognizer and Android SpeechRecognizer.
  */
 
-import * as Speech from 'expo-speech';
-import * as FileSystem from 'expo-file-system';
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+  getSpeechRecognitionPermissions,
+  requestSpeechRecognitionPermissions,
+} from 'expo-speech-recognition';
 
 export interface TranscriptSegment {
   text: string;
@@ -32,13 +37,8 @@ export type SpeechEvent =
   | { type: 'error'; error: Error };
 
 /**
- * Note: expo-speech is for text-to-speech, not speech recognition.
- * For production, you would need to use:
- * - iOS: SFSpeechRecognizer (native module)
- * - Android: SpeechRecognizer (native module)
- *
- * This service provides a mock implementation for development.
- * In production, integrate with native speech recognition APIs.
+ * SpeechRecognitionService
+ * Uses expo-speech-recognition for on-device speech-to-text
  */
 export class SpeechRecognitionService {
   private listeners: Set<SpeechEventListener> = new Set();
@@ -47,23 +47,31 @@ export class SpeechRecognitionService {
   private segments: TranscriptSegment[] = [];
   private isRunning = false;
   private startTime = 0;
+  private accumulatedText = '';
 
   /**
    * Check if speech recognition is available
    */
   async isAvailable(): Promise<boolean> {
-    // In production, check actual speech recognition availability
-    return true;
+    try {
+      const status = await getSpeechRecognitionPermissions();
+      return status.canAskAgain || status.granted;
+    } catch {
+      return false;
+    }
   }
 
   /**
    * Request speech recognition permission
    */
   async requestPermission(): Promise<boolean> {
-    // In production, request actual speech recognition permission
-    // iOS: SFSpeechRecognizer authorization
-    // Android: RECORD_AUDIO permission
-    return true;
+    try {
+      const result = await requestSpeechRecognitionPermissions();
+      return result.granted;
+    } catch (error) {
+      console.error('Failed to request speech recognition permission:', error);
+      return false;
+    }
   }
 
   /**
@@ -89,16 +97,41 @@ export class SpeechRecognitionService {
       return;
     }
 
+    const hasPermission = await this.requestPermission();
+    if (!hasPermission) {
+      throw new Error('Speech recognition permission not granted');
+    }
+
     this.isRunning = true;
     this.currentChunkIndex = 0;
     this.currentTranscript = '';
     this.segments = [];
     this.startTime = Date.now();
+    this.accumulatedText = '';
 
-    // In production, start actual speech recognition here
-    // For iOS: Start SFSpeechRecognizer session
-    // For Android: Start SpeechRecognizer
-    console.log('Speech recognition started (mock mode)');
+    try {
+      // Start continuous speech recognition
+      ExpoSpeechRecognitionModule.start({
+        lang: 'ja-JP', // Japanese
+        interimResults: true,
+        maxAlternatives: 1,
+        continuous: true,
+        requiresOnDeviceRecognition: true, // Force on-device processing
+        addsPunctuation: true,
+        contextualStrings: [
+          // Beauty salon related keywords for better recognition
+          'カット', 'カラー', 'パーマ', 'トリートメント',
+          'シャンプー', 'ブロー', 'セット',
+          '乾燥', 'パサつき', 'ダメージ', 'うねり', '広がり',
+          'ヘアケア', 'スタイリング', 'ヘアスタイル',
+        ],
+      });
+
+      console.log('Speech recognition started (on-device mode)');
+    } catch (error) {
+      this.isRunning = false;
+      throw error;
+    }
   }
 
   /**
@@ -111,34 +144,36 @@ export class SpeechRecognitionService {
 
     this.isRunning = false;
 
+    try {
+      ExpoSpeechRecognitionModule.stop();
+    } catch (error) {
+      console.error('Error stopping speech recognition:', error);
+    }
+
     // Finalize current chunk
     const chunk = this.finalizeChunk();
 
-    // In production, stop actual speech recognition here
-    console.log('Speech recognition stopped (mock mode)');
+    console.log('Speech recognition stopped');
 
     return chunk;
   }
 
   /**
    * Process audio chunk for transcription
-   * In production, this would send audio to the speech recognition engine
+   * This method is called when a new audio chunk is available
    */
   async processAudioChunk(audioUri: string, chunkIndex: number): Promise<TranscriptChunk> {
-    // In production, this would:
-    // 1. Read the audio file
-    // 2. Send to speech recognition engine
-    // 3. Wait for transcription results
+    // For continuous recognition, we return the accumulated text for this chunk
+    const chunkStartMs = chunkIndex * 60000;
+    const chunkEndMs = (chunkIndex + 1) * 60000;
 
-    // For now, return a mock transcription
-    // Replace this with actual speech recognition in production
-    const mockText = 'これはテスト用の文字起こしです。実際の実装では音声認識APIを使用します。';
+    // Get the current accumulated text for this chunk
+    const chunkText = this.accumulatedText || '';
 
-    const now = Date.now();
     const segment: TranscriptSegment = {
-      text: mockText,
-      startTimeMs: chunkIndex * 60000,
-      endTimeMs: (chunkIndex + 1) * 60000,
+      text: chunkText,
+      startTimeMs: chunkStartMs,
+      endTimeMs: chunkEndMs,
       confidence: 0.9,
       isFinal: true,
     };
@@ -147,15 +182,63 @@ export class SpeechRecognitionService {
 
     const chunk: TranscriptChunk = {
       chunkIndex,
-      text: mockText,
-      segments: [segment],
-      startTimeMs: chunkIndex * 60000,
-      endTimeMs: (chunkIndex + 1) * 60000,
+      text: chunkText,
+      segments: chunkText ? [segment] : [],
+      startTimeMs: chunkStartMs,
+      endTimeMs: chunkEndMs,
     };
 
     this.emit({ type: 'chunk_complete', chunk });
 
+    // Reset accumulated text for next chunk
+    this.accumulatedText = '';
+
     return chunk;
+  }
+
+  /**
+   * Handle recognition result from expo-speech-recognition
+   * This is called by the hook in the React component
+   */
+  handleRecognitionResult(result: {
+    results: Array<{
+      transcript: string;
+      confidence: number;
+      isFinal: boolean;
+    }>;
+  }): void {
+    if (!result.results || result.results.length === 0) {
+      return;
+    }
+
+    const topResult = result.results[0];
+    const now = Date.now();
+
+    const segment: TranscriptSegment = {
+      text: topResult.transcript,
+      startTimeMs: now - this.startTime - 1000,
+      endTimeMs: now - this.startTime,
+      confidence: topResult.confidence || 0.9,
+      isFinal: topResult.isFinal,
+    };
+
+    if (topResult.isFinal) {
+      this.segments.push(segment);
+      this.accumulatedText += (this.accumulatedText ? ' ' : '') + topResult.transcript;
+      this.currentTranscript = '';
+    } else {
+      this.currentTranscript = topResult.transcript;
+    }
+
+    this.emit({ type: 'transcript_update', transcript: segment });
+  }
+
+  /**
+   * Handle recognition error
+   */
+  handleRecognitionError(error: { error: string; message: string }): void {
+    console.error('Speech recognition error:', error);
+    this.emit({ type: 'error', error: new Error(error.message || error.error) });
   }
 
   /**
@@ -189,6 +272,7 @@ export class SpeechRecognitionService {
     };
 
     this.segments.push(segment);
+    this.accumulatedText += (this.accumulatedText ? ' ' : '') + text;
     this.currentTranscript = '';
     this.emit({ type: 'transcript_update', transcript: segment });
   }
@@ -222,7 +306,44 @@ export class SpeechRecognitionService {
   getIsRunning(): boolean {
     return this.isRunning;
   }
+
+  /**
+   * Get accumulated transcript text
+   */
+  getAccumulatedText(): string {
+    return this.accumulatedText;
+  }
 }
 
 // Singleton instance
 export const speechRecognitionService = new SpeechRecognitionService();
+
+/**
+ * React hook for speech recognition events
+ * Use this in your React component to handle speech recognition
+ */
+export function useSpeechRecognition() {
+  useSpeechRecognitionEvent('result', (event) => {
+    speechRecognitionService.handleRecognitionResult({
+      results: event.results.map((r) => ({
+        transcript: r.transcript,
+        confidence: r.confidence,
+        isFinal: r.isFinal,
+      })),
+    });
+  });
+
+  useSpeechRecognitionEvent('error', (event) => {
+    speechRecognitionService.handleRecognitionError({
+      error: event.error,
+      message: event.message,
+    });
+  });
+
+  useSpeechRecognitionEvent('end', () => {
+    // Recognition ended - could be due to silence or manual stop
+    console.log('Speech recognition ended');
+  });
+
+  return speechRecognitionService;
+}

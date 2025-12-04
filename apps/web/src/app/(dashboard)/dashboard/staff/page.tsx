@@ -129,13 +129,59 @@ export default function StaffPage() {
       return;
     }
 
-    // Note: In production, this would send an invitation email
-    // For now, we just create a placeholder staff record
-    // The actual user would need to sign up and link to this staff record
+    // FR-804: Call invite-staff edge function
+    try {
+      const session = await supabase.auth.getSession();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/invite-staff`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.data.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            displayName: formData.name,
+            role: formData.role,
+            salonId: currentStaff.salon_id,
+          }),
+        }
+      );
 
-    alert('スタッフ招待機能は現在準備中です。\n将来的にはメールで招待を送信できるようになります。');
-    setIsModalOpen(false);
-    setIsSubmitting(false);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error?.message || '招待の送信に失敗しました');
+      }
+
+      alert(`${formData.email} に招待メールを送信しました。\nスタッフがメールのリンクをクリックすると、アカウントが有効になります。`);
+
+      // Refresh staff list
+      const { data: newStaff } = await supabase
+        .from('staffs')
+        .select('*')
+        .eq('salon_id', currentStaff.salon_id)
+        .order('created_at', { ascending: false });
+
+      if (newStaff) {
+        setStaff(newStaff.map((s) => ({
+          ...s,
+          name: s.display_name || s.email,
+          sessionCount: 0,
+          avgScore: 0,
+          conversionRate: 0,
+        })));
+      }
+
+      setFormData({ name: '', email: '', role: 'stylist', position: '' });
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Invitation error:', error);
+      alert(error instanceof Error ? error.message : '招待の送信に失敗しました');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const toggleActiveStatus = async (staffId: string, currentStatus: boolean) => {

@@ -38,3 +38,32 @@ export {
 
 // Utils exports
 export * from './utils';
+
+// Errors exports (excludes ErrorCode to avoid conflict with constants)
+export {
+  ErrorCodes,
+  type ErrorDefinition,
+  getErrorDefinition,
+  isErrorCode,
+  AppError,
+  ValidationError,
+  AuthenticationError,
+  NotFoundError,
+  AIError,
+  DiarizationError,
+  DatabaseError,
+  NetworkError,
+  isRetryableError,
+  toAppError,
+  createErrorResponse,
+  handleClientError,
+  withErrorHandling,
+  reportError,
+  getGlobalErrorHandler,
+  setupGlobalErrorHandlers,
+  type ClientErrorResult,
+  withRetry,
+  withPresetRetry,
+  retryPresets,
+  type RetryOptions,
+} from './errors';
