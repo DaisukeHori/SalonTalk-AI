@@ -88,7 +88,7 @@ serve(async (req: Request) => {
           id: existingUser.id,
           salon_id: salonId,
           email: body.email,
-          display_name: body.displayName,
+          name: body.displayName, // staffs table uses 'name' column
           role: body.role,
           is_active: true,
         });
@@ -132,7 +132,7 @@ serve(async (req: Request) => {
         id: inviteData.user.id,
         salon_id: salonId,
         email: body.email,
-        display_name: body.displayName,
+        name: body.displayName, // staffs table uses 'name' column
         role: body.role,
         is_active: false, // Will be activated when user accepts invitation
       });
@@ -142,17 +142,8 @@ serve(async (req: Request) => {
       // Don't fail - the invitation was sent successfully
     }
 
-    // Log the invitation
-    await adminClient
-      .from('invitation_logs')
-      .insert({
-        invited_email: body.email,
-        invited_by: user.id,
-        salon_id: salonId,
-        role: body.role,
-        status: 'sent',
-      })
-      .catch((err) => console.error('Failed to log invitation:', err));
+    // Note: invitation_logs table not created yet - logging skipped
+    // Future: Create invitation_logs table for tracking invitations
 
     return jsonResponse({
       success: true,

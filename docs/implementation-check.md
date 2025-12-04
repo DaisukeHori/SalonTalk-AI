@@ -993,3 +993,77 @@ session_analyses テーブル (indicator_type + score + value + details)
 ---
 
 *最終更新: 2025-12-04 14周目完了（Edge Function追加修正）*
+
+---
+
+## 15周目確認結果 (2025-12-04)
+
+### 追加Edge Function整合性確認
+
+#### 🔴 `invite-staff/index.ts` の問題
+
+**発見内容**:
+1. `staffs` テーブルのカラム名が間違い: `display_name` → `name`
+2. `invitation_logs` テーブルが存在しない（マイグレーションになし）
+
+**修正内容**:
+```typescript
+// Before (誤)
+.insert({
+  display_name: body.displayName,
+})
+
+// After (正)
+.insert({
+  name: body.displayName, // staffs table uses 'name' column
+})
+```
+
+- `invitation_logs` への挿入コードを削除（テーブルが存在しないため）
+
+#### ✅ 正常なEdge Functions（15周目で確認）
+- `end-session/index.ts` - スキーマ正常
+- `send-notification/index.ts` - スキーマ正常
+- `register-push-token/index.ts` - スキーマ正常
+- `roleplay-chat/index.ts` - スキーマ正常
+- `search-success-cases/index.ts` - スキーマ正常
+- `create-session/index.ts` - スキーマ正常
+
+### 15周目検証結果: 追加の不整合を発見・修正 ✅
+
+---
+
+## 最終検証完了サマリー（15周目更新）
+
+### 検証ラウンド結果一覧
+| 周 | 検証内容 | 結果 |
+|----|---------|------|
+| 1-7周目 | 初期検証・機能実装確認 | 完了 |
+| 8周目 | DBカラム名整合性 | Salon型修正 |
+| 8周目 | 結合テスト作成 | 51シナリオ作成 |
+| 9周目 | 設計書vs実装比較 | 6点の意図的差異確認 |
+| 10周目 | エラー/外部連携/テスト | 問題なし |
+| 11周目 | データ設計/状態遷移 | 問題なし |
+| 12周目 | アルゴリズム/セキュリティ | 問題なし |
+| 13周目 | Edge Function vs DBスキーマ | analyze-segment/generate-report修正 |
+| 14周目 | 追加Edge Function検証 | process-audio/diarization-callback修正 |
+| **15周目** | **残りEdge Function検証** | **invite-staff修正** |
+
+### 修正済みファイル（13-15周目）
+1. `supabase/functions/analyze-segment/index.ts` - session_analyses正規化スキーマ対応
+2. `supabase/functions/generate-report/index.ts` - 読み込みロジック修正
+3. `supabase/functions/process-audio/index.ts` - transcriptsスキーマ対応
+4. `supabase/functions/diarization-callback/index.ts` - 秒→ミリ秒変換、speaker_segmentsのみ作成
+5. `supabase/functions/invite-staff/index.ts` - name カラム修正、invitation_logs削除
+
+### 最終結論
+- **設計書整合性**: ✅ 重大な漏れなし
+- **Edge Function整合性**: ✅ 5つのEdge Functionスキーマ修正完了
+- **テストカバレッジ**: ✅ 51シナリオの結合テスト
+- **機能実装率**: 97% (Phase 1/2完了)
+
+**15周の検証を完了しました。全Edge FunctionsがDBスキーマと整合しています。**
+
+---
+
+*最終更新: 2025-12-04 15周目完了（全Edge Function検証完了）*
