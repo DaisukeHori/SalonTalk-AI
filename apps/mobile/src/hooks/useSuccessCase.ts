@@ -33,14 +33,13 @@ export function useSuccessCase() {
     setError(null);
 
     try {
-      const results = await apiService.searchSuccessCases({
-        concerns: params.concerns,
-        customerProfile: params.customerProfile,
-        limit: params.limit || 5,
-      });
+      const response = await apiService.searchSuccessCases(
+        params.concerns,
+        params.customerProfile
+      );
 
-      setCases(results);
-      return results;
+      setCases(response.cases);
+      return response.cases;
     } catch (err) {
       const message = err instanceof Error ? err.message : '検索に失敗しました';
       setError(message);

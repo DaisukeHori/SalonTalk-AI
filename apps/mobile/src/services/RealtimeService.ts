@@ -29,8 +29,8 @@ export interface NotificationPayload {
   title: string;
   message: string;
   recommendedProduct?: string;
-  successTalk?: string;
-  keyTactics?: string[];
+  approachText?: string;
+  concernKeywords?: string[];
 }
 
 export type RealtimeEventListener = (event: RealtimeEvent) => void;

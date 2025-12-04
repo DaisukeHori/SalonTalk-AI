@@ -203,14 +203,16 @@ export class ApiService {
   async searchSuccessCases(
     concernKeywords: string[],
     customerInfo?: { ageGroup?: string; gender?: string }
-  ): Promise<Array<{
-    id: string;
-    concernKeywords: string[];
-    successfulTalk: string;
-    keyTactics: string[];
-    soldProduct: string | null;
-    similarity: number | null;
-  }>> {
+  ): Promise<{
+    cases: Array<{
+      id: string;
+      concernKeywords: string[];
+      approachText: string;
+      result: string;
+      similarity: number;
+    }>;
+    total: number;
+  }> {
     return this.request('search-success-cases', {
       method: 'POST',
       body: JSON.stringify({ concernKeywords, customerInfo }),
