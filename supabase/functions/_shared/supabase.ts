@@ -4,10 +4,13 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 /**
- * Create authenticated Supabase client from request
+ * Create authenticated Supabase client from request or auth header string
  */
-export function createSupabaseClient(req: Request): SupabaseClient {
-  const authHeader = req.headers.get('Authorization');
+export function createSupabaseClient(reqOrAuthHeader: Request | string): SupabaseClient {
+  // Support both Request object and auth header string for backwards compatibility
+  const authHeader = typeof reqOrAuthHeader === 'string'
+    ? reqOrAuthHeader
+    : reqOrAuthHeader.headers.get('Authorization');
 
   return createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
