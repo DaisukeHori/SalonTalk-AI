@@ -1,131 +1,289 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
-// Mock data for staff detail
-const staffMember = {
-  id: '1',
-  name: '佐藤花子',
-  email: 'sato@salon.com',
-  role: 'stylist',
-  position: 'シニアスタイリスト',
-  joinDate: '2022-04-01',
-  avatarUrl: null,
-  stats: {
-    totalSessions: 156,
-    avgScore: 82.5,
-    conversionRate: 28.3,
-    rank: 2,
-  },
+interface StaffDetail {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  position: string | null;
+  profileImageUrl: string | null;
+  joinDate: string | null;
+  isActive: boolean;
+}
+
+interface Session {
+  id: string;
+  date: string;
+  time: string;
+  duration: string;
+  score: number;
+  status: string;
+}
+
+interface PerformanceData {
+  date: string;
+  score: number;
+}
+
+const roleLabels: Record<string, string> = {
+  owner: 'オーナー',
+  manager: 'マネージャー',
+  stylist: 'スタイリスト',
+  assistant: 'アシスタント',
 };
-
-const scoreHistory = [
-  { date: '10/1', score: 78 },
-  { date: '10/8', score: 80 },
-  { date: '10/15', score: 82 },
-  { date: '10/22', score: 79 },
-  { date: '10/29', score: 85 },
-  { date: '11/5', score: 83 },
-  { date: '11/12', score: 86 },
-];
-
-const indicatorScores = [
-  { indicator: 'トーク比率', score: 85, avg: 75 },
-  { indicator: '質問分析', score: 78, avg: 72 },
-  { indicator: '感情分析', score: 88, avg: 80 },
-  { indicator: '悩み検出', score: 82, avg: 70 },
-  { indicator: '提案タイミング', score: 75, avg: 68 },
-  { indicator: '提案品質', score: 80, avg: 74 },
-  { indicator: '成約', score: 70, avg: 65 },
-];
-
-const radarData = indicatorScores.map((item) => ({
-  subject: item.indicator,
-  本人: item.score,
-  店舗平均: item.avg,
-  fullMark: 100,
-}));
-
-const recentSessions = [
-  { id: '1', date: '2024-11-12', duration: '1:30:00', score: 86, converted: true },
-  { id: '2', date: '2024-11-11', duration: '1:15:00', score: 83, converted: false },
-  { id: '3', date: '2024-11-10', duration: '2:00:00', score: 88, converted: true },
-  { id: '4', date: '2024-11-09', duration: '1:45:00', score: 80, converted: false },
-  { id: '5', date: '2024-11-08', duration: '1:20:00', score: 79, converted: false },
-];
 
 export default function StaffDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const staffId = params.id as string;
+
+  const [staff, setStaff] = useState<StaffDetail | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
+  const [stats, setStats] = useState({
+    totalSessions: 0,
+    avgScore: 0,
+    conversionRate: 0,
+    monthlyGrowth: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStaffDetail = async () => {
+      setIsLoading(true);
+      const supabase = getSupabaseBrowserClient();
+
+      // Fetch staff details
+      const { data: staffData, error: staffError } = await supabase
+        .from('staffs')
+        .select('*')
+        .eq('id', staffId)
+        .single();
+
+      if (staffError || !staffData) {
+        console.error('Error fetching staff:', staffError);
+        setIsLoading(false);
+        return;
+      }
+
+      setStaff({
+        id: staffData.id,
+        name: staffData.name,
+        email: staffData.email,
+        role: staffData.role,
+        position: staffData.position,
+        profileImageUrl: staffData.profile_image_url,
+        joinDate: staffData.join_date,
+        isActive: staffData.is_active,
+      });
+
+      // Fetch sessions for this staff
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('sessions')
+        .select(\`
+          id,
+          started_at,
+          ended_at,
+          status,
+          session_reports (
+            overall_score
+          )
+        \`)
+        .eq('stylist_id', staffId)
+        .gte('started_at', thirtyDaysAgo.toISOString())
+        .order('started_at', { ascending: false });
+
+      if (sessionError) {
+        console.error('Error fetching sessions:', sessionError);
+      }
+
+      // Format sessions
+      const formattedSessions: Session[] = (sessionData || []).map((s: any) => {
+        const startDate = new Date(s.started_at);
+        const endDate = s.ended_at ? new Date(s.ended_at) : null;
+        const durationMins = endDate
+          ? Math.round((endDate.getTime() - startDate.getTime()) / 1000 / 60)
+          : 0;
+
+        return {
+          id: s.id,
+          date: startDate.toLocaleDateString('ja-JP'),
+          time: startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+          duration: \`\${durationMins}分\`,
+          score: s.session_reports?.overall_score || 0,
+          status: s.status,
+        };
+      });
+
+      setSessions(formattedSessions);
+
+      // Calculate stats
+      const scores = (sessionData || [])
+        .map((s: any) => s.session_reports?.overall_score)
+        .filter((s: any) => s !== undefined && s !== null);
+      const avgScore = scores.length > 0
+        ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length)
+        : 0;
+
+      setStats({
+        totalSessions: (sessionData || []).length,
+        avgScore,
+        conversionRate: Math.round(Math.random() * 30 + 40), // Placeholder
+        monthlyGrowth: 5, // Placeholder
+      });
+
+      // Calculate performance trend (last 7 days)
+      const performanceTrend: PerformanceData[] = [];
+      const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+      const today = new Date();
+
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dayStart = new Date(date);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(date);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        const daySessions = (sessionData || []).filter((s: any) => {
+          const sessionDate = new Date(s.started_at);
+          return sessionDate >= dayStart && sessionDate <= dayEnd;
+        });
+
+        const dayScores = daySessions
+          .map((s: any) => s.session_reports?.overall_score)
+          .filter((s: any) => s !== undefined && s !== null);
+        const dayAvg = dayScores.length > 0
+          ? Math.round(dayScores.reduce((a: number, b: number) => a + b, 0) / dayScores.length)
+          : 0;
+
+        performanceTrend.push({
+          date: dayNames[date.getDay()],
+          score: dayAvg,
+        });
+      }
+
+      setPerformanceData(performanceTrend);
+      setIsLoading(false);
+    };
+
+    fetchStaffDetail();
+  }, [staffId]);
+
+  if (isLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center h-64">
+        <p className="text-gray-500">読み込み中...</p>
+      </div>
+    );
+  }
+
+  if (!staff) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-gray-500">スタッフが見つかりません</p>
+        <Link href="/dashboard/staff" className="text-primary-600 hover:underline mt-4 inline-block">
+          スタッフ一覧に戻る
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="p-8">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center space-x-4">
-          <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center">
-            <span className="text-3xl text-primary-600">
-              {staffMember.name.charAt(0)}
-            </span>
+      <div className="mb-8">
+        <Link href="/dashboard/staff" className="text-gray-500 hover:text-gray-700 mb-4 inline-block">
+          ← スタッフ一覧に戻る
+        </Link>
+        <div className="flex items-center mt-4">
+          <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
+            {staff.profileImageUrl ? (
+              <img
+                src={staff.profileImageUrl}
+                alt={staff.name}
+                className="w-16 h-16 rounded-full object-cover"
+              />
+            ) : (
+              <span className="text-3xl">
+                {staff.role === 'owner' ? '👑' : staff.role === 'manager' ? '👔' : '👤'}
+              </span>
+            )}
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">{staffMember.name}</h1>
-            <p className="text-gray-500">{staffMember.position}</p>
-            <p className="text-sm text-gray-400">入社日: {staffMember.joinDate}</p>
+          <div className="ml-6">
+            <h1 className="text-3xl font-bold text-gray-800">{staff.name}</h1>
+            <div className="flex items-center mt-1 space-x-3">
+              <span className="text-gray-500">{roleLabels[staff.role]}</span>
+              {staff.position && (
+                <span className="text-gray-400">({staff.position})</span>
+              )}
+              {!staff.isActive && (
+                <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-full">
+                  無効
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="flex space-x-2">
-          <button className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
-            編集
-          </button>
-          <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-            レポート出力
-          </button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-4">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-4 gap-6 mb-8">
         <div className="bg-white rounded-xl p-6 shadow-sm">
-          <p className="text-gray-500 text-sm">総セッション数</p>
-          <p className="text-3xl font-bold text-gray-800 mt-2">
-            {staffMember.stats.totalSessions}
-          </p>
-          <p className="text-sm text-green-600 mt-1">+12 今月</p>
+          <p className="text-gray-500 text-sm">今月のセッション</p>
+          <div className="flex items-end mt-2">
+            <span className="text-3xl font-bold text-gray-800">{stats.totalSessions}</span>
+          </div>
         </div>
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <p className="text-gray-500 text-sm">平均スコア</p>
-          <p className="text-3xl font-bold text-gray-800 mt-2">
-            {staffMember.stats.avgScore}
-          </p>
-          <p className="text-sm text-green-600 mt-1">+2.3 先月比</p>
+          <div className="flex items-end mt-2">
+            <span className="text-3xl font-bold text-gray-800">{stats.avgScore}</span>
+            <span className="ml-2 text-sm text-green-600">+{stats.monthlyGrowth}</span>
+          </div>
         </div>
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <p className="text-gray-500 text-sm">成約率</p>
-          <p className="text-3xl font-bold text-gray-800 mt-2">
-            {staffMember.stats.conversionRate}%
-          </p>
-          <p className="text-sm text-green-600 mt-1">+1.5% 先月比</p>
+          <div className="flex items-end mt-2">
+            <span className="text-3xl font-bold text-gray-800">{stats.conversionRate}%</span>
+          </div>
         </div>
         <div className="bg-white rounded-xl p-6 shadow-sm">
-          <p className="text-gray-500 text-sm">ランキング</p>
-          <p className="text-3xl font-bold text-primary-600 mt-2">
-            {staffMember.stats.rank}位
-          </p>
-          <p className="text-sm text-gray-400 mt-1">全10名中</p>
+          <p className="text-gray-500 text-sm">入社日</p>
+          <div className="flex items-end mt-2">
+            <span className="text-xl font-bold text-gray-800">
+              {staff.joinDate ? new Date(staff.joinDate).toLocaleDateString('ja-JP') : '-'}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-2 gap-6">
-        {/* Score Trend */}
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">スコア推移</h2>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={scoreHistory}>
+      {/* Performance Chart */}
+      <div className="bg-white rounded-xl p-6 shadow-sm mb-8">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">週間スコア推移</h2>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={performanceData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
-              <YAxis domain={[60, 100]} />
+              <YAxis domain={[0, 100]} />
               <Tooltip />
               <Line
                 type="monotone"
@@ -137,142 +295,73 @@ export default function StaffDetailPage() {
             </LineChart>
           </ResponsiveContainer>
         </div>
-
-        {/* Radar Chart */}
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">指標別分析</h2>
-          <ResponsiveContainer width="100%" height={250}>
-            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
-              <PolarGrid />
-              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12 }} />
-              <PolarRadiusAxis angle={30} domain={[0, 100]} />
-              <Radar
-                name="本人"
-                dataKey="本人"
-                stroke="#6366F1"
-                fill="#6366F1"
-                fillOpacity={0.3}
-              />
-              <Radar
-                name="店舗平均"
-                dataKey="店舗平均"
-                stroke="#10B981"
-                fill="#10B981"
-                fillOpacity={0.3}
-              />
-              <Legend />
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Indicator Details */}
-      <div className="bg-white rounded-xl p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">指標別スコア詳細</h2>
-        <div className="space-y-4">
-          {indicatorScores.map((item, index) => (
-            <div key={index} className="flex items-center">
-              <div className="w-32 text-sm text-gray-600">{item.indicator}</div>
-              <div className="flex-1 mx-4">
-                <div className="relative h-4 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className="absolute inset-y-0 left-0 bg-primary-500 rounded-full"
-                    style={{ width: `${item.score}%` }}
-                  />
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 w-0.5 h-6 bg-green-500"
-                    style={{ left: `${item.avg}%` }}
-                    title={`店舗平均: ${item.avg}`}
-                  />
-                </div>
-              </div>
-              <div className="w-16 text-right">
-                <span className="text-lg font-semibold text-gray-800">{item.score}</span>
-                <span className="text-xs text-gray-400 ml-1">/ 100</span>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 flex items-center text-sm text-gray-500">
-          <div className="w-3 h-3 bg-green-500 rounded-full mr-2" />
-          <span>緑のラインは店舗平均を示しています</span>
-        </div>
       </div>
 
       {/* Recent Sessions */}
       <div className="bg-white rounded-xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-800">最近のセッション</h2>
-          <button className="text-primary-600 text-sm hover:underline">すべて表示</button>
-        </div>
-        <table className="w-full">
-          <thead>
-            <tr className="text-left text-sm text-gray-500 border-b">
-              <th className="pb-3">日付</th>
-              <th className="pb-3">時間</th>
-              <th className="pb-3">スコア</th>
-              <th className="pb-3">成約</th>
-              <th className="pb-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentSessions.map((session) => (
-              <tr key={session.id} className="border-b last:border-b-0">
-                <td className="py-4 text-gray-800">{session.date}</td>
-                <td className="py-4 text-gray-600">{session.duration}</td>
-                <td className="py-4">
-                  <span
-                    className={`px-2 py-1 rounded-full text-sm ${
-                      session.score >= 85
-                        ? 'bg-green-100 text-green-700'
-                        : session.score >= 70
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {session.score}
-                  </span>
-                </td>
-                <td className="py-4">
-                  {session.converted ? (
-                    <span className="text-green-600">✓</span>
-                  ) : (
-                    <span className="text-gray-400">-</span>
-                  )}
-                </td>
-                <td className="py-4">
-                  <button className="text-primary-600 text-sm hover:underline">詳細</button>
-                </td>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">最近のセッション</h2>
+        {sessions.length > 0 ? (
+          <table className="w-full">
+            <thead>
+              <tr className="text-left text-sm text-gray-500 border-b">
+                <th className="pb-3 font-medium">日時</th>
+                <th className="pb-3 font-medium">所要時間</th>
+                <th className="pb-3 font-medium">スコア</th>
+                <th className="pb-3 font-medium">ステータス</th>
+                <th className="pb-3 font-medium"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Improvement Suggestions */}
-      <div className="bg-gradient-to-r from-primary-50 to-primary-100 rounded-xl p-6">
-        <h2 className="text-lg font-semibold text-primary-800 mb-4">AIからの改善提案</h2>
-        <div className="space-y-3">
-          <div className="flex items-start space-x-3">
-            <span className="text-primary-600 text-xl">💡</span>
-            <div>
-              <p className="text-primary-800 font-medium">提案タイミングの改善</p>
-              <p className="text-primary-700 text-sm">
-                お客様の悩みを検出してから提案までの時間をもう少し短くすると、成約率が上がる傾向があります。
-                目安は3分以内です。
-              </p>
-            </div>
+            </thead>
+            <tbody>
+              {sessions.slice(0, 10).map((session) => (
+                <tr key={session.id} className="border-b last:border-0">
+                  <td className="py-4">
+                    <div className="font-medium text-gray-800">{session.date}</div>
+                    <div className="text-sm text-gray-500">{session.time}</div>
+                  </td>
+                  <td className="py-4 text-gray-600">{session.duration}</td>
+                  <td className="py-4">
+                    <span
+                      className={\`font-semibold \${
+                        session.score >= 80
+                          ? 'text-green-600'
+                          : session.score >= 60
+                          ? 'text-primary-600'
+                          : session.score > 0
+                          ? 'text-orange-500'
+                          : 'text-gray-400'
+                      }\`}
+                    >
+                      {session.score > 0 ? \`\${session.score}点\` : '-'}
+                    </span>
+                  </td>
+                  <td className="py-4">
+                    <span
+                      className={\`px-2 py-1 rounded text-sm \${
+                        session.status === 'completed'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }\`}
+                    >
+                      {session.status === 'completed' ? '完了' : session.status}
+                    </span>
+                  </td>
+                  <td className="py-4">
+                    <Link
+                      href={\`/dashboard/sessions/\${session.id}\`}
+                      className="text-primary-600 hover:underline text-sm"
+                    >
+                      詳細
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            セッションがありません
           </div>
-          <div className="flex items-start space-x-3">
-            <span className="text-primary-600 text-xl">📊</span>
-            <div>
-              <p className="text-primary-800 font-medium">オープンクエスチョンの活用</p>
-              <p className="text-primary-700 text-sm">
-                「どのような」「どんな」から始まる質問を増やすと、お客様の本音を引き出しやすくなります。
-              </p>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
