@@ -294,8 +294,8 @@ export default function SessionDetailPage() {
             text: seg.text,
             timestamp: Math.round(seg.start_time_ms / 1000),
           })),
-          improvements: reportData?.improvement_points || [],
-          strengths: reportData?.good_points || [],
+          improvements: reportData?.improvements || [],
+          strengths: reportData?.strengths || [],
         });
       } catch (error) {
         console.error('Failed to fetch session data:', error);

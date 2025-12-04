@@ -163,8 +163,8 @@ export default function ReportDetailScreen() {
                 details: metrics.conversion?.details || '',
               },
             },
-            improvements: reportData.improvement_points || [],
-            strengths: reportData.good_points || [],
+            improvements: reportData.improvements || [],
+            strengths: reportData.strengths || [],
             generatedAt: reportData.created_at,
           });
         }
