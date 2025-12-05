@@ -13,6 +13,8 @@ import {
   SessionStatus,
   Embedding,
 } from '../valueObjects';
+// 概念モデル（リポジトリインターフェース定義用）
+// TODO: 将来的にはDB型を直接使用するように変更
 import {
   Salon,
   Staff,
@@ -23,7 +25,7 @@ import {
   Report,
   TrainingScenario,
   RoleplaySession,
-} from '../entities';
+} from '../entities/_conceptual-model-DO-NOT-IMPORT';
 
 /**
  * Base query options

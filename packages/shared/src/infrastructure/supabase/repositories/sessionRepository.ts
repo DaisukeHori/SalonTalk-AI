@@ -10,7 +10,8 @@ import type {
   QueryOptions,
   DateRangeOptions,
 } from '../../../domain/repositories';
-import type { Session } from '../../../domain/entities';
+// TODO: 将来的にはDB型を直接返すように変更し、このインポートを削除する
+import type { Session } from '../../../domain/entities/_conceptual-model-DO-NOT-IMPORT';
 import {
   createSessionId,
   createSalonId,
