@@ -279,6 +279,8 @@ export interface RoleplayEvaluation {
 
 /**
  * トランスクリプトエンティティ（音声認識結果）
+ * 注: speakerLabelはDBスキーマに存在しないため削除（2025-12-05）
+ * 話者情報はspeaker_segmentsテーブルで管理
  */
 export interface Transcript {
   readonly id: TranscriptId;
@@ -289,7 +291,6 @@ export interface Transcript {
   readonly endTimeMs: number;
   readonly audioUrl: string | null;
   readonly confidence: number;
-  readonly speakerLabel: SpeakerLabel | null;
   readonly createdAt: Date;
 }
 
@@ -301,7 +302,6 @@ export interface CreateTranscriptParams {
   endTimeMs: number;
   audioUrl?: string;
   confidence?: number;
-  speakerLabel?: SpeakerLabel;
 }
 
 /**

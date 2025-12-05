@@ -31,7 +31,7 @@ interface SpeakerSegment {
   id: string;
   session_id: string;
   chunk_index: number;
-  speaker: 'stylist' | 'customer';
+  speaker: 'stylist' | 'customer' | 'unknown';
   text: string;
   start_time_ms: number;
   end_time_ms: number;
