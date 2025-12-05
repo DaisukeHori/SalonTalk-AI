@@ -2,6 +2,7 @@
 
 import { useState, useEffect, FormEvent } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface Staff {
@@ -264,12 +265,14 @@ export default function StaffPage() {
             className={`bg-white rounded-xl p-6 shadow-sm ${!member.is_active ? 'opacity-60' : ''}`}
           >
             <div className="flex items-center mb-4">
-              <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
+              <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center relative overflow-hidden">
                 {(member.avatar_url || member.profile_image_url) ? (
-                  <img
+                  <Image
                     src={member.avatar_url || member.profile_image_url || ''}
                     alt={member.name}
-                    className="w-12 h-12 rounded-full object-cover"
+                    fill
+                    sizes="48px"
+                    className="rounded-full object-cover"
                   />
                 ) : (
                   <span className="text-2xl">

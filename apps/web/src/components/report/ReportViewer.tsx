@@ -4,6 +4,7 @@
  * ReportViewer Component
  * レポートビューアコンポーネント
  */
+import Image from 'next/image';
 import { Clock, User, MessageSquare, TrendingUp, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 
 interface AnalysisMetric {
@@ -105,12 +106,14 @@ export function ReportViewer({ report, showTranscript = true }: ReportViewerProp
       <div className={`rounded-xl border p-6 ${getScoreBgColor(report.overallScore)}`}>
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+            <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm relative overflow-hidden">
               {report.staffAvatarUrl ? (
-                <img
+                <Image
                   src={report.staffAvatarUrl}
                   alt={report.staffName}
-                  className="w-full h-full rounded-full object-cover"
+                  fill
+                  sizes="64px"
+                  className="rounded-full object-cover"
                 />
               ) : (
                 <span className="text-2xl text-indigo-600 font-medium">

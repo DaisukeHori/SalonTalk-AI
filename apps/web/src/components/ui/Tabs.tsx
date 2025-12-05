@@ -122,5 +122,3 @@ export const TabsContent = forwardRef<HTMLDivElement, TabsContentProps>(
 );
 
 TabsContent.displayName = 'TabsContent';
-
-export default { Tabs, TabsList, TabsTrigger, TabsContent };

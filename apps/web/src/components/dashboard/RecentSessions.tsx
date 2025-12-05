@@ -4,6 +4,7 @@
  * RecentSessions Component
  * 最近のセッション一覧コンポーネント
  */
+import Image from 'next/image';
 import { Clock, User, MessageSquare, CheckCircle, XCircle } from 'lucide-react';
 
 interface SessionItem {
@@ -92,12 +93,14 @@ export function RecentSessions({
             >
               <div className="flex items-start gap-4">
                 {/* Staff Avatar */}
-                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 relative overflow-hidden">
                   {session.staffAvatarUrl ? (
-                    <img
+                    <Image
                       src={session.staffAvatarUrl}
                       alt={session.staffName}
-                      className="w-full h-full rounded-full object-cover"
+                      fill
+                      sizes="40px"
+                      className="rounded-full object-cover"
                     />
                   ) : (
                     <span className="text-indigo-600 font-medium">

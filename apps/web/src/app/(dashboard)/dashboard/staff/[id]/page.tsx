@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   LineChart,
   Line,
@@ -216,12 +217,14 @@ export default function StaffDetailPage() {
           ← スタッフ一覧に戻る
         </Link>
         <div className="flex items-center mt-4">
-          <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
+          <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center relative overflow-hidden">
             {(staff.avatarUrl || staff.profileImageUrl) ? (
-              <img
+              <Image
                 src={staff.avatarUrl || staff.profileImageUrl || ''}
                 alt={staff.name}
-                className="w-16 h-16 rounded-full object-cover"
+                fill
+                sizes="64px"
+                className="rounded-full object-cover"
               />
             ) : (
               <span className="text-3xl">
