@@ -71,6 +71,7 @@ CREATE TABLE sessions (
     salon_id UUID NOT NULL REFERENCES salons(id) ON DELETE CASCADE,
     stylist_id UUID NOT NULL REFERENCES staffs(id) ON DELETE CASCADE,
     status TEXT NOT NULL DEFAULT 'recording' CHECK (status IN ('recording', 'processing', 'analyzing', 'completed', 'error')),
+    diarization_status TEXT DEFAULT 'pending' CHECK (diarization_status IN ('pending', 'processing', 'completed', 'failed')),
     customer_info JSONB DEFAULT '{}'::jsonb,
     started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ended_at TIMESTAMPTZ,

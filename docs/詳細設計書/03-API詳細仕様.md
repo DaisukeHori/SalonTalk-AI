@@ -406,8 +406,8 @@ serve(async (req: Request) => {
         session_id: sessionId,
         chunk_index: chunkIndex,
         text: transcripts.text,
-        start_time: transcripts.startTime,
-        end_time: transcripts.endTime,
+        start_time_ms: Math.round(transcripts.startTime * 1000),
+        end_time_ms: Math.round(transcripts.endTime * 1000),
         audio_url: audioUrl,
       })
       .select()
@@ -574,9 +574,11 @@ serve(async (req: Request) => {
     
     const speakerSegments = segments.map((segment: any) => ({
       session_id,
+      chunk_index,
       speaker: segment.speaker === firstSpeaker ? 'stylist' : 'customer',
-      start_time: segment.start,
-      end_time: segment.end,
+      text: '', // 後でtranscriptsとマージ
+      start_time_ms: Math.round(segment.start * 1000),
+      end_time_ms: Math.round(segment.end * 1000),
       confidence: segment.confidence || null,
     }));
 
@@ -732,7 +734,7 @@ serve(async (req: Request) => {
       .from('speaker_segments')
       .select('*')
       .eq('session_id', sessionId)
-      .order('start_time');
+      .order('start_time_ms');
 
     // 文字起こし取得
     const { data: transcripts } = await supabase
