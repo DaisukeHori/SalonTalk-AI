@@ -149,12 +149,14 @@ session_analyses: {
 
 以下のテーブルが重複して存在し、役割が不明確です：
 
-| テーブル1 | テーブル2 | 問題 |
-|----------|----------|------|
-| `reports` | `session_reports` | 両方ともセッションレポートを格納するテーブル |
-| `analysis_results` | `session_analyses` | 両方とも分析結果を格納するテーブル |
+| テーブル1 | テーブル2 | 問題 | 状態 |
+|----------|----------|------|------|
+| `reports` | `session_reports` | 両方ともセッションレポートを格納するテーブル | ⚠️ 要確認 |
+| ~~`analysis_results`~~ | `session_analyses` | ~~両方とも分析結果を格納するテーブル~~ | ✅ **解決済み**: `session_analyses` に統一 |
 
-**推奨**: どちらかに統一するか、役割の違いを明確に文書化する必要があります。
+**状況**:
+- `analysis_results` テーブルは存在しません。`session_analyses`（正規化構造）のみが使用されています。
+- `reports` と `session_reports` の重複については確認が必要です。
 
 ---
 
