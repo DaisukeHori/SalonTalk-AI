@@ -151,12 +151,12 @@ session_analyses: {
 
 | テーブル1 | テーブル2 | 問題 | 状態 |
 |----------|----------|------|------|
-| `reports` | `session_reports` | 両方ともセッションレポートを格納するテーブル | ⚠️ 要確認 |
+| ~~`reports`~~ | `session_reports` | ~~両方ともセッションレポートを格納するテーブル~~ | ✅ **解決済み**: `session_reports` に統一 |
 | ~~`analysis_results`~~ | `session_analyses` | ~~両方とも分析結果を格納するテーブル~~ | ✅ **解決済み**: `session_analyses` に統一 |
 
 **状況**:
+- `reports` テーブルは存在しません。`session_reports` のみが使用されています。
 - `analysis_results` テーブルは存在しません。`session_analyses`（正規化構造）のみが使用されています。
-- `reports` と `session_reports` の重複については確認が必要です。
 
 ---
 
@@ -219,7 +219,7 @@ session_analyses: {
 
 ### 6.2 中優先度（コードの修正または設計書の更新）
 
-1. **重複テーブルの整理**: `reports` vs `session_reports`, `analysis_results` vs `session_analyses`
+1. ~~**重複テーブルの整理**: `reports` vs `session_reports`, `analysis_results` vs `session_analyses`~~ ✅ 解決済み（`session_reports`と`session_analyses`に統一）
 2. **型定義ファイルの同期**: 両パッケージで同一の型定義を使用
 3. **タイポの修正**: `StylistId`のスペルミス
 
