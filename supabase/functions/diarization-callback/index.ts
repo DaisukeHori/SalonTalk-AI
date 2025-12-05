@@ -90,12 +90,12 @@ Deno.serve(async (req: Request) => {
     let updatedCount = 0;
 
     // Create speaker_segments based on timing overlap with transcripts
-    // Note: transcripts table uses seconds (NUMERIC), speaker_segments uses milliseconds
+    // Both tables use milliseconds (INTEGER)
     if (existingTranscripts && existingTranscripts.length > 0) {
       for (const transcript of existingTranscripts) {
-        // Convert transcript time from seconds to milliseconds for comparison
-        const transcriptStartMs = Math.round(Number(transcript.start_time) * 1000);
-        const transcriptEndMs = Math.round(Number(transcript.end_time) * 1000);
+        // Both transcripts and speaker_segments use milliseconds
+        const transcriptStartMs = transcript.start_time_ms;
+        const transcriptEndMs = transcript.end_time_ms;
 
         // Find the diarization segment that overlaps most with this transcript
         let bestMatch = null;

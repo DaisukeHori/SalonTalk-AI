@@ -116,15 +116,15 @@ Deno.serve(async (req: Request) => {
     }
 
     // Save to transcripts table (speaker will be assigned by diarization callback to speaker_segments)
-    // transcripts table uses seconds (NUMERIC), not milliseconds
+    // transcripts table uses milliseconds (INTEGER)
     const { data: transcript, error: transcriptError } = await supabase
       .from("transcripts")
       .upsert({
         session_id: sessionId,
         chunk_index: chunkIndex,
         text: transcriptData.text,
-        start_time: transcriptData.startTime, // seconds as NUMERIC
-        end_time: transcriptData.endTime, // seconds as NUMERIC
+        start_time_ms: Math.round(transcriptData.startTime * 1000), // convert seconds to milliseconds
+        end_time_ms: Math.round(transcriptData.endTime * 1000), // convert seconds to milliseconds
         audio_url: audioUrl,
       }, { onConflict: 'session_id,chunk_index' })
       .select()

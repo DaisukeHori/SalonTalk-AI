@@ -272,6 +272,9 @@ channel.subscribe();
 
 ## データベース設計（主要テーブル）
 
+> **📌 正本**: `supabase/migrations/00000000000000_initial_schema.sql`
+> **📌 詳細**: `docs/詳細設計書/07-データベース物理設計.md`
+
 ### 店舗・スタッフ
 
 ```sql
@@ -279,18 +282,22 @@ channel.subscribe();
 CREATE TABLE salons (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
-  plan TEXT DEFAULT 'standard',
-  settings JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  plan TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'standard', 'premium', 'enterprise')),
+  settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- スタッフ
+-- スタッフ（id = auth.users(id) パターン）
 CREATE TABLE staffs (
-  id UUID PRIMARY KEY REFERENCES auth.users(id),
-  salon_id UUID REFERENCES salons(id),
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  salon_id UUID NOT NULL REFERENCES salons(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
   name TEXT NOT NULL,
-  role TEXT DEFAULT 'stylist', -- 'stylist' | 'manager' | 'owner'
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  role TEXT NOT NULL DEFAULT 'stylist' CHECK (role IN ('stylist', 'manager', 'owner', 'admin')),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```
 
@@ -300,34 +307,43 @@ CREATE TABLE staffs (
 -- セッション
 CREATE TABLE sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  salon_id UUID REFERENCES salons(id),
-  stylist_id UUID REFERENCES staffs(id),
-  status TEXT DEFAULT 'recording', -- 'recording' | 'processing' | 'completed'
-  customer_info JSONB DEFAULT '{}',
-  started_at TIMESTAMPTZ DEFAULT NOW(),
+  salon_id UUID NOT NULL REFERENCES salons(id) ON DELETE CASCADE,
+  stylist_id UUID NOT NULL REFERENCES staffs(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'recording' CHECK (status IN ('recording', 'processing', 'analyzing', 'completed', 'error')),
+  customer_info JSONB DEFAULT '{}'::jsonb,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   ended_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  total_duration_ms INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 話者セグメント
+-- 話者セグメント（ミリ秒単位）
 CREATE TABLE speaker_segments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id UUID REFERENCES sessions(id),
-  speaker TEXT NOT NULL, -- 'stylist' | 'customer'
+  session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  chunk_index INTEGER NOT NULL,
+  speaker TEXT NOT NULL CHECK (speaker IN ('stylist', 'customer', 'unknown')),
   text TEXT NOT NULL,
-  start_time REAL NOT NULL,
-  end_time REAL NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  start_time_ms INTEGER NOT NULL,  -- ミリ秒
+  end_time_ms INTEGER NOT NULL,    -- ミリ秒
+  confidence REAL DEFAULT 1.0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 分析結果
-CREATE TABLE analysis_results (
+-- 分析結果（正規化構造）
+CREATE TABLE session_analyses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id UUID REFERENCES sessions(id),
+  session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   chunk_index INTEGER NOT NULL,
-  overall_score INTEGER,
-  metrics JSONB NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  indicator_type TEXT NOT NULL CHECK (indicator_type IN (
+    'talk_ratio', 'question_analysis', 'emotion_analysis',
+    'concern_keywords', 'proposal_timing', 'proposal_quality', 'conversion'
+  )),
+  value NUMERIC(10, 4) NOT NULL,
+  score INTEGER NOT NULL CHECK (score >= 0 AND score <= 100),
+  details JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT session_analyses_unique UNIQUE (session_id, chunk_index, indicator_type)
 );
 ```
 
@@ -851,7 +867,129 @@ export const SessionCard: React.FC<SessionCardProps> = ({ session, onPress }) =>
 
 | バージョン | 日付 | 変更内容 |
 |-----------|------|---------|
+| 1.1 | 2025-12-05 | 全レイヤー一貫性ルールを追加 |
 | 1.0 | 2025-12-04 | 初版作成 |
+
+---
+
+## 🔴 全レイヤー一貫性ルール（重要）
+
+> **⚠️ 変更を行う際は、必ず以下の全レイヤーで一貫性を確認してください**
+
+### 対象レイヤー
+
+| レイヤー | ファイル | 説明 |
+|---------|----------|------|
+| **設計書** | `docs/要件定義書/`, `docs/詳細設計書/` | データモデル、物理設計 |
+| **DBマイグレーション** | `supabase/migrations/` | テーブル定義、制約 |
+| **型定義（apps/web）** | `apps/web/src/types/database.ts` | フロントエンド型 |
+| **型定義（shared）** | `packages/shared/src/infrastructure/supabase/types.ts` | 共有型 |
+| **Edge Functions** | `supabase/functions/` | サーバーサイドロジック |
+| **UI** | `apps/web/src/`, `apps/mobile/src/` | 画面実装 |
+
+### 統一ルール
+
+#### 1. 時間カラムの命名
+
+```
+✅ 正しい: start_time_ms, end_time_ms (INTEGER, ミリ秒)
+❌ 間違い: start_time, end_time (秒単位、NUMERIC)
+```
+
+- 全テーブルで `_ms` サフィックスを使用
+- 型は `INTEGER`（ミリ秒単位）
+- 対象: `transcripts`, `speaker_segments`, `session_reports.proposal_timing_ms`
+
+#### 2. speaker_segments.speaker の値
+
+```
+✅ 正しい: 'stylist' | 'customer' | 'unknown'
+❌ 間違い: 'stylist' | 'customer' のみ
+```
+
+- `unknown` は話者識別不可時のフォールバック
+
+#### 3. training_scenarios のカラム名
+
+```
+✅ 正しい: title, difficulty
+❌ 間違い: name, level
+```
+
+#### 4. roleplay_sessions のカラム名
+
+```
+✅ 正しい: messages, ended_at
+❌ 間違い: conversation_history, completed_at
+```
+
+#### 5. staffs テーブル構造
+
+```
+✅ 正しい:
+  - id = auth.users(id) パターン
+  - role: 'stylist' | 'manager' | 'owner' | 'admin'
+
+❌ 間違い:
+  - 別途 auth_user_id を持つ
+  - role に 'assistant' を含む
+```
+
+#### 6. レポートテーブル
+
+```
+✅ 正しい: session_reports のみ
+❌ 間違い: reports テーブルが別途存在
+```
+
+#### 7. 分析テーブル構造
+
+```
+✅ 正しい: session_analyses（正規化構造）
+  - indicator_type: 'talk_ratio' | 'question_analysis' | ... | 'conversion'
+  - value: number
+  - score: number (0-100)
+  - details: JSONB
+
+❌ 間違い:
+  - analysis_results テーブル
+  - 非正規化（talk_ratio_score, question_score... を別カラムに持つ）
+```
+
+### 変更時のチェックリスト
+
+```
+□ 設計書（要件定義書/07-データモデル設計.md）を更新したか？
+□ 設計書（詳細設計書/07-データベース物理設計.md）を更新したか？
+□ DBマイグレーション（supabase/migrations/）を更新したか？
+□ apps/web/src/types/database.ts を更新したか？
+□ packages/shared/.../types.ts を更新したか？
+□ Edge Functions で該当カラムを参照している箇所を更新したか？
+□ UIで該当カラムを参照している箇所を更新したか？
+```
+
+### ファイル内のドキュメント化
+
+型定義ファイルの先頭には、以下のようなコメントを記載してください：
+
+```typescript
+/**
+ * 一貫性ルール:
+ * - 時間カラム: start_time_ms / end_time_ms (INTEGER, ミリ秒)
+ * - speaker値: 'stylist' | 'customer' | 'unknown'
+ * - training: title / difficulty (NOT name / level)
+ * - roleplay: messages / ended_at (NOT conversation_history / completed_at)
+ * - レポート: session_reports のみ (reports テーブルは存在しない)
+ * - 分析: session_analyses (正規化構造: indicator_type, value, score, details)
+ */
+```
+
+### 一貫性違反が起きやすいシナリオ
+
+1. **新しいカラムを追加するとき** → 全レイヤーで追加
+2. **カラム名を変更するとき** → 全レイヤーで変更
+3. **型定義を自動生成したとき** → 手動で他のファイルも同期
+4. **設計書を更新したとき** → 実装も同時に更新
 
 ---
 

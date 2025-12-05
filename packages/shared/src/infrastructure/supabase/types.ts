@@ -1,6 +1,14 @@
 /**
  * Supabase Types
  * Supabaseデータベース型定義
+ *
+ * 一貫性ルール:
+ * - 時間カラム: start_time_ms / end_time_ms (INTEGER, ミリ秒)
+ * - speaker値: 'stylist' | 'customer' | 'unknown'
+ * - training: title / difficulty (NOT name / level)
+ * - roleplay: messages / ended_at (NOT conversation_history / completed_at)
+ * - レポート: session_reports のみ (reports テーブルは存在しない)
+ * - 分析: session_analyses (正規化構造: indicator_type, value, score, details)
  */
 
 export interface Database {
@@ -42,31 +50,23 @@ export interface Database {
       };
       staffs: {
         Row: {
-          id: string;
+          id: string; // = auth.users(id)
           salon_id: string;
           email: string;
           name: string;
-          role: 'stylist' | 'manager' | 'owner' | 'admin' | 'assistant';
-          position: string | null;
-          join_date: string | null;
+          role: 'stylist' | 'manager' | 'owner' | 'admin';
           avatar_url: string | null;
-          profile_image_url: string | null;
-          settings: Record<string, unknown> | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
         };
         Insert: {
-          id: string;
+          id: string; // = auth.users(id)
           salon_id: string;
           email: string;
           name: string;
-          role?: 'stylist' | 'manager' | 'owner' | 'admin' | 'assistant';
-          position?: string | null;
-          join_date?: string | null;
+          role?: 'stylist' | 'manager' | 'owner' | 'admin';
           avatar_url?: string | null;
-          profile_image_url?: string | null;
-          settings?: Record<string, unknown> | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -75,12 +75,8 @@ export interface Database {
           salon_id?: string;
           email?: string;
           name?: string;
-          role?: 'stylist' | 'manager' | 'owner' | 'admin' | 'assistant';
-          position?: string | null;
-          join_date?: string | null;
+          role?: 'stylist' | 'manager' | 'owner' | 'admin';
           avatar_url?: string | null;
-          profile_image_url?: string | null;
-          settings?: Record<string, unknown> | null;
           is_active?: boolean;
           updated_at?: string;
         };
@@ -91,7 +87,6 @@ export interface Database {
           salon_id: string;
           stylist_id: string;
           status: 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
-          diarization_status: 'pending' | 'processing' | 'completed' | 'failed' | null;
           customer_info: Record<string, unknown> | null;
           started_at: string;
           ended_at: string | null;
@@ -104,7 +99,6 @@ export interface Database {
           salon_id: string;
           stylist_id: string;
           status?: 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
-          diarization_status?: 'pending' | 'processing' | 'completed' | 'failed' | null;
           customer_info?: Record<string, unknown> | null;
           started_at?: string;
           ended_at?: string | null;
@@ -116,11 +110,43 @@ export interface Database {
           salon_id?: string;
           stylist_id?: string;
           status?: 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
-          diarization_status?: 'pending' | 'processing' | 'completed' | 'failed' | null;
           customer_info?: Record<string, unknown> | null;
           ended_at?: string | null;
           total_duration_ms?: number | null;
           updated_at?: string;
+        };
+      };
+      transcripts: {
+        Row: {
+          id: string;
+          session_id: string;
+          chunk_index: number;
+          text: string;
+          start_time_ms: number; // ミリ秒 (INTEGER)
+          end_time_ms: number;   // ミリ秒 (INTEGER)
+          audio_url: string | null;
+          confidence: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          chunk_index: number;
+          text: string;
+          start_time_ms: number;
+          end_time_ms: number;
+          audio_url?: string | null;
+          confidence?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          session_id?: string;
+          chunk_index?: number;
+          text?: string;
+          start_time_ms?: number;
+          end_time_ms?: number;
+          audio_url?: string | null;
+          confidence?: number | null;
         };
       };
       speaker_segments: {
@@ -128,132 +154,123 @@ export interface Database {
           id: string;
           session_id: string;
           chunk_index: number;
-          speaker: 'stylist' | 'customer';
-          speaker_label: string | null;
+          speaker: 'stylist' | 'customer' | 'unknown'; // 'unknown' を含む
           text: string;
-          start_time_ms: number;
-          end_time_ms: number;
-          confidence: number;
+          start_time_ms: number; // ミリ秒 (INTEGER)
+          end_time_ms: number;   // ミリ秒 (INTEGER)
+          confidence: number | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           session_id: string;
           chunk_index: number;
-          speaker: 'stylist' | 'customer';
-          speaker_label?: string | null;
+          speaker: 'stylist' | 'customer' | 'unknown';
           text: string;
           start_time_ms: number;
           end_time_ms: number;
-          confidence?: number;
+          confidence?: number | null;
           created_at?: string;
         };
         Update: {
           session_id?: string;
           chunk_index?: number;
-          speaker?: 'stylist' | 'customer';
-          speaker_label?: string | null;
+          speaker?: 'stylist' | 'customer' | 'unknown';
           text?: string;
           start_time_ms?: number;
           end_time_ms?: number;
-          confidence?: number;
+          confidence?: number | null;
         };
       };
-      analysis_results: {
+      session_analyses: {
+        // 正規化構造: indicator_type ごとに1行
         Row: {
           id: string;
           session_id: string;
           chunk_index: number;
-          overall_score: number;
-          metrics: Record<string, unknown>;
-          suggestions: string[];
-          highlights: string[];
+          indicator_type: 'talk_ratio' | 'question_analysis' | 'emotion_analysis' | 'concern_keywords' | 'proposal_timing' | 'proposal_quality' | 'conversion';
+          value: number;
+          score: number; // 0-100
+          details: Record<string, unknown> | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           session_id: string;
           chunk_index: number;
-          overall_score: number;
-          metrics: Record<string, unknown>;
-          suggestions?: string[];
-          highlights?: string[];
+          indicator_type: 'talk_ratio' | 'question_analysis' | 'emotion_analysis' | 'concern_keywords' | 'proposal_timing' | 'proposal_quality' | 'conversion';
+          value: number;
+          score: number;
+          details?: Record<string, unknown> | null;
           created_at?: string;
         };
         Update: {
           session_id?: string;
           chunk_index?: number;
-          overall_score?: number;
-          metrics?: Record<string, unknown>;
-          suggestions?: string[];
-          highlights?: string[];
+          indicator_type?: 'talk_ratio' | 'question_analysis' | 'emotion_analysis' | 'concern_keywords' | 'proposal_timing' | 'proposal_quality' | 'conversion';
+          value?: number;
+          score?: number;
+          details?: Record<string, unknown> | null;
         };
       };
-      session_analyses: {
+      session_reports: {
         Row: {
           id: string;
           session_id: string;
-          chunk_index: number;
-          overall_score: number;
-          talk_ratio_score: number | null;
-          talk_ratio_detail: Record<string, unknown>;
-          question_score: number | null;
-          question_detail: Record<string, unknown>;
-          emotion_score: number | null;
-          emotion_detail: Record<string, unknown>;
-          concern_keywords_score: number | null;
-          concern_keywords_detail: Record<string, unknown>;
-          proposal_timing_score: number | null;
-          proposal_timing_detail: Record<string, unknown>;
-          proposal_quality_score: number | null;
-          proposal_quality_detail: Record<string, unknown>;
-          conversion_score: number | null;
-          conversion_detail: Record<string, unknown>;
-          suggestions: string[];
-          highlights: string[];
-          created_at: string;
+          summary: string;
+          overall_score: number; // 0-100
+          metrics: Record<string, unknown> | null;
+          stylist_ratio: number | null;
+          customer_ratio: number | null;
+          open_question_count: number | null;
+          closed_question_count: number | null;
+          positive_ratio: number | null;
+          concern_keywords: string[] | null;
+          proposal_timing_ms: number | null;
+          proposal_match_rate: number | null;
+          is_converted: boolean | null;
+          improvements: string[] | null;
+          strengths: string[] | null;
+          matched_cases: Record<string, unknown>[] | null;
+          generated_at: string;
         };
         Insert: {
           id?: string;
           session_id: string;
-          chunk_index: number;
+          summary: string;
           overall_score: number;
-          talk_ratio_score?: number | null;
-          talk_ratio_detail?: Record<string, unknown>;
-          question_score?: number | null;
-          question_detail?: Record<string, unknown>;
-          emotion_score?: number | null;
-          emotion_detail?: Record<string, unknown>;
-          concern_keywords_score?: number | null;
-          concern_keywords_detail?: Record<string, unknown>;
-          proposal_timing_score?: number | null;
-          proposal_timing_detail?: Record<string, unknown>;
-          proposal_quality_score?: number | null;
-          proposal_quality_detail?: Record<string, unknown>;
-          conversion_score?: number | null;
-          conversion_detail?: Record<string, unknown>;
-          suggestions?: string[];
-          highlights?: string[];
-          created_at?: string;
+          metrics?: Record<string, unknown> | null;
+          stylist_ratio?: number | null;
+          customer_ratio?: number | null;
+          open_question_count?: number | null;
+          closed_question_count?: number | null;
+          positive_ratio?: number | null;
+          concern_keywords?: string[] | null;
+          proposal_timing_ms?: number | null;
+          proposal_match_rate?: number | null;
+          is_converted?: boolean | null;
+          improvements?: string[] | null;
+          strengths?: string[] | null;
+          matched_cases?: Record<string, unknown>[] | null;
+          generated_at?: string;
         };
         Update: {
+          session_id?: string;
+          summary?: string;
           overall_score?: number;
-          talk_ratio_score?: number | null;
-          talk_ratio_detail?: Record<string, unknown>;
-          question_score?: number | null;
-          question_detail?: Record<string, unknown>;
-          emotion_score?: number | null;
-          emotion_detail?: Record<string, unknown>;
-          concern_keywords_score?: number | null;
-          concern_keywords_detail?: Record<string, unknown>;
-          proposal_timing_score?: number | null;
-          proposal_timing_detail?: Record<string, unknown>;
-          proposal_quality_score?: number | null;
-          proposal_quality_detail?: Record<string, unknown>;
-          conversion_score?: number | null;
-          conversion_detail?: Record<string, unknown>;
-          suggestions?: string[];
-          highlights?: string[];
+          metrics?: Record<string, unknown> | null;
+          stylist_ratio?: number | null;
+          customer_ratio?: number | null;
+          open_question_count?: number | null;
+          closed_question_count?: number | null;
+          positive_ratio?: number | null;
+          concern_keywords?: string[] | null;
+          proposal_timing_ms?: number | null;
+          proposal_match_rate?: number | null;
+          is_converted?: boolean | null;
+          improvements?: string[] | null;
+          strengths?: string[] | null;
+          matched_cases?: Record<string, unknown>[] | null;
         };
       };
       success_cases: {
@@ -267,12 +284,12 @@ export interface Database {
           approach_text: string;
           successful_talk: string | null;
           result: string;
-          key_tactics: string[];
+          key_tactics: string[] | null;
           sold_product: string | null;
           conversion_rate: number | null;
           embedding: number[] | null;
-          is_public: boolean;
           is_active: boolean;
+          is_public: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -285,13 +302,13 @@ export interface Database {
           customer_profile?: Record<string, unknown> | null;
           approach_text: string;
           successful_talk?: string | null;
-          result?: string;
-          key_tactics?: string[];
+          result: string;
+          key_tactics?: string[] | null;
           sold_product?: string | null;
           conversion_rate?: number | null;
           embedding?: number[] | null;
-          is_public?: boolean;
           is_active?: boolean;
+          is_public?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -304,108 +321,17 @@ export interface Database {
           approach_text?: string;
           successful_talk?: string | null;
           result?: string;
-          key_tactics?: string[];
+          key_tactics?: string[] | null;
           sold_product?: string | null;
           conversion_rate?: number | null;
           embedding?: number[] | null;
-          is_public?: boolean;
           is_active?: boolean;
+          is_public?: boolean;
           updated_at?: string;
         };
       };
-      session_reports: {
-        Row: {
-          id: string;
-          session_id: string;
-          summary: string | null;
-          overall_score: number;
-          metrics: Record<string, unknown>;
-          improvements: string[];
-          strengths: string[];
-          good_points: string[];
-          improvement_points: string[];
-          action_items: string[];
-          transcript_summary: string | null;
-          ai_feedback: string | null;
-          indicator_scores: Record<string, unknown>;
-          is_converted: boolean;
-          comparison_with_average: Record<string, unknown>[];
-          matched_success_cases: Record<string, unknown>[];
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          session_id: string;
-          summary?: string | null;
-          overall_score: number;
-          metrics?: Record<string, unknown>;
-          improvements?: string[];
-          strengths?: string[];
-          good_points?: string[];
-          improvement_points?: string[];
-          action_items?: string[];
-          transcript_summary?: string | null;
-          ai_feedback?: string | null;
-          indicator_scores?: Record<string, unknown>;
-          is_converted?: boolean;
-          comparison_with_average?: Record<string, unknown>[];
-          matched_success_cases?: Record<string, unknown>[];
-          created_at?: string;
-        };
-        Update: {
-          session_id?: string;
-          summary?: string | null;
-          overall_score?: number;
-          metrics?: Record<string, unknown>;
-          improvements?: string[];
-          strengths?: string[];
-          good_points?: string[];
-          improvement_points?: string[];
-          action_items?: string[];
-          transcript_summary?: string | null;
-          ai_feedback?: string | null;
-          indicator_scores?: Record<string, unknown>;
-          is_converted?: boolean;
-          comparison_with_average?: Record<string, unknown>[];
-          matched_success_cases?: Record<string, unknown>[];
-        };
-      };
-      reports: {
-        Row: {
-          id: string;
-          session_id: string;
-          summary: string;
-          overall_score: number;
-          metrics: Record<string, unknown>;
-          improvements: string[];
-          strengths: string[];
-          comparison_with_average: Record<string, unknown>[];
-          matched_success_cases: Record<string, unknown>[];
-          generated_at: string;
-        };
-        Insert: {
-          id?: string;
-          session_id: string;
-          summary: string;
-          overall_score: number;
-          metrics: Record<string, unknown>;
-          improvements?: string[];
-          strengths?: string[];
-          comparison_with_average?: Record<string, unknown>[];
-          matched_success_cases?: Record<string, unknown>[];
-          generated_at?: string;
-        };
-        Update: {
-          summary?: string;
-          overall_score?: number;
-          metrics?: Record<string, unknown>;
-          improvements?: string[];
-          strengths?: string[];
-          comparison_with_average?: Record<string, unknown>[];
-          matched_success_cases?: Record<string, unknown>[];
-        };
-      };
       training_scenarios: {
+        // title / difficulty を使用 (NOT name / level)
         Row: {
           id: string;
           salon_id: string | null;
@@ -442,72 +368,62 @@ export interface Database {
         };
       };
       roleplay_sessions: {
+        // messages / ended_at を使用 (NOT conversation_history / completed_at)
         Row: {
           id: string;
           staff_id: string;
           scenario_id: string;
-          status: 'in_progress' | 'completed' | 'abandoned' | 'evaluated';
+          status: 'in_progress' | 'completed' | 'abandoned';
           messages: Record<string, unknown>[];
           evaluation: Record<string, unknown> | null;
           started_at: string;
           ended_at: string | null;
-          evaluated_at: string | null;
         };
         Insert: {
           id?: string;
           staff_id: string;
           scenario_id: string;
-          status?: 'in_progress' | 'completed' | 'abandoned' | 'evaluated';
+          status?: 'in_progress' | 'completed' | 'abandoned';
           messages?: Record<string, unknown>[];
           evaluation?: Record<string, unknown> | null;
           started_at?: string;
           ended_at?: string | null;
-          evaluated_at?: string | null;
         };
         Update: {
           staff_id?: string;
           scenario_id?: string;
-          status?: 'in_progress' | 'completed' | 'abandoned' | 'evaluated';
+          status?: 'in_progress' | 'completed' | 'abandoned';
           messages?: Record<string, unknown>[];
           evaluation?: Record<string, unknown> | null;
           ended_at?: string | null;
-          evaluated_at?: string | null;
         };
       };
-      transcripts: {
+      staff_training_stats: {
         Row: {
           id: string;
-          session_id: string;
-          chunk_index: number;
-          text: string;
-          start_time_ms: number;
-          end_time_ms: number;
-          audio_url: string | null;
-          confidence: number;
-          speaker_label: string | null;
-          created_at: string;
+          staff_id: string;
+          total_training_count: number;
+          total_score_sum: number;
+          average_score: number; // GENERATED column
+          highest_score: number;
+          last_training_at: string | null;
+          updated_at: string;
         };
         Insert: {
           id?: string;
-          session_id: string;
-          chunk_index: number;
-          text: string;
-          start_time_ms: number;
-          end_time_ms: number;
-          audio_url?: string | null;
-          confidence?: number;
-          speaker_label?: string | null;
-          created_at?: string;
+          staff_id: string;
+          total_training_count?: number;
+          total_score_sum?: number;
+          highest_score?: number;
+          last_training_at?: string | null;
+          updated_at?: string;
         };
         Update: {
-          session_id?: string;
-          chunk_index?: number;
-          text?: string;
-          start_time_ms?: number;
-          end_time_ms?: number;
-          audio_url?: string | null;
-          confidence?: number;
-          speaker_label?: string | null;
+          total_training_count?: number;
+          total_score_sum?: number;
+          highest_score?: number;
+          last_training_at?: string | null;
+          updated_at?: string;
         };
       };
       push_tokens: {
@@ -547,7 +463,7 @@ export interface Database {
           type: string;
           title: string;
           body: string;
-          data: Record<string, unknown>;
+          data: Record<string, unknown> | null;
           status: 'sent' | 'delivered' | 'failed' | 'read';
           sent_at: string;
           read_at: string | null;
@@ -558,7 +474,7 @@ export interface Database {
           type: string;
           title: string;
           body: string;
-          data?: Record<string, unknown>;
+          data?: Record<string, unknown> | null;
           status?: 'sent' | 'delivered' | 'failed' | 'read';
           sent_at?: string;
           read_at?: string | null;
@@ -568,7 +484,7 @@ export interface Database {
           type?: string;
           title?: string;
           body?: string;
-          data?: Record<string, unknown>;
+          data?: Record<string, unknown> | null;
           status?: 'sent' | 'delivered' | 'failed' | 'read';
           read_at?: string | null;
         };
@@ -588,61 +504,6 @@ export interface Database {
           approach_text: string;
           result: string;
           similarity: number;
-        }[];
-      };
-      get_staff_statistics: {
-        Args: {
-          p_staff_id: string;
-          p_start_date?: string | null;
-          p_end_date?: string | null;
-        };
-        Returns: {
-          staff_id: string;
-          staff_name: string;
-          salon_name: string;
-          total_sessions: number;
-          completed_sessions: number;
-          total_duration_hours: number;
-          avg_session_duration_minutes: number;
-          avg_overall_score: number;
-          avg_talk_ratio_score: number;
-          avg_question_score: number;
-          avg_emotion_score: number;
-          avg_concern_keywords_score: number;
-          avg_proposal_timing_score: number;
-          avg_proposal_quality_score: number;
-          avg_conversion_score: number;
-          conversion_count: number;
-          conversion_rate: number;
-          training_count: number;
-          avg_training_score: number;
-          score_trend: Record<string, unknown>[];
-          period_start: string;
-          period_end: string;
-        }[];
-      };
-      get_salon_statistics: {
-        Args: {
-          p_salon_id: string;
-          p_start_date?: string | null;
-          p_end_date?: string | null;
-        };
-        Returns: {
-          salon_id: string;
-          salon_name: string;
-          total_staff: number;
-          active_staff: number;
-          total_sessions: number;
-          completed_sessions: number;
-          avg_sessions_per_staff: number;
-          avg_overall_score: number;
-          conversion_count: number;
-          conversion_rate: number;
-          total_training_count: number;
-          avg_training_score: number;
-          top_performers: Record<string, unknown>[];
-          period_start: string;
-          period_end: string;
         }[];
       };
       increment_training_count: {
