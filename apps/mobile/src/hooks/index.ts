@@ -9,3 +9,4 @@ export { useTranscript } from './useTranscript';
 export { useSuccessCase } from './useSuccessCase';
 export { useNotification } from './useNotification';
 export { useSpeech } from './useSpeech';
+export { useSetup } from './useSetup';
