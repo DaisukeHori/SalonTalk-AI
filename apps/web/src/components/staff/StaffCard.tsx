@@ -4,46 +4,46 @@
  * StaffCard Component
  * スタッフカードコンポーネント
  */
-import { Mail, Phone, Calendar, TrendingUp, Target, MessageSquare } from 'lucide-react';
+import { Mail, Calendar, TrendingUp, Target, MessageSquare } from 'lucide-react';
 
 interface StaffCardProps {
   id: string;
   name: string;
   email: string;
-  phone?: string;
-  role: 'stylist' | 'manager' | 'receptionist';
+  role: 'stylist' | 'manager' | 'owner' | 'admin';
   avatarUrl?: string;
   averageScore: number;
   sessionCount: number;
   conversionRate: number;
   rank?: number;
-  joinedAt: Date;
+  createdAt?: Date;
   onClick?: () => void;
 }
 
 const roleLabels = {
   stylist: 'スタイリスト',
   manager: 'マネージャー',
-  receptionist: 'レセプション',
+  owner: 'オーナー',
+  admin: '管理者',
 };
 
 const roleColors = {
   stylist: 'bg-indigo-100 text-indigo-700',
   manager: 'bg-purple-100 text-purple-700',
-  receptionist: 'bg-pink-100 text-pink-700',
+  owner: 'bg-amber-100 text-amber-700',
+  admin: 'bg-gray-100 text-gray-700',
 };
 
 export function StaffCard({
   name,
   email,
-  phone,
   role,
   avatarUrl,
   averageScore,
   sessionCount,
   conversionRate,
   rank,
-  joinedAt,
+  createdAt,
   onClick,
 }: StaffCardProps) {
   const getScoreColor = (score: number) => {
@@ -115,16 +115,12 @@ export function StaffCard({
           <Mail className="w-4 h-4 text-gray-400" />
           <span className="truncate">{email}</span>
         </div>
-        {phone && (
+        {createdAt && (
           <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Phone className="w-4 h-4 text-gray-400" />
-            <span>{phone}</span>
+            <Calendar className="w-4 h-4 text-gray-400" />
+            <span>{formatDate(createdAt)} 登録</span>
           </div>
         )}
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Calendar className="w-4 h-4 text-gray-400" />
-          <span>{formatDate(joinedAt)} 入社</span>
-        </div>
       </div>
 
       {/* Stats */}

@@ -10,7 +10,7 @@ import { createSupabaseClient, getUser } from '../_shared/supabase.ts';
 import { jsonResponse, errorResponse, unauthorizedResponse, notFoundResponse } from '../_shared/response.ts';
 
 interface EndSessionRequest {
-  sessionId: string;
+  session_id: string;
 }
 
 serve(async (req: Request) => {
@@ -27,15 +27,15 @@ serve(async (req: Request) => {
     // Parse request body
     const body: EndSessionRequest = await req.json();
 
-    if (!body.sessionId) {
-      return errorResponse('VAL_001', 'sessionId is required', 400);
+    if (!body.session_id) {
+      return errorResponse('VAL_001', 'session_id is required', 400);
     }
 
     // Get session
     const { data: session, error: fetchError } = await supabase
       .from('sessions')
       .select('*')
-      .eq('id', body.sessionId)
+      .eq('id', body.session_id)
       .single();
 
     if (fetchError || !session) {
@@ -58,7 +58,7 @@ serve(async (req: Request) => {
         total_duration_ms: totalDurationMs,
         updated_at: endedAt.toISOString(),
       })
-      .eq('id', body.sessionId)
+      .eq('id', body.session_id)
       .select()
       .single();
 
@@ -79,17 +79,17 @@ serve(async (req: Request) => {
         'Authorization': `Bearer ${serviceRoleKey}`,
       },
       body: JSON.stringify({
-        sessionId: body.sessionId,
+        session_id: body.session_id,
       }),
     }).catch((err) => {
       console.error('Failed to trigger report generation:', err);
     });
 
     return jsonResponse({
-      sessionId: updatedSession.id,
+      session_id: updatedSession.id,
       status: updatedSession.status,
-      endedAt: updatedSession.ended_at,
-      totalDurationMs,
+      ended_at: updatedSession.ended_at,
+      total_duration_ms: totalDurationMs,
     });
   } catch (error) {
     console.error('Error in end-session:', error);

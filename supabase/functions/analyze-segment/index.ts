@@ -12,8 +12,8 @@ import { createSupabaseClient, createSupabaseAdminClient, getUser } from '../_sh
 import { jsonResponse, errorResponse, unauthorizedResponse } from '../_shared/response.ts';
 
 interface AnalyzeSegmentRequest {
-  sessionId: string;
-  chunkIndex: number;
+  session_id: string;
+  chunk_index: number;
 }
 
 interface TranscriptSegment {
@@ -31,7 +31,7 @@ interface SpeakerSegment {
   id: string;
   session_id: string;
   chunk_index: number;
-  speaker: 'stylist' | 'customer';
+  speaker: 'stylist' | 'customer' | 'unknown';
   text: string;
   start_time_ms: number;
   end_time_ms: number;
@@ -213,15 +213,15 @@ serve(async (req: Request) => {
     // Parse request body
     const body: AnalyzeSegmentRequest = await req.json();
 
-    if (!body.sessionId || body.chunkIndex === undefined) {
-      return errorResponse('VAL_001', 'sessionId and chunkIndex are required', 400);
+    if (!body.session_id || body.chunk_index === undefined) {
+      return errorResponse('VAL_001', 'session_id and chunk_index are required', 400);
     }
 
     // Fetch session info
     const { data: session, error: sessionError } = await supabase
       .from('sessions')
       .select('*')
-      .eq('id', body.sessionId)
+      .eq('id', body.session_id)
       .single();
 
     if (sessionError || !session) {
@@ -233,8 +233,8 @@ serve(async (req: Request) => {
     const { data: transcripts, error: transcriptError } = await supabase
       .from('transcripts')
       .select('*')
-      .eq('session_id', body.sessionId)
-      .eq('chunk_index', body.chunkIndex)
+      .eq('session_id', body.session_id)
+      .eq('chunk_index', body.chunk_index)
       .order('start_time_ms', { ascending: true });
 
     if (transcriptError) {
@@ -245,8 +245,8 @@ serve(async (req: Request) => {
     if (!transcripts || transcripts.length === 0) {
       return jsonResponse({
         message: 'No transcripts found for this chunk',
-        sessionId: body.sessionId,
-        chunkIndex: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
       });
     }
 
@@ -254,8 +254,8 @@ serve(async (req: Request) => {
     const { data: speakers, error: speakerError } = await supabase
       .from('speaker_segments')
       .select('*')
-      .eq('session_id', body.sessionId)
-      .eq('chunk_index', body.chunkIndex)
+      .eq('session_id', body.session_id)
+      .eq('chunk_index', body.chunk_index)
       .order('start_time_ms', { ascending: true });
 
     if (speakerError) {
@@ -330,56 +330,56 @@ serve(async (req: Request) => {
     // Save analysis results to database - one row per indicator type (normalized schema)
     const analysisRows = [
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'talk_ratio',
         value: analysis.metrics.talkRatio.stylistRatio || 0,
         score: analysis.metrics.talkRatio.score,
         details: analysis.metrics.talkRatio,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'question_analysis',
         value: analysis.metrics.questionQuality.openCount || 0,
         score: analysis.metrics.questionQuality.score,
         details: analysis.metrics.questionQuality,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'emotion_analysis',
         value: analysis.metrics.emotion.positiveRatio || 0,
         score: analysis.metrics.emotion.score,
         details: analysis.metrics.emotion,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'concern_keywords',
         value: (analysis.metrics.concernKeywords.keywords?.length || 0),
         score: analysis.metrics.concernKeywords.score,
         details: analysis.metrics.concernKeywords,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'proposal_timing',
         value: analysis.metrics.proposalTiming.timingMs || 0,
         score: analysis.metrics.proposalTiming.score,
         details: analysis.metrics.proposalTiming,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'proposal_quality',
         value: analysis.metrics.proposalQuality.matchRate || 0,
         score: analysis.metrics.proposalQuality.score,
         details: analysis.metrics.proposalQuality,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'conversion',
         value: analysis.metrics.conversion.isConverted ? 100 : 0,
         score: analysis.metrics.conversion.score,
@@ -399,21 +399,21 @@ serve(async (req: Request) => {
     }
 
     // Broadcast score update via realtime
-    const channel = supabase.channel(`session:${body.sessionId}`);
+    const channel = supabase.channel(`session:${body.session_id}`);
     await channel.send({
       type: 'broadcast',
       event: 'score_update',
       payload: {
-        sessionId: body.sessionId,
-        chunkIndex: body.chunkIndex,
-        overallScore: analysis.overallScore,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
+        overall_score: analysis.overallScore,
         metrics: {
-          talkRatio: analysis.metrics.talkRatio.score,
-          questionQuality: analysis.metrics.questionQuality.score,
+          talk_ratio: analysis.metrics.talkRatio.score,
+          question_quality: analysis.metrics.questionQuality.score,
           emotion: analysis.metrics.emotion.score,
-          concernKeywords: analysis.metrics.concernKeywords.score,
-          proposalTiming: analysis.metrics.proposalTiming.score,
-          proposalQuality: analysis.metrics.proposalQuality.score,
+          concern_keywords: analysis.metrics.concernKeywords.score,
+          proposal_timing: analysis.metrics.proposalTiming.score,
+          proposal_quality: analysis.metrics.proposalQuality.score,
           conversion: analysis.metrics.conversion.score,
         },
         timestamp: new Date().toISOString(),
@@ -432,7 +432,7 @@ serve(async (req: Request) => {
               Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
             },
             body: JSON.stringify({
-              sessionId: body.sessionId,
+              session_id: body.session_id,
               keywords: analysis.metrics.concernKeywords.keywords,
               limit: 3,
             }),
@@ -447,7 +447,7 @@ serve(async (req: Request) => {
               type: 'broadcast',
               event: 'similar_cases',
               payload: {
-                sessionId: body.sessionId,
+                session_id: body.session_id,
                 keywords: analysis.metrics.concernKeywords.keywords,
                 cases: searchResult.data.cases,
                 timestamp: new Date().toISOString(),
@@ -462,9 +462,9 @@ serve(async (req: Request) => {
 
     return jsonResponse({
       ...analysis,
-      sessionId: body.sessionId,
-      chunkIndex: body.chunkIndex,
-      segmentCount: mergedSegments.length,
+      session_id: body.session_id,
+      chunk_index: body.chunk_index,
+      segment_count: mergedSegments.length,
     });
   } catch (error) {
     console.error('Error in analyze-segment:', error);

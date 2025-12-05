@@ -1,5 +1,8 @@
 /**
  * Shared Types for Edge Functions
+ *
+ * 方針: Supabase生成型と同じsnake_caseを使用
+ * 詳細は docs/詳細設計書/12-付録.md を参照
  */
 
 // ===========================================
@@ -25,12 +28,12 @@ export type SessionStatus = 'recording' | 'processing' | 'analyzing' | 'complete
 
 export interface SessionInfo {
   id: string;
-  salonId: string;
-  stylistId: string;
+  salon_id: string;
+  stylist_id: string;
   status: SessionStatus;
-  startedAt: string;
-  endedAt: string | null;
-  totalDurationMs: number | null;
+  started_at: string;
+  ended_at: string | null;
+  total_duration_ms: number | null;
 }
 
 // ===========================================
@@ -43,17 +46,17 @@ export interface AnalysisMetricScore {
 }
 
 export interface TalkRatioMetric extends AnalysisMetricScore {
-  stylistRatio: number;
-  customerRatio: number;
+  stylist_ratio: number;
+  customer_ratio: number;
 }
 
 export interface QuestionMetric extends AnalysisMetricScore {
-  openCount: number;
-  closedCount: number;
+  open_count: number;
+  closed_count: number;
 }
 
 export interface EmotionMetric extends AnalysisMetricScore {
-  positiveRatio: number;
+  positive_ratio: number;
 }
 
 export interface ConcernKeywordsMetric extends AnalysisMetricScore {
@@ -61,29 +64,29 @@ export interface ConcernKeywordsMetric extends AnalysisMetricScore {
 }
 
 export interface ProposalTimingMetric extends AnalysisMetricScore {
-  timingMs: number | null;
+  timing_ms: number | null;
 }
 
 export interface ProposalQualityMetric extends AnalysisMetricScore {
-  matchRate: number;
+  match_rate: number;
 }
 
 export interface ConversionMetric extends AnalysisMetricScore {
-  isConverted: boolean;
+  is_converted: boolean;
 }
 
 export interface AnalysisMetrics {
-  talkRatio: TalkRatioMetric;
-  questionQuality: QuestionMetric;
+  talk_ratio: TalkRatioMetric;
+  question_quality: QuestionMetric;
   emotion: EmotionMetric;
-  concernKeywords: ConcernKeywordsMetric;
-  proposalTiming: ProposalTimingMetric;
-  proposalQuality: ProposalQualityMetric;
+  concern_keywords: ConcernKeywordsMetric;
+  proposal_timing: ProposalTimingMetric;
+  proposal_quality: ProposalQualityMetric;
   conversion: ConversionMetric;
 }
 
 export interface AnalysisResult {
-  overallScore: number;
+  overall_score: number;
   metrics: AnalysisMetrics;
   suggestions: string[];
   highlights: string[];
@@ -95,31 +98,31 @@ export interface AnalysisResult {
 
 export interface TranscriptSegment {
   id: string;
-  sessionId: string;
-  chunkIndex: number;
+  session_id: string;
+  chunk_index: number;
   text: string;
-  startTimeMs: number;
-  endTimeMs: number;
+  start_time_ms: number;
+  end_time_ms: number;
   confidence: number;
-  speakerLabel?: string;
+  speaker_label?: string;
 }
 
 export interface SpeakerSegment {
   id: string;
-  sessionId: string;
-  chunkIndex: number;
-  speakerLabel: string;
-  startTimeMs: number;
-  endTimeMs: number;
+  session_id: string;
+  chunk_index: number;
+  speaker_label: string;
+  start_time_ms: number;
+  end_time_ms: number;
   confidence: number;
 }
 
 export interface MergedSegment {
   speaker: 'stylist' | 'customer' | 'unknown';
-  speakerLabel: string;
+  speaker_label: string;
   text: string;
-  startTimeMs: number;
-  endTimeMs: number;
+  start_time_ms: number;
+  end_time_ms: number;
   confidence: number;
 }
 
@@ -129,15 +132,15 @@ export interface MergedSegment {
 
 export interface DiarizationSegment {
   speaker: string;
-  startTimeMs: number;
-  endTimeMs: number;
+  start_time_ms: number;
+  end_time_ms: number;
 }
 
 export interface DiarizationResult {
-  sessionId: string;
-  chunkIndex: number;
+  session_id: string;
+  chunk_index: number;
   segments: DiarizationSegment[];
-  processingTimeMs: number;
+  processing_time_ms: number;
 }
 
 // ===========================================
@@ -146,20 +149,20 @@ export interface DiarizationResult {
 
 export interface SuccessCase {
   id: string;
-  salonId: string;
-  sessionId: string | null;
-  concernKeywords: string[];
-  approachText: string;
+  salon_id: string;
+  session_id: string | null;
+  concern_keywords: string[];
+  approach_text: string;
   result: string;
-  conversionRate: number | null;
+  conversion_rate: number | null;
   embedding: number[] | null;
 }
 
 export interface SuccessCaseMatch {
   id: string;
   similarity: number;
-  approachText: string;
-  concernKeywords: string[];
+  approach_text: string;
+  concern_keywords: string[];
 }
 
 // ===========================================
@@ -167,25 +170,25 @@ export interface SuccessCaseMatch {
 // ===========================================
 
 export interface ReportMetrics {
-  talkRatio: TalkRatioMetric;
-  questionQuality: QuestionMetric;
+  talk_ratio: TalkRatioMetric;
+  question_quality: QuestionMetric;
   emotion: EmotionMetric;
-  concernKeywords: ConcernKeywordsMetric;
-  proposalTiming: ProposalTimingMetric;
-  proposalQuality: ProposalQualityMetric;
+  concern_keywords: ConcernKeywordsMetric;
+  proposal_timing: ProposalTimingMetric;
+  proposal_quality: ProposalQualityMetric;
   conversion: ConversionMetric;
 }
 
 export interface SessionReport {
   id: string;
-  sessionId: string;
+  session_id: string;
   summary: string;
-  overallScore: number;
+  overall_score: number;
   metrics: ReportMetrics;
   improvements: string[];
   strengths: string[];
-  matchedCases: SuccessCaseMatch[];
-  generatedAt: string;
+  matched_cases: SuccessCaseMatch[];
+  generated_at: string;
 }
 
 // ===========================================
@@ -200,31 +203,31 @@ export interface RoleplayMessage {
 
 export interface CustomerPersona {
   name: string;
-  ageGroup: string;
+  age_group: string;
   gender: string;
-  hairConcerns: string[];
+  hair_concerns: string[];
   personality: string;
-  purchaseHistory: string[];
+  purchase_history: string[];
 }
 
 export interface TrainingScenario {
   id: string;
   title: string;
   description: string;
-  customerPersona: CustomerPersona;
+  customer_persona: CustomerPersona;
   objectives: string[];
   difficulty: 'beginner' | 'intermediate' | 'advanced';
 }
 
 export interface RoleplayEvaluation {
-  overallScore: number;
+  overall_score: number;
   metrics: Partial<AnalysisMetrics>;
   feedback: string;
   improvements: string[];
-  modelAnswers: Array<{
+  model_answers: Array<{
     situation: string;
-    stylistResponse: string;
-    modelAnswer: string;
+    stylist_response: string;
+    model_answer: string;
     reasoning: string;
   }>;
 }
@@ -252,12 +255,12 @@ export interface NotificationPayload {
 // ===========================================
 
 export const METRIC_WEIGHTS = {
-  talkRatio: 0.15,
-  questionQuality: 0.15,
+  talk_ratio: 0.15,
+  question_quality: 0.15,
   emotion: 0.15,
-  concernKeywords: 0.10,
-  proposalTiming: 0.15,
-  proposalQuality: 0.15,
+  concern_keywords: 0.10,
+  proposal_timing: 0.15,
+  proposal_quality: 0.15,
   conversion: 0.15,
 } as const;
 
@@ -266,12 +269,12 @@ export const METRIC_WEIGHTS = {
  */
 export function calculateWeightedScore(metrics: AnalysisMetrics): number {
   const score =
-    metrics.talkRatio.score * METRIC_WEIGHTS.talkRatio +
-    metrics.questionQuality.score * METRIC_WEIGHTS.questionQuality +
+    metrics.talk_ratio.score * METRIC_WEIGHTS.talk_ratio +
+    metrics.question_quality.score * METRIC_WEIGHTS.question_quality +
     metrics.emotion.score * METRIC_WEIGHTS.emotion +
-    metrics.concernKeywords.score * METRIC_WEIGHTS.concernKeywords +
-    metrics.proposalTiming.score * METRIC_WEIGHTS.proposalTiming +
-    metrics.proposalQuality.score * METRIC_WEIGHTS.proposalQuality +
+    metrics.concern_keywords.score * METRIC_WEIGHTS.concern_keywords +
+    metrics.proposal_timing.score * METRIC_WEIGHTS.proposal_timing +
+    metrics.proposal_quality.score * METRIC_WEIGHTS.proposal_quality +
     metrics.conversion.score * METRIC_WEIGHTS.conversion;
 
   return Math.round(score);

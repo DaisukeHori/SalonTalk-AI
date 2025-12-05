@@ -1,10 +1,13 @@
 /**
  * Auth Store
  * 認証状態管理ストア（Supabase Auth連携）
+ *
+ * 方針: Supabase生成型と同じsnake_caseを使用
+ * 詳細は docs/詳細設計書/12-付録.md を参照
  */
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
-import type { Staff, Salon } from '@salontalk/shared';
+import type { Staff, Salon } from '@/types/user';
 import { getSupabaseClient, signInWithEmail, signOut as supabaseSignOut, getSession, onAuthStateChange } from '@/lib/supabase';
 import { apiService } from '@/services';
 
@@ -154,6 +157,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 /**
  * Fetch user and salon data from Supabase
+ * DB型をそのまま使用（snake_case）
  */
 async function fetchUserData(
   authUserId: string,
@@ -179,16 +183,17 @@ async function fetchUserData(
       throw new Error('スタッフ情報の取得に失敗しました');
     }
 
+    // DB型をそのまま使用（snake_case）- 変換不要
     const user: Staff = {
       id: staff.id,
-      salonId: staff.salon_id,
+      salon_id: staff.salon_id,
       email: staff.email,
       name: staff.name,
       role: staff.role,
-      avatarUrl: staff.avatar_url,
-      isActive: staff.is_active,
-      createdAt: new Date(staff.created_at),
-      updatedAt: new Date(staff.updated_at),
+      avatar_url: staff.avatar_url,
+      is_active: staff.is_active,
+      created_at: staff.created_at,
+      updated_at: staff.updated_at,
     };
 
     const salon: Salon = {
@@ -197,19 +202,19 @@ async function fetchUserData(
       address: staff.salons.address,
       phone: staff.salons.phone,
       plan: staff.salons.plan,
-      seatsCount: staff.salons.seats_count,
+      seats_count: staff.salons.seats_count,
       settings: staff.salons.settings || {
         language: 'ja',
         timezone: 'Asia/Tokyo',
-        recordingEnabled: true,
-        analysisEnabled: true,
-        notificationsEnabled: true,
-        maxConcurrentSessions: 10,
-        sessionTimeoutMinutes: 180,
-        dataRetentionDays: 365,
+        recording_enabled: true,
+        analysis_enabled: true,
+        notifications_enabled: true,
+        max_concurrent_sessions: 10,
+        session_timeout_minutes: 180,
+        data_retention_days: 365,
       },
-      createdAt: new Date(staff.salons.created_at),
-      updatedAt: new Date(staff.salons.updated_at),
+      created_at: staff.salons.created_at,
+      updated_at: staff.salons.updated_at,
     };
 
     // Cache user data

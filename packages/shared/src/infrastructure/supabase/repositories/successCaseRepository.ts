@@ -6,11 +6,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../types';
 import type { SuccessCaseRepository, QueryOptions } from '../../../domain/repositories';
-import type { SuccessCase } from '../../../domain/entities';
+// TODO: 将来的にはDB型を直接返すように変更し、このインポートを削除する
+import type { SuccessCase } from '../../../domain/entities/_conceptual-model-DO-NOT-IMPORT';
 import {
   createSuccessCaseId,
   createSalonId,
   createSessionId,
+  createStaffId,
   type SuccessCaseId,
   type SalonId,
   type Embedding,
@@ -21,18 +23,25 @@ type SuccessCaseInsert = Database['public']['Tables']['success_cases']['Insert']
 
 /**
  * Row to Entity mapper
+ * DBスキーマの全カラムをエンティティにマッピング
  */
 function toEntity(row: SuccessCaseRow): SuccessCase {
   return {
     id: createSuccessCaseId(row.id),
     salonId: createSalonId(row.salon_id),
     sessionId: row.session_id ? createSessionId(row.session_id) : null,
+    stylistId: row.stylist_id ? createStaffId(row.stylist_id) : null,
     concernKeywords: row.concern_keywords,
+    customerProfile: row.customer_profile as Record<string, unknown> | null,
     approachText: row.approach_text,
+    successfulTalk: row.successful_talk,
+    keyTactics: row.key_tactics,
     result: row.result,
+    soldProduct: row.sold_product,
     conversionRate: row.conversion_rate,
     embedding: row.embedding,
     isActive: row.is_active,
+    isPublic: row.is_public,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
@@ -114,19 +123,26 @@ export function createSuccessCaseRepository(
 
       if (error || !data) return [];
 
+      // RPC関数の戻り値をエンティティにマッピング
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data as any[]).map((row: any) => ({
         id: createSuccessCaseId(row.id),
-        salonId: createSalonId(''),
-        sessionId: null,
-        concernKeywords: row.concern_keywords,
-        approachText: row.approach_text,
-        result: row.result,
-        conversionRate: null,
-        embedding: null,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        salonId: createSalonId(row.salon_id || ''),
+        sessionId: row.session_id ? createSessionId(row.session_id) : null,
+        stylistId: row.stylist_id ? createStaffId(row.stylist_id) : null,
+        concernKeywords: row.concern_keywords || [],
+        customerProfile: row.customer_profile || null,
+        approachText: row.approach_text || '',
+        successfulTalk: row.successful_talk || null,
+        keyTactics: row.key_tactics || null,
+        result: row.result || '',
+        soldProduct: row.sold_product || null,
+        conversionRate: row.conversion_rate || null,
+        embedding: null, // RPC結果にはembeddingは含まれない
+        isActive: row.is_active ?? true,
+        isPublic: row.is_public ?? false,
+        createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+        updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
         similarity: row.similarity,
       }));
     },
@@ -164,12 +180,18 @@ export function createSuccessCaseRepository(
       const insertData: SuccessCaseInsert = {
         salon_id: data.salonId,
         session_id: data.sessionId,
+        stylist_id: data.stylistId,
         concern_keywords: data.concernKeywords,
+        customer_profile: data.customerProfile,
         approach_text: data.approachText,
+        successful_talk: data.successfulTalk,
+        key_tactics: data.keyTactics,
         result: data.result,
+        sold_product: data.soldProduct,
         conversion_rate: data.conversionRate,
         embedding: data.embedding,
         is_active: data.isActive,
+        is_public: data.isPublic,
       };
 
       // Use type assertion due to Supabase type inference limitations

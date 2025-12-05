@@ -8,10 +8,10 @@ import { useAuthStore } from '@/stores/auth';
 import { apiService, realtimeService, audioRecorderService, speechRecognitionService } from '@/services';
 
 interface CustomerInfo {
-  ageGroup?: '10s' | '20s' | '30s' | '40s' | '50s' | '60s+';
+  age_group?: '10s' | '20s' | '30s' | '40s' | '50s' | '60s+';
   gender?: 'male' | 'female' | 'other';
-  visitType: 'new' | 'repeat';
-  visitFrequency?: 'first' | 'monthly' | 'bimonthly' | 'quarterly' | 'irregular';
+  visit_type: 'new' | 'repeat';
+  visit_frequency?: 'first' | 'monthly' | 'bimonthly' | 'quarterly' | 'irregular';
   notes?: string;
 }
 
@@ -43,19 +43,19 @@ export function useSession() {
       try {
         // Create session via API
         const session = await apiService.createSession({
-          stylistId: user.id,
-          customerInfo,
+          stylist_id: user.id,
+          customer_info: customerInfo,
         });
 
         setCurrentSession({
-          id: session.sessionId,
+          id: session.session_id,
           status: session.status,
-          startedAt: new Date(session.startedAt),
-          realtimeChannel: session.realtimeChannel,
+          startedAt: new Date(session.started_at),
+          realtimeChannel: session.realtime_channel,
         });
 
         // Connect to realtime channel
-        await realtimeService.subscribeToSession(session.sessionId);
+        await realtimeService.subscribeToSession(session.session_id);
 
         // Start audio recording
         await audioRecorderService.startRecording();
@@ -87,7 +87,7 @@ export function useSession() {
       setIsRecording(false);
 
       // End session via API (report generation is triggered asynchronously)
-      const response = await apiService.endSession({ sessionId: currentSession.id });
+      const response = await apiService.endSession({ session_id: currentSession.id });
 
       // Disconnect realtime
       await realtimeService.unsubscribe();

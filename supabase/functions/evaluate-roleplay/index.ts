@@ -17,8 +17,8 @@ interface RoleplayMessage {
 }
 
 interface EvaluateRoleplayRequest {
-  sessionId?: string;
-  scenarioId?: string;
+  session_id?: string;
+  scenario_id?: string;
   messages: RoleplayMessage[];
   objectives?: string[];
 }
@@ -118,11 +118,11 @@ serve(async (req: Request) => {
     let objectives = body.objectives || DEFAULT_OBJECTIVES;
     let scenario = null;
 
-    if (body.scenarioId) {
+    if (body.scenario_id) {
       const { data: scenarioData } = await supabase
         .from('training_scenarios')
         .select('*')
-        .eq('id', body.scenarioId)
+        .eq('id', body.scenario_id)
         .single();
 
       if (scenarioData) {
@@ -209,7 +209,7 @@ ${conversation}`,
     evaluation.overallScore = weightedScore;
 
     // Save evaluation result if session ID provided
-    if (body.sessionId) {
+    if (body.session_id) {
       const { error: updateError } = await supabase
         .from('roleplay_sessions')
         .update({
@@ -217,7 +217,7 @@ ${conversation}`,
           evaluation,
           ended_at: new Date().toISOString(),
         })
-        .eq('id', body.sessionId);
+        .eq('id', body.session_id);
 
       if (updateError) {
         console.error('Failed to save evaluation:', updateError);
@@ -232,10 +232,10 @@ ${conversation}`,
 
     return jsonResponse({
       ...evaluation,
-      sessionId: body.sessionId,
-      scenarioId: body.scenarioId,
-      messageCount: body.messages.length,
-      evaluatedAt: new Date().toISOString(),
+      session_id: body.session_id,
+      scenario_id: body.scenario_id,
+      message_count: body.messages.length,
+      evaluated_at: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Error in evaluate-roleplay:', error);

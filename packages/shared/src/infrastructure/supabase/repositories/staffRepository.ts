@@ -6,7 +6,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../types';
 import type { StaffRepository, QueryOptions } from '../../../domain/repositories';
-import type { Staff } from '../../../domain/entities';
+// TODO: 将来的にはDB型を直接返すように変更し、このインポートを削除する
+import type { Staff } from '../../../domain/entities/_conceptual-model-DO-NOT-IMPORT';
 import {
   createStaffId,
   createSalonId,

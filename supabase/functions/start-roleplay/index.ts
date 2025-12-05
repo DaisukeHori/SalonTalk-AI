@@ -10,17 +10,17 @@ import { createSupabaseClient, getUser, getStaff } from '../_shared/supabase.ts'
 import { jsonResponse, errorResponse, unauthorizedResponse } from '../_shared/response.ts';
 
 interface StartRoleplayRequest {
-  scenarioId: string;
+  scenario_id: string;
 }
 
 interface CustomerPersona {
   name: string;
-  ageGroup: string;
+  age_group: string;
   gender: string;
   personality: string;
   concerns: string[];
-  hairConcerns?: string[];
-  purchaseHistory?: string[];
+  hair_concerns?: string[];
+  purchase_history?: string[];
 }
 
 interface TrainingScenario {
@@ -29,10 +29,10 @@ interface TrainingScenario {
   description: string;
   difficulty: string;
   category: string;
-  estimatedMinutes: number;
+  estimated_minutes: number;
   objectives: string[];
-  customerPersona: CustomerPersona;
-  initialMessage?: string;
+  customer_persona: CustomerPersona;
+  initial_message?: string;
 }
 
 const buildInitialMessage = (persona: CustomerPersona): string => {
@@ -43,7 +43,7 @@ const buildInitialMessage = (persona: CustomerPersona): string => {
     'はじめまして。',
   ];
 
-  const concerns = persona.concerns || persona.hairConcerns || [];
+  const concerns = persona.concerns || persona.hair_concerns || [];
 
   // Simple initial messages depending on personality
   if (persona.personality?.includes('控えめ')) {
@@ -72,15 +72,15 @@ serve(async (req: Request) => {
     // Parse request body
     const body: StartRoleplayRequest = await req.json();
 
-    if (!body.scenarioId) {
-      return errorResponse('VAL_001', 'scenarioId is required', 400);
+    if (!body.scenario_id) {
+      return errorResponse('VAL_001', 'scenario_id is required', 400);
     }
 
     // Fetch scenario
     const { data: scenarioData, error: scenarioError } = await supabase
       .from('training_scenarios')
       .select('*')
-      .eq('id', body.scenarioId)
+      .eq('id', body.scenario_id)
       .eq('is_active', true)
       .single();
 
@@ -91,12 +91,12 @@ serve(async (req: Request) => {
 
     const persona: CustomerPersona = {
       name: scenarioData.customer_persona?.name || 'お客様',
-      ageGroup: scenarioData.customer_persona?.ageGroup || '30代',
+      age_group: scenarioData.customer_persona?.age_group || scenarioData.customer_persona?.ageGroup || '30代',
       gender: scenarioData.customer_persona?.gender || '女性',
       personality: scenarioData.customer_persona?.personality || '普通',
-      concerns: scenarioData.customer_persona?.concerns || scenarioData.customer_persona?.hairConcerns || [],
-      hairConcerns: scenarioData.customer_persona?.hairConcerns,
-      purchaseHistory: scenarioData.customer_persona?.purchaseHistory,
+      concerns: scenarioData.customer_persona?.concerns || scenarioData.customer_persona?.hair_concerns || scenarioData.customer_persona?.hairConcerns || [],
+      hair_concerns: scenarioData.customer_persona?.hair_concerns || scenarioData.customer_persona?.hairConcerns,
+      purchase_history: scenarioData.customer_persona?.purchase_history || scenarioData.customer_persona?.purchaseHistory,
     };
 
     // Generate initial message
@@ -107,7 +107,7 @@ serve(async (req: Request) => {
       .from('roleplay_sessions')
       .insert({
         staff_id: staff.id,
-        scenario_id: body.scenarioId,
+        scenario_id: body.scenario_id,
         status: 'in_progress',
         messages: [
           {
@@ -133,15 +133,15 @@ serve(async (req: Request) => {
       description: scenarioData.description,
       difficulty: scenarioData.difficulty || 'beginner',
       category: scenarioData.category || 'general',
-      estimatedMinutes: scenarioData.estimated_minutes || 10,
+      estimated_minutes: scenarioData.estimated_minutes || 10,
       objectives: scenarioData.objectives || [],
-      customerPersona: persona,
-      initialMessage,
+      customer_persona: persona,
+      initial_message: initialMessage,
     };
 
     return jsonResponse({
-      sessionId: session.id,
-      initialMessage,
+      session_id: session.id,
+      initial_message: initialMessage,
       scenario,
     });
   } catch (error) {

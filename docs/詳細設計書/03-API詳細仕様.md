@@ -1114,22 +1114,19 @@ function errorResponse(code: string, message: string, status: number) {
 
 ---
 
-#### 3.3.5 search-cases
+#### 3.3.5 search-success-cases
 
-**エンドポイント**: `POST /functions/v1/search-cases`
+**エンドポイント**: `POST /functions/v1/search-success-cases`
 
-**説明**: 悩みキーワードに基づいて類似の成功事例を検索
+**説明**: 悩みキーワードに基づいて類似の成功事例をベクトル検索
 
 **リクエスト**:
 
 ```typescript
-interface SearchCasesRequest {
-  sessionId: string;
-  concernKeywords: string[];
-  customerInfo?: {
-    ageGroup?: string;
-    gender?: string;
-  };
+interface SearchSuccessCasesRequest {
+  concernKeywords: string[];  // 検索キーワード（必須）
+  limit?: number;             // 取得件数（デフォルト: 5）
+  threshold?: number;         // 類似度閾値（デフォルト: 0.7）
 }
 ```
 
@@ -1137,166 +1134,128 @@ interface SearchCasesRequest {
 
 ```typescript
 // 200 OK
-interface SearchCasesResponse {
+interface SearchSuccessCasesResponse {
   data: {
     cases: Array<{
       id: string;
-      concernKeywords: string[];
-      successfulTalk: string;
-      keyTactics: string[];
-      soldProduct: string | null;
       similarity: number;
+      concernKeywords: string[];
+      approachText: string;
+      result: string;
     }>;
-    notificationSent: boolean;
+    total: number;
   };
 }
 ```
 
+**エラー**:
+
+| コード | 説明 |
+|--------|------|
+| VAL_001 | concernKeywords未指定 |
+| AI_001 | OpenAI API設定エラー |
+| DB_001 | データベース検索エラー |
+
 **実装**:
 
 ```typescript
-// supabase/functions/search-cases/index.ts
+// supabase/functions/search-success-cases/index.ts
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { handleCors } from '../_shared/cors.ts';
+import { createSupabaseClient, getUser, getStaff } from '../_shared/supabase.ts';
+import { jsonResponse, errorResponse, unauthorizedResponse } from '../_shared/response.ts';
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+interface SearchRequest {
+  concernKeywords: string[];
+  limit?: number;
+  threshold?: number;
+}
 
 serve(async (req: Request) => {
+  // Handle CORS preflight
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    const supabase = createSupabaseClient(req);
 
-    const { sessionId, concernKeywords, customerInfo } = await req.json();
+    // Verify authentication
+    const user = await getUser(supabase);
+    const staff = await getStaff(supabase, user.id);
 
-    // セッション取得
-    const { data: session } = await supabase
-      .from('sessions')
-      .select('salon_id')
-      .eq('id', sessionId)
-      .single();
+    // Parse request body
+    const body: SearchRequest = await req.json();
 
-    if (!session) {
-      return errorResponse('SES_001', 'セッションが見つかりません', 404);
+    if (!body.concernKeywords || body.concernKeywords.length === 0) {
+      return errorResponse('VAL_001', 'concernKeywords is required', 400);
     }
 
-    // 検索テキスト生成
-    const searchText = generateSearchText(concernKeywords, customerInfo);
+    const limit = body.limit ?? 5;
+    const threshold = body.threshold ?? 0.7;
 
-    // Embedding生成
-    const embedding = await createEmbedding(searchText);
+    // Generate embedding for query
+    const queryText = body.concernKeywords.join(' ');
 
-    // ベクトル検索（pgvector）
-    const { data: cases, error: searchError } = await supabase.rpc(
-      'search_success_cases',
-      {
-        query_embedding: embedding,
-        match_threshold: 0.7,
-        match_count: 5,
-        salon_id: session.salon_id,
-      }
-    );
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openaiApiKey) {
+      return errorResponse('AI_001', 'OpenAI API key not configured', 500);
+    }
+
+    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${openaiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-3-small',
+        input: queryText,
+      }),
+    });
+
+    if (!embeddingResponse.ok) {
+      const error = await embeddingResponse.text();
+      console.error('OpenAI embedding error:', error);
+      return errorResponse('AI_001', 'Failed to generate embedding', 500);
+    }
+
+    const embeddingResult = await embeddingResponse.json();
+    const queryEmbedding = embeddingResult.data[0].embedding;
+
+    // Search for similar success cases using pgvector
+    const { data: cases, error: searchError } = await supabase.rpc('search_success_cases', {
+      query_embedding: queryEmbedding,
+      match_threshold: threshold,
+      match_count: limit,
+      salon_id: staff.salon_id,
+    });
 
     if (searchError) {
-      console.error('Search error:', searchError);
-      // フォールバック: キーワード検索
-      const { data: fallbackCases } = await supabase
-        .from('success_cases')
-        .select('*')
-        .or(`salon_id.eq.${session.salon_id},is_public.eq.true`)
-        .overlaps('concern_keywords', concernKeywords)
-        .limit(5);
-
-      return sendNotificationAndRespond(supabase, sessionId, fallbackCases || []);
+      console.error('Vector search error:', searchError);
+      return errorResponse('DB_001', 'Failed to search success cases', 500);
     }
 
-    return sendNotificationAndRespond(supabase, sessionId, cases || []);
-
+    return jsonResponse({
+      cases: cases.map((c: any) => ({
+        id: c.id,
+        similarity: c.similarity,
+        concernKeywords: c.concern_keywords,
+        approachText: c.approach_text,
+        result: c.result,
+      })),
+      total: cases.length,
+    });
   } catch (error) {
-    console.error('Search cases error:', error);
-    return errorResponse('SYS_001', 'システムエラーが発生しました', 500);
+    console.error('Error in search-success-cases:', error);
+
+    if (error.message === 'Unauthorized') {
+      return unauthorizedResponse();
+    }
+
+    return errorResponse('INTERNAL_ERROR', error.message, 500);
   }
 });
-
-async function createEmbedding(text: string): Promise<number[]> {
-  const response = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'text-embedding-3-small',
-      input: text,
-    }),
-  });
-
-  const result = await response.json();
-  return result.data[0].embedding;
-}
-
-function generateSearchText(keywords: string[], customerInfo?: any): string {
-  const parts = [`悩み: ${keywords.join(', ')}`];
-  
-  if (customerInfo?.ageGroup) {
-    parts.push(`年代: ${customerInfo.ageGroup}`);
-  }
-  if (customerInfo?.gender) {
-    parts.push(`性別: ${customerInfo.gender}`);
-  }
-  
-  return parts.join('\n');
-}
-
-async function sendNotificationAndRespond(
-  supabase: any,
-  sessionId: string,
-  cases: any[]
-) {
-  if (cases.length > 0) {
-    // Realtimeで通知を送信
-    await supabase
-      .channel(`session:${sessionId}`)
-      .send({
-        type: 'broadcast',
-        event: 'notification',
-        payload: {
-          type: 'proposal_chance',
-          title: '🎯 提案チャンス！',
-          message: `お客様が悩みを話しています`,
-          recommendedProduct: cases[0].sold_product,
-          successTalk: cases[0].successful_talk,
-          keyTactics: cases[0].key_tactics,
-        },
-      });
-  }
-
-  return new Response(
-    JSON.stringify({
-      data: {
-        cases: cases.map(c => ({
-          id: c.id,
-          concernKeywords: c.concern_keywords,
-          successfulTalk: c.successful_talk,
-          keyTactics: c.key_tactics,
-          soldProduct: c.sold_product,
-          similarity: c.similarity || null,
-        })),
-        notificationSent: cases.length > 0,
-      },
-    }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } }
-  );
-}
-
-function errorResponse(code: string, message: string, status: number) {
-  return new Response(
-    JSON.stringify({ error: { code, message } }),
-    { status, headers: { 'Content-Type': 'application/json' } }
-  );
-}
 ```
 
 ---
@@ -1591,16 +1550,15 @@ interface RoleplayChatResponse {
 -- ベクトル類似検索関数
 CREATE OR REPLACE FUNCTION search_success_cases(
   query_embedding VECTOR(1536),
-  match_threshold FLOAT DEFAULT 0.7,
-  match_count INT DEFAULT 5,
+  match_threshold FLOAT,
+  match_count INT,
   salon_id UUID DEFAULT NULL
 )
 RETURNS TABLE (
   id UUID,
   concern_keywords TEXT[],
-  successful_talk TEXT,
-  key_tactics TEXT[],
-  sold_product VARCHAR,
+  approach_text TEXT,
+  result TEXT,
   similarity FLOAT
 )
 LANGUAGE plpgsql
@@ -1610,14 +1568,13 @@ BEGIN
   SELECT
     sc.id,
     sc.concern_keywords,
-    sc.successful_talk,
-    sc.key_tactics,
-    sc.sold_product,
+    sc.approach_text,
+    sc.result,
     1 - (sc.embedding <=> query_embedding) AS similarity
   FROM success_cases sc
   WHERE
-    sc.embedding IS NOT NULL
-    AND (sc.is_public = true OR sc.salon_id = search_success_cases.salon_id)
+    sc.is_active = TRUE
+    AND (salon_id IS NULL OR sc.salon_id = salon_id OR sc.is_public = TRUE)
     AND 1 - (sc.embedding <=> query_embedding) > match_threshold
   ORDER BY sc.embedding <=> query_embedding
   LIMIT match_count;

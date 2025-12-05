@@ -9,7 +9,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
 interface GenerateReportRequest {
-  sessionId: string;
+  session_id: string;
 }
 
 interface IndicatorScore {
@@ -39,17 +39,17 @@ Deno.serve(async (req: Request) => {
     }
 
     const body: GenerateReportRequest = await req.json();
-    const { sessionId } = body;
+    const { session_id } = body;
 
-    if (!sessionId) {
-      return errorResponse("VAL_001", "sessionIdが必要です", 400);
+    if (!session_id) {
+      return errorResponse("VAL_001", "session_idが必要です", 400);
     }
 
     // Get session data
     const { data: session, error: sessionError } = await supabase
       .from("sessions")
       .select("id, salon_id, stylist_id, status, customer_info, started_at, ended_at")
-      .eq("id", sessionId)
+      .eq("id", session_id)
       .single();
 
     if (sessionError || !session) {
@@ -65,14 +65,14 @@ Deno.serve(async (req: Request) => {
     const { data: analyses } = await adminClient
       .from("session_analyses")
       .select("*")
-      .eq("session_id", sessionId)
+      .eq("session_id", session_id)
       .order("chunk_index", { ascending: true });
 
     // Get all speaker segments
     const { data: segments } = await adminClient
       .from("speaker_segments")
       .select("*")
-      .eq("session_id", sessionId)
+      .eq("session_id", session_id)
       .order("start_time_ms", { ascending: true });
 
     if (!segments || segments.length === 0) {
@@ -97,17 +97,36 @@ Deno.serve(async (req: Request) => {
     // Calculate overall score
     const overallScore = calculateOverallScore(aggregatedMetrics);
 
-    // Create report record in session_reports table
+    // Extract detailed metrics for individual columns
+    const talkRatioDetails = findLatestDetails(analyses || [], 'talk_ratio');
+    const questionDetails = findLatestDetails(analyses || [], 'question_analysis');
+    const emotionDetails = findLatestDetails(analyses || [], 'emotion_analysis');
+    const concernDetails = findLatestDetails(analyses || [], 'concern_keywords');
+    const timingDetails = findLatestDetails(analyses || [], 'proposal_timing');
+    const qualityDetails = findLatestDetails(analyses || [], 'proposal_quality');
+
+    // Create report record in session_reports table with all 17 columns
     const { data: report, error: reportError } = await adminClient
       .from("session_reports")
       .insert({
-        session_id: sessionId,
+        session_id: session_id,
         summary: aiReport.summary,
         overall_score: overallScore,
         metrics: aggregatedMetrics,
+        // 7指標の詳細カラム
+        stylist_ratio: talkRatioDetails?.stylistRatio ?? null,
+        customer_ratio: talkRatioDetails?.customerRatio ?? null,
+        open_question_count: questionDetails?.openCount ?? 0,
+        closed_question_count: questionDetails?.closedCount ?? 0,
+        positive_ratio: emotionDetails?.positiveRatio ?? null,
+        concern_keywords: concernDetails?.keywords ?? [],
+        proposal_timing_ms: timingDetails?.timingMs ?? null,
+        proposal_match_rate: qualityDetails?.matchRate ?? null,
+        is_converted: aggregatedMetrics.conversion?.value > 0,
+        // フィードバック
         improvements: aiReport.improvementPoints,
         strengths: aiReport.goodPoints,
-        is_converted: aggregatedMetrics.conversion?.value > 0,
+        matched_cases: [], // 成功事例マッチは別途実装
       })
       .select()
       .single();
@@ -121,16 +140,16 @@ Deno.serve(async (req: Request) => {
     await adminClient
       .from("sessions")
       .update({ status: "completed", ended_at: new Date().toISOString() })
-      .eq("id", sessionId);
+      .eq("id", session_id);
 
     return jsonResponse({
-      reportId: report.id,
-      overallScore,
-      goodPoints: aiReport.goodPoints,
-      improvementPoints: aiReport.improvementPoints,
-      actionItems: aiReport.actionItems,
-      transcriptSummary: aiReport.summary,
-      aiFeedback: aiReport.feedback,
+      report_id: report.id,
+      overall_score: overallScore,
+      good_points: aiReport.goodPoints,
+      improvement_points: aiReport.improvementPoints,
+      action_items: aiReport.actionItems,
+      transcript_summary: aiReport.summary,
+      ai_feedback: aiReport.feedback,
     });
   } catch (error) {
     console.error("Generate report error:", error);
@@ -303,6 +322,25 @@ ${JSON.stringify(customerInfo || {})}
     console.error("AI report generation error:", error);
     return generateRuleBasedReport(metrics);
   }
+}
+
+/**
+ * 指定された指標タイプの最新チャンクの詳細データを取得
+ */
+function findLatestDetails(
+  analyses: Array<{
+    chunk_index: number;
+    indicator_type: string;
+    details?: Record<string, unknown>;
+  }>,
+  indicatorType: string
+): Record<string, unknown> | null {
+  const filtered = analyses.filter(a => a.indicator_type === indicatorType);
+  if (filtered.length === 0) return null;
+
+  const maxChunk = Math.max(...filtered.map(a => a.chunk_index));
+  const latest = filtered.find(a => a.chunk_index === maxChunk);
+  return latest?.details || null;
 }
 
 function generateRuleBasedReport(metrics: Record<string, IndicatorScore>): AIReportResult {

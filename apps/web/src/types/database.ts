@@ -55,7 +55,7 @@ export interface Database {
           salon_id: string;
           email: string;
           name: string;
-          role: 'stylist' | 'manager' | 'owner' | 'admin';
+          role: 'stylist' | 'manager' | 'owner' | 'admin' | 'assistant';
           avatar_url: string | null;
           is_active: boolean;
           created_at: string;
@@ -66,7 +66,7 @@ export interface Database {
           salon_id: string;
           email: string;
           name: string;
-          role?: 'stylist' | 'manager' | 'owner' | 'admin';
+          role?: 'stylist' | 'manager' | 'owner' | 'admin' | 'assistant';
           avatar_url?: string | null;
           is_active?: boolean;
           created_at?: string;
@@ -76,7 +76,7 @@ export interface Database {
           salon_id?: string;
           email?: string;
           name?: string;
-          role?: 'stylist' | 'manager' | 'owner' | 'admin';
+          role?: 'stylist' | 'manager' | 'owner' | 'admin' | 'assistant';
           avatar_url?: string | null;
           is_active?: boolean;
           updated_at?: string;

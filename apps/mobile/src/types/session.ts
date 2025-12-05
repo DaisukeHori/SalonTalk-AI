@@ -1,21 +1,25 @@
 /**
  * Session Types
  * セッション関連の型定義
+ *
+ * 方針: Supabase生成型と同じsnake_caseを使用
+ * 詳細は docs/詳細設計書/12-付録.md を参照
  */
 
 /**
  * セッションステータス
+ * DBスキーマ: CHECK (status IN ('recording', 'processing', 'analyzing', 'completed', 'error'))
  */
-export type SessionStatus = 'recording' | 'processing' | 'completed' | 'error';
+export type SessionStatus = 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
 
 /**
  * 顧客情報
  */
 export interface CustomerInfo {
   name?: string;
-  ageGroup?: string;
+  age_group?: string;
   gender?: 'male' | 'female' | 'other';
-  visitType: 'new' | 'repeat';
+  visit_type: 'new' | 'repeat';
   notes?: string;
 }
 
@@ -24,23 +28,23 @@ export interface CustomerInfo {
  */
 export interface Session {
   id: string;
-  salonId: string;
-  stylistId: string;
-  customerInfo: CustomerInfo;
+  salon_id: string;
+  stylist_id: string;
+  customer_info: CustomerInfo;
   status: SessionStatus;
-  startedAt: string;
-  endedAt: string | null;
-  totalDurationMs: number | null;
-  createdAt: string;
-  updatedAt: string;
+  started_at: string;
+  ended_at: string | null;
+  total_duration_ms: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
  * セッション詳細（レポート込み）
  */
 export interface SessionDetail extends Session {
-  stylistName: string;
-  overallScore: number;
+  stylist_name: string;
+  overall_score: number;
   metrics: SessionMetrics;
   transcript: TranscriptMessage[];
   improvements: string[];
@@ -51,12 +55,12 @@ export interface SessionDetail extends Session {
  * セッション分析メトリクス
  */
 export interface SessionMetrics {
-  talkRatio: TalkRatioMetric;
-  questionQuality: QuestionQualityMetric;
+  talk_ratio: TalkRatioMetric;
+  question_quality: QuestionQualityMetric;
   emotion: EmotionMetric;
-  concernKeywords: ConcernKeywordsMetric;
-  proposalTiming: BaseMetric;
-  proposalQuality: ProposalQualityMetric;
+  concern_keywords: ConcernKeywordsMetric;
+  proposal_timing: BaseMetric;
+  proposal_quality: ProposalQualityMetric;
   conversion: ConversionMetric;
 }
 
@@ -72,23 +76,23 @@ export interface BaseMetric {
  * トーク比率メトリクス
  */
 export interface TalkRatioMetric extends BaseMetric {
-  stylistRatio: number;
-  customerRatio: number;
+  stylist_ratio: number;
+  customer_ratio: number;
 }
 
 /**
  * 質問品質メトリクス
  */
 export interface QuestionQualityMetric extends BaseMetric {
-  openCount: number;
-  closedCount: number;
+  open_count: number;
+  closed_count: number;
 }
 
 /**
  * 感情分析メトリクス
  */
 export interface EmotionMetric extends BaseMetric {
-  positiveRatio: number;
+  positive_ratio: number;
 }
 
 /**
@@ -102,21 +106,22 @@ export interface ConcernKeywordsMetric extends BaseMetric {
  * 提案品質メトリクス
  */
 export interface ProposalQualityMetric extends BaseMetric {
-  matchRate: number;
+  match_rate: number;
 }
 
 /**
  * 成約メトリクス
  */
 export interface ConversionMetric extends BaseMetric {
-  isConverted: boolean;
+  is_converted: boolean;
 }
 
 /**
  * トランスクリプトメッセージ
+ * speaker: DBスキーマでは 'unknown' も許容
  */
 export interface TranscriptMessage {
-  speaker: 'stylist' | 'customer';
+  speaker: 'stylist' | 'customer' | 'unknown';
   text: string;
   timestamp: number;
 }
@@ -125,8 +130,8 @@ export interface TranscriptMessage {
  * セッション作成パラメータ
  */
 export interface CreateSessionParams {
-  stylistId: string;
-  customerInfo?: Partial<CustomerInfo>;
+  stylist_id: string;
+  customer_info?: Partial<CustomerInfo>;
 }
 
 /**
@@ -139,9 +144,9 @@ export interface SessionListItem {
   duration: string;
   score: number;
   converted: boolean;
-  customerInfo?: {
-    ageGroup?: string;
-    visitType?: string;
+  customer_info?: {
+    age_group?: string;
+    visit_type?: string;
   };
 }
 
@@ -149,13 +154,13 @@ export interface SessionListItem {
  * リアルタイムセッション状態
  */
 export interface RealtimeSessionState {
-  isRecording: boolean;
-  currentScore: number;
-  elapsedTime: number;
-  lastTranscript: string;
+  is_recording: boolean;
+  current_score: number;
+  elapsed_time: number;
+  last_transcript: string;
   metrics: {
-    talkRatio: number;
-    questionQuality: number;
+    talk_ratio: number;
+    question_quality: number;
     emotion: number;
   };
 }

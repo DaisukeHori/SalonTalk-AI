@@ -10,12 +10,12 @@ import { createSupabaseClient, getUser, getStaff } from '../_shared/supabase.ts'
 import { jsonResponse, errorResponse, unauthorizedResponse } from '../_shared/response.ts';
 
 interface CreateSessionRequest {
-  stylistId?: string;
-  customerInfo?: {
+  stylist_id?: string;
+  customer_info?: {
     name?: string;
-    ageGroup?: string;
+    age_group?: string;
     gender?: string;
-    visitType: 'new' | 'repeat';
+    visit_type: 'new' | 'repeat';
     notes?: string;
   };
 }
@@ -56,7 +56,7 @@ serve(async (req: Request) => {
         salon_id: staff.salon_id,
         stylist_id: staff.id,
         status: 'recording',
-        customer_info: body.customerInfo ?? { visitType: 'repeat' },
+        customer_info: body.customer_info ?? { visit_type: 'repeat' },
         started_at: new Date().toISOString(),
       })
       .select()
@@ -71,10 +71,10 @@ serve(async (req: Request) => {
     const realtimeChannel = `session:${session.id}`;
 
     return jsonResponse({
-      sessionId: session.id,
+      session_id: session.id,
       status: session.status,
-      realtimeChannel,
-      startedAt: session.started_at,
+      realtime_channel: realtimeChannel,
+      started_at: session.started_at,
     });
   } catch (error) {
     console.error('Error in create-session:', error);

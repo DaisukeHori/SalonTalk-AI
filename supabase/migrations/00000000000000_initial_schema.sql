@@ -51,7 +51,7 @@ CREATE TABLE staffs (
     salon_id UUID NOT NULL REFERENCES salons(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
     name TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'stylist' CHECK (role IN ('stylist', 'manager', 'owner', 'admin')),
+    role TEXT NOT NULL DEFAULT 'stylist' CHECK (role IN ('stylist', 'manager', 'owner', 'admin', 'assistant')),
     avatar_url TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

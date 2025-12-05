@@ -98,8 +98,9 @@ export type Platform = 'ios' | 'android' | 'web';
 
 /**
  * 話者種別
+ * DBスキーマ: speaker IN ('stylist', 'customer', 'unknown')
  */
-export type SpeakerType = 'stylist' | 'customer';
+export type SpeakerType = 'stylist' | 'customer' | 'unknown';
 
 /**
  * 話者ラベル（pyannote出力）

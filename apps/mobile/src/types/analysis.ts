@@ -1,6 +1,9 @@
 /**
  * Analysis Types
  * 分析関連の型定義
+ *
+ * 方針: Supabase生成型と同じsnake_caseを使用
+ * 詳細は docs/詳細設計書/12-付録.md を参照
  */
 
 /**
@@ -20,25 +23,25 @@ export type IndicatorType =
  */
 export interface AnalysisResult {
   id: string;
-  sessionId: string;
-  chunkIndex: number;
-  indicatorType: IndicatorType;
+  session_id: string;
+  chunk_index: number;
+  indicator_type: IndicatorType;
   score: number;
   value: number;
   details: Record<string, unknown>;
-  createdAt: string;
+  created_at: string;
 }
 
 /**
  * リアルタイム分析結果
  */
 export interface RealtimeAnalysis {
-  sessionId: string;
-  chunkIndex: number;
-  overallScore: number;
+  session_id: string;
+  chunk_index: number;
+  overall_score: number;
   metrics: {
-    talkRatio: number;
-    questionQuality: number;
+    talk_ratio: number;
+    question_quality: number;
     emotion: number;
   };
   timestamp: string;
@@ -48,8 +51,8 @@ export interface RealtimeAnalysis {
  * 提案タイミング通知
  */
 export interface ProposalTimingNotification {
-  sessionId: string;
-  concernDetected: string;
+  session_id: string;
+  concern_detected: string;
   suggestion: string;
   urgency: 'low' | 'medium' | 'high';
   timestamp: string;
@@ -61,17 +64,17 @@ export interface ProposalTimingNotification {
 export interface SuccessCaseMatch {
   id: string;
   similarity: number;
-  approachText: string;
-  concernKeywords: string[];
+  approach_text: string;
+  concern_keywords: string[];
 }
 
 /**
  * 成功事例提案
  */
 export interface SuccessCaseSuggestion {
-  sessionId: string;
-  concernKeywords: string[];
-  successCase: SuccessCaseMatch;
+  session_id: string;
+  concern_keywords: string[];
+  success_case: SuccessCaseMatch;
   timestamp: string;
 }
 
@@ -80,15 +83,15 @@ export interface SuccessCaseSuggestion {
  */
 export interface SessionReport {
   id: string;
-  sessionId: string;
-  overallScore: number;
-  transcriptSummary: string;
-  indicatorScores: Record<string, unknown>;
-  goodPoints: string[];
-  improvementPoints: string[];
-  actionItems: string[];
-  aiFeedback: string;
-  createdAt: string;
+  session_id: string;
+  overall_score: number;
+  transcript_summary: string;
+  indicator_scores: Record<string, unknown>;
+  good_points: string[];
+  improvement_points: string[];
+  action_items: string[];
+  ai_feedback: string;
+  created_at: string;
 }
 
 /**
@@ -96,43 +99,43 @@ export interface SessionReport {
  */
 export interface ReportDetail {
   id: string;
-  sessionId: string;
+  session_id: string;
   stylist: {
     id: string;
     name: string;
   };
-  startedAt: string;
-  endedAt: string;
+  started_at: string;
+  ended_at: string;
   duration: number;
   status: string;
-  customerInfo: Record<string, unknown>;
+  customer_info: Record<string, unknown>;
   summary: string;
-  overallScore: number;
+  overall_score: number;
   metrics: Record<string, unknown>;
   improvements: string[];
   strengths: string[];
-  actionItems: string[];
-  aiFeedback: string;
-  generatedAt: string;
+  action_items: string[];
+  ai_feedback: string;
+  generated_at: string;
 }
 
 /**
  * 週次統計
  */
 export interface WeeklyStats {
-  weeklyCount: number;
-  avgScore: number;
-  conversionRate: number;
+  weekly_count: number;
+  avg_score: number;
+  conversion_rate: number;
 }
 
 /**
  * 分析サマリー
  */
 export interface AnalysisSummary {
-  totalSessions: number;
-  averageScore: number;
-  conversionRate: number;
-  topStrengths: string[];
-  areasToImprove: string[];
-  recentTrend: 'improving' | 'stable' | 'declining';
+  total_sessions: number;
+  average_score: number;
+  conversion_rate: number;
+  top_strengths: string[];
+  areas_to_improve: string[];
+  recent_trend: 'improving' | 'stable' | 'declining';
 }

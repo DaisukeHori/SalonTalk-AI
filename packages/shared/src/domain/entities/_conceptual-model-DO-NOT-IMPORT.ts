@@ -1,6 +1,33 @@
 /**
  * Domain Entities
  * ドメインエンティティ定義
+ *
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  🔴 警告: このファイルは概念モデル（設計ドキュメント）です                    ║
+ * ║  実装では絶対に使用しないでください！                                       ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 2025-12-05 決定: プロジェクト全体で snake_case 統一
+ * ================================================
+ *
+ * このファイルの型定義（camelCase）は概念モデルとしてのみ維持しています。
+ * 実装では Supabase 生成型（snake_case）を単一ソースとして使用してください。
+ *
+ * 詳細は以下を参照:
+ * - CLAUDE.md「snake_case 統一規則」
+ * - docs/詳細設計書/12-付録.md
+ *
+ * ❌ 禁止:
+ * ```typescript
+ * import { Staff, Session } from '@salontalk/shared';
+ * ```
+ *
+ * ✅ 推奨:
+ * ```typescript
+ * import type { Database } from '@/types/database';
+ * type Staff = Database['public']['Tables']['staffs']['Row'];
+ * type Session = Database['public']['Tables']['sessions']['Row'];
+ * ```
  */
 
 import type {
@@ -154,17 +181,24 @@ export interface CreateAnalysisResultParams {
 
 /**
  * 成功事例エンティティ
+ * DBスキーマ: success_cases
  */
 export interface SuccessCase {
   readonly id: SuccessCaseId;
   readonly salonId: SalonId;
   readonly sessionId: SessionId | null;
+  readonly stylistId: StaffId | null;
   readonly concernKeywords: string[];
+  readonly customerProfile: Record<string, unknown> | null;
   readonly approachText: string;
+  readonly successfulTalk: string | null;
+  readonly keyTactics: string[] | null;
   readonly result: string;
+  readonly soldProduct: string | null;
   readonly conversionRate: number | null;
   readonly embedding: number[] | null;
   readonly isActive: boolean;
+  readonly isPublic: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -172,10 +206,17 @@ export interface SuccessCase {
 export interface CreateSuccessCaseParams {
   salonId: SalonId;
   sessionId?: SessionId;
+  stylistId?: StaffId;
   concernKeywords: string[];
+  customerProfile?: Record<string, unknown>;
   approachText: string;
+  successfulTalk?: string;
+  keyTactics?: string[];
   result: string;
+  soldProduct?: string;
   conversionRate?: number;
+  isActive?: boolean;
+  isPublic?: boolean;
 }
 
 /**
@@ -265,6 +306,8 @@ export interface RoleplayEvaluation {
 
 /**
  * トランスクリプトエンティティ（音声認識結果）
+ * 注: speakerLabelはDBスキーマに存在しないため削除（2025-12-05）
+ * 話者情報はspeaker_segmentsテーブルで管理
  */
 export interface Transcript {
   readonly id: TranscriptId;
@@ -275,7 +318,6 @@ export interface Transcript {
   readonly endTimeMs: number;
   readonly audioUrl: string | null;
   readonly confidence: number;
-  readonly speakerLabel: SpeakerLabel | null;
   readonly createdAt: Date;
 }
 
@@ -287,7 +329,6 @@ export interface CreateTranscriptParams {
   endTimeMs: number;
   audioUrl?: string;
   confidence?: number;
-  speakerLabel?: SpeakerLabel;
 }
 
 /**

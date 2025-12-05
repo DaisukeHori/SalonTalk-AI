@@ -9,58 +9,58 @@ import Constants from 'expo-constants';
 const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 
 export interface CreateSessionRequest {
-  stylistId: string;
-  customerInfo?: {
-    ageGroup?: '10s' | '20s' | '30s' | '40s' | '50s' | '60s+';
+  stylist_id: string;
+  customer_info?: {
+    age_group?: '10s' | '20s' | '30s' | '40s' | '50s' | '60s' | '70s_plus';
     gender?: 'male' | 'female' | 'other';
-    visitFrequency?: 'first' | 'monthly' | 'bimonthly' | 'quarterly' | 'irregular';
+    visit_frequency?: 'first' | 'monthly' | 'bimonthly' | 'quarterly' | 'irregular';
     notes?: string;
   };
 }
 
 export interface CreateSessionResponse {
-  sessionId: string;
+  session_id: string;
   status: 'recording';
-  startedAt: string;
-  realtimeChannel: string;
+  started_at: string;
+  realtime_channel: string;
 }
 
 export interface ProcessAudioRequest {
-  sessionId: string;
-  chunkIndex: number;
-  audioUri: string;
+  session_id: string;
+  chunk_index: number;
+  audio_uri: string; // Local file path - not sent to API
   transcripts: {
     text: string;
-    startTime: number;
-    endTime: number;
+    start_time: number;
+    end_time: number;
   };
 }
 
 export interface ProcessAudioResponse {
-  transcriptId: string;
-  audioUrl: string;
-  diarizationTriggered: boolean;
+  transcript_id: string;
+  audio_url: string;
+  diarization_triggered: boolean;
 }
 
 export interface EndSessionRequest {
-  sessionId: string;
+  session_id: string;
 }
 
 export interface EndSessionResponse {
-  sessionId: string;
+  session_id: string;
   status: 'processing' | 'completed';
-  endedAt: string;
-  totalDurationMs: number;
+  ended_at: string;
+  total_duration_ms: number;
 }
 
 export interface GenerateReportResponse {
-  reportId: string;
-  overallScore: number;
-  goodPoints: string[];
-  improvementPoints: string[];
-  actionItems: string[];
-  transcriptSummary: string;
-  aiFeedback: string;
+  report_id: string;
+  overall_score: number;
+  good_points: string[];
+  improvement_points: string[];
+  action_items: string[];
+  transcript_summary: string;
+  ai_feedback: string;
 }
 
 export interface ApiError {
@@ -139,18 +139,18 @@ export class ApiService {
    */
   async processAudio(request: ProcessAudioRequest): Promise<ProcessAudioResponse> {
     const formData = new FormData();
-    formData.append('sessionId', request.sessionId);
-    formData.append('chunkIndex', request.chunkIndex.toString());
+    formData.append('session_id', request.session_id);
+    formData.append('chunk_index', request.chunk_index.toString());
     formData.append('transcripts', JSON.stringify(request.transcripts));
 
     // Read audio file and append
-    const audioInfo = await FileSystem.getInfoAsync(request.audioUri);
+    const audioInfo = await FileSystem.getInfoAsync(request.audio_uri);
     if (!audioInfo.exists) {
       throw new Error('Audio file does not exist');
     }
 
     // Create blob from file
-    const response = await fetch(request.audioUri);
+    const response = await fetch(request.audio_uri);
     const blob = await response.blob();
     formData.append('audio', blob as any);
 
@@ -190,10 +190,10 @@ export class ApiService {
   /**
    * Generate session report
    */
-  async generateReport(sessionId: string): Promise<GenerateReportResponse> {
+  async generateReport(session_id: string): Promise<GenerateReportResponse> {
     return this.request<GenerateReportResponse>('generate-report', {
       method: 'POST',
-      body: JSON.stringify({ sessionId }),
+      body: JSON.stringify({ session_id }),
     });
   }
 
@@ -201,13 +201,13 @@ export class ApiService {
    * Search success cases
    */
   async searchSuccessCases(
-    concernKeywords: string[],
-    customerInfo?: { ageGroup?: string; gender?: string }
+    concern_keywords: string[],
+    customer_info?: { age_group?: string; gender?: string }
   ): Promise<{
     cases: Array<{
       id: string;
-      concernKeywords: string[];
-      approachText: string;
+      concern_keywords: string[];
+      approach_text: string;
       result: string;
       similarity: number;
     }>;
@@ -215,7 +215,7 @@ export class ApiService {
   }> {
     return this.request('search-success-cases', {
       method: 'POST',
-      body: JSON.stringify({ concernKeywords, customerInfo }),
+      body: JSON.stringify({ concern_keywords, customer_info }),
     });
   }
 
@@ -223,21 +223,21 @@ export class ApiService {
    * Analyze conversation (for manual trigger)
    */
   async analyzeConversation(
-    sessionId: string,
+    session_id: string,
     segments: Array<{
-      speaker: 'stylist' | 'customer';
+      speaker: 'stylist' | 'customer' | 'unknown';
       text: string;
-      startTimeMs: number;
-      endTimeMs: number;
+      start_time_ms: number;
+      end_time_ms: number;
     }>
   ): Promise<{
-    overallScore: number;
+    overall_score: number;
     metrics: Record<string, { score: number; value: number }>;
     suggestions: string[];
   }> {
     return this.request('analyze-conversation', {
       method: 'POST',
-      body: JSON.stringify({ sessionId, segments }),
+      body: JSON.stringify({ session_id, segments }),
     });
   }
 
@@ -264,8 +264,8 @@ export class ApiService {
   /**
    * Get report details
    */
-  async getReport(sessionId: string): Promise<ReportData> {
-    return this.request<ReportData>(`get-report?sessionId=${sessionId}`, {
+  async getReport(session_id: string): Promise<ReportData> {
+    return this.request<ReportData>(`get-report?session_id=${session_id}`, {
       method: 'GET',
     });
   }
@@ -275,14 +275,14 @@ export class ApiService {
    */
   async getReports(): Promise<Array<{
     id: string;
-    sessionId: string;
-    createdAt: string;
-    overallScore: number;
-    isConverted: boolean;
-    durationMinutes: number;
-    customerInfo?: {
-      ageGroup?: string;
-      visitType?: 'new' | 'repeat';
+    session_id: string;
+    created_at: string;
+    overall_score: number;
+    is_converted: boolean;
+    duration_minutes: number;
+    customer_info?: {
+      age_group?: string;
+      visit_type?: 'new' | 'repeat';
     };
   }>> {
     // This would ideally be a separate Edge Function
@@ -294,8 +294,8 @@ export class ApiService {
   /**
    * Get training scenario details
    */
-  async getTrainingScenario(scenarioId: string): Promise<TrainingScenario> {
-    return this.request<TrainingScenario>(`get-training-scenario?id=${scenarioId}`, {
+  async getTrainingScenario(scenario_id: string): Promise<TrainingScenario> {
+    return this.request<TrainingScenario>(`get-training-scenario?id=${scenario_id}`, {
       method: 'GET',
     });
   }
@@ -303,30 +303,30 @@ export class ApiService {
   /**
    * Start a roleplay session
    */
-  async startRoleplay(scenarioId: string): Promise<StartRoleplayResponse> {
+  async startRoleplay(scenario_id: string): Promise<StartRoleplayResponse> {
     return this.request<StartRoleplayResponse>('start-roleplay', {
       method: 'POST',
-      body: JSON.stringify({ scenarioId }),
+      body: JSON.stringify({ scenario_id }),
     });
   }
 
   /**
    * Send a message in roleplay session
    */
-  async sendRoleplayMessage(sessionId: string, message: string): Promise<RoleplayMessageResponse> {
+  async sendRoleplayMessage(session_id: string, message: string): Promise<RoleplayMessageResponse> {
     return this.request<RoleplayMessageResponse>('roleplay-chat', {
       method: 'POST',
-      body: JSON.stringify({ sessionId, userMessage: message }),
+      body: JSON.stringify({ session_id, user_message: message }),
     });
   }
 
   /**
    * End roleplay session and get evaluation
    */
-  async endRoleplay(sessionId: string): Promise<RoleplayEndResult> {
+  async endRoleplay(session_id: string): Promise<RoleplayEndResult> {
     return this.request<RoleplayEndResult>('evaluate-roleplay', {
       method: 'POST',
-      body: JSON.stringify({ sessionId }),
+      body: JSON.stringify({ session_id }),
     });
   }
 
@@ -391,82 +391,82 @@ export interface RoleplayMessage {
 }
 
 export interface RoleplayChatRequest {
-  scenarioId?: string;
-  sessionId?: string;
-  userMessage: string;
-  conversationHistory?: RoleplayMessage[];
+  scenario_id?: string;
+  session_id?: string;
+  user_message: string;
+  conversation_history?: RoleplayMessage[];
 }
 
 export interface RoleplayChatResponse {
-  aiResponse: string;
+  ai_response: string;
   hint: string | null;
-  isCompleted: boolean;
+  is_completed: boolean;
   evaluation: RoleplayEvaluation | null;
-  messageCount: number;
+  message_count: number;
 }
 
 export interface RoleplayEvaluation {
-  overallScore: number;
+  overall_score: number;
   metrics: {
-    talkRatio?: { score: number; details: string };
-    questionQuality?: { score: number; details: string };
+    talk_ratio?: { score: number; details: string };
+    question_quality?: { score: number; details: string };
     emotion?: { score: number; details: string };
-    proposalTiming?: { score: number; details: string };
-    proposalQuality?: { score: number; details: string };
+    proposal_timing?: { score: number; details: string };
+    proposal_quality?: { score: number; details: string };
   };
   feedback: string;
   improvements: string[];
-  modelAnswer: string;
+  model_answer: string;
 }
 
 export interface EvaluateRoleplayRequest {
-  sessionId?: string;
-  scenarioId?: string;
+  session_id?: string;
+  scenario_id?: string;
   messages: RoleplayMessage[];
   objectives?: string[];
 }
 
 export interface RoleplayEvaluationResult {
-  overallScore: number;
+  overall_score: number;
   metrics: {
     empathy: { score: number; details: string };
-    productKnowledge: { score: number; details: string };
-    questioningSkill: { score: number; details: string };
-    objectionHandling: { score: number; details: string };
-    closingSkill: { score: number; details: string };
+    product_knowledge: { score: number; details: string };
+    questioning_skill: { score: number; details: string };
+    objection_handling: { score: number; details: string };
+    closing_skill: { score: number; details: string };
   };
   feedback: string;
   improvements: string[];
   strengths: string[];
-  modelAnswers: Array<{
+  model_answers: Array<{
     situation: string;
-    stylistResponse: string;
-    modelAnswer: string;
+    stylist_response: string;
+    model_answer: string;
     reasoning: string;
   }>;
-  sessionId?: string;
-  scenarioId?: string;
-  messageCount: number;
-  evaluatedAt: string;
+  session_id?: string;
+  scenario_id?: string;
+  message_count: number;
+  evaluated_at: string;
 }
 
 export interface ReportData {
   id: string;
-  sessionId: string;
+  session_id: string;
   summary: string;
-  overallScore: number;
+  overall_score: number;
   metrics: {
-    talkRatio: { score: number; details: string; stylistRatio: number; customerRatio: number };
-    questionQuality: { score: number; details: string; openCount: number; closedCount: number };
-    emotion: { score: number; details: string; positiveRatio: number };
-    concernKeywords: { score: number; details: string; keywords: string[] };
-    proposalTiming: { score: number; details: string };
-    proposalQuality: { score: number; details: string; matchRate: number };
-    conversion: { score: number; details: string; isConverted: boolean };
+    talk_ratio: { score: number; details: string; stylist_ratio: number; customer_ratio: number };
+    question_quality: { score: number; details: string; open_count: number; closed_count: number };
+    emotion: { score: number; details: string; positive_ratio: number };
+    concern_keywords: { score: number; details: string; keywords: string[] };
+    proposal_timing: { score: number; details: string };
+    proposal_quality: { score: number; details: string; match_rate: number };
+    conversion: { score: number; details: string; is_converted: boolean };
   };
   improvements: string[];
   strengths: string[];
-  generatedAt: string;
+  generated_at: string;
 }
 
 // Training scenario types
@@ -474,33 +474,33 @@ export interface TrainingScenario {
   id: string;
   title: string;
   description: string;
-  customerPersona: {
+  customer_persona: {
     name: string;
-    ageGroup: string;
+    age_group: string;
     personality: string;
-    hairConcerns: string[];
+    hair_concerns: string[];
   };
   objectives: string[];
 }
 
 export interface StartRoleplayResponse {
   id: string;
-  initialMessage: string | null;
+  initial_message: string | null;
 }
 
 export interface RoleplayMessageResponse {
   message: string;
-  shouldEnd: boolean;
+  should_end: boolean;
 }
 
 export interface RoleplayEndResult {
-  overallScore: number;
+  overall_score: number;
   feedback: string;
   improvements: string[];
-  modelAnswers?: Array<{
+  model_answers?: Array<{
     situation: string;
-    yourResponse: string;
-    modelAnswer: string;
+    your_response: string;
+    model_answer: string;
     reasoning: string;
   }>;
 }
@@ -517,7 +517,7 @@ export interface LoginResponse {
     id: string;
     name: string;
   } | null;
-  accessToken: string;
+  access_token: string;
 }
 
 // Singleton instance
