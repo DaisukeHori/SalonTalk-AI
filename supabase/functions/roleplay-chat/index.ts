@@ -17,10 +17,10 @@ interface RoleplayMessage {
 }
 
 interface RoleplayChatRequest {
-  scenarioId?: string;
-  sessionId?: string;
-  userMessage: string;
-  conversationHistory?: RoleplayMessage[];
+  scenario_id?: string;
+  session_id?: string;
+  user_message: string;
+  conversation_history?: RoleplayMessage[];
 }
 
 interface CustomerPersona {
@@ -129,8 +129,8 @@ serve(async (req: Request) => {
     // Parse request body
     const body: RoleplayChatRequest = await req.json();
 
-    if (!body.userMessage) {
-      return errorResponse('VAL_001', 'userMessage is required', 400);
+    if (!body.user_message) {
+      return errorResponse('VAL_001', 'user_message is required', 400);
     }
 
     // Get scenario if provided
@@ -138,11 +138,11 @@ serve(async (req: Request) => {
     let persona = DEFAULT_PERSONA;
     let objectives = DEFAULT_OBJECTIVES;
 
-    if (body.scenarioId) {
+    if (body.scenario_id) {
       const { data: scenarioData, error: scenarioError } = await supabase
         .from('training_scenarios')
         .select('*')
-        .eq('id', body.scenarioId)
+        .eq('id', body.scenario_id)
         .single();
 
       if (!scenarioError && scenarioData) {
@@ -153,7 +153,7 @@ serve(async (req: Request) => {
     }
 
     // Build conversation history
-    const history = body.conversationHistory ?? [];
+    const history = body.conversation_history ?? [];
     const conversationMessages = history.map((m) => ({
       role: m.role === 'stylist' ? 'user' : 'assistant',
       content: m.content,
@@ -162,7 +162,7 @@ serve(async (req: Request) => {
     // Add current user message
     conversationMessages.push({
       role: 'user',
-      content: body.userMessage,
+      content: body.user_message,
     });
 
     // Call Claude API for roleplay response
@@ -211,7 +211,7 @@ serve(async (req: Request) => {
         ...history,
         {
           role: 'stylist',
-          content: body.userMessage,
+          content: body.user_message,
           timestamp: new Date().toISOString(),
         },
         {
@@ -254,7 +254,7 @@ serve(async (req: Request) => {
       }
 
       // Save roleplay session if we have a session ID
-      if (body.sessionId) {
+      if (body.session_id) {
         await supabase
           .from('roleplay_sessions')
           .update({
@@ -263,7 +263,7 @@ serve(async (req: Request) => {
             evaluation,
             ended_at: new Date().toISOString(),
           })
-          .eq('id', body.sessionId);
+          .eq('id', body.session_id);
       }
     }
 
@@ -281,11 +281,11 @@ serve(async (req: Request) => {
     }
 
     return jsonResponse({
-      aiResponse,
+      ai_response: aiResponse,
       hint,
-      isCompleted,
+      is_completed: isCompleted,
       evaluation,
-      messageCount: history.length + 1,
+      message_count: history.length + 1,
     });
   } catch (error) {
     console.error('Error in roleplay-chat:', error);

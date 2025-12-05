@@ -143,13 +143,13 @@ Deno.serve(async (req: Request) => {
       .eq("id", sessionId);
 
     return jsonResponse({
-      reportId: report.id,
-      overallScore,
-      goodPoints: aiReport.goodPoints,
-      improvementPoints: aiReport.improvementPoints,
-      actionItems: aiReport.actionItems,
-      transcriptSummary: aiReport.summary,
-      aiFeedback: aiReport.feedback,
+      report_id: report.id,
+      overall_score: overallScore,
+      good_points: aiReport.goodPoints,
+      improvement_points: aiReport.improvementPoints,
+      action_items: aiReport.actionItems,
+      transcript_summary: aiReport.summary,
+      ai_feedback: aiReport.feedback,
     });
   } catch (error) {
     console.error("Generate report error:", error);

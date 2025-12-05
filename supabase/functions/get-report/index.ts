@@ -107,23 +107,23 @@ serve(async (req: Request) => {
       ? Math.round((new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000 / 60)
       : null;
 
-    // Build response
+    // Build response (snake_case for consistency with DB schema)
     const responseData = {
       id: report?.id || null,
-      sessionId: session.id,
+      session_id: session.id,
       stylist: session.staffs,
-      startedAt: session.started_at,
-      endedAt: session.ended_at,
+      started_at: session.started_at,
+      ended_at: session.ended_at,
       duration,
       status: session.status,
-      customerInfo: session.customer_info,
+      customer_info: session.customer_info,
       summary: report?.summary || null,
-      overallScore: report?.overall_score || calculateOverallFromAnalyses(analyses || []),
+      overall_score: report?.overall_score || calculateOverallFromAnalyses(analyses || []),
       metrics,
       improvements: report?.improvements || [],
       strengths: report?.strengths || [],
-      isConverted: report?.is_converted || false,
-      generatedAt: report?.created_at || null, // column renamed from generated_at to created_at
+      is_converted: report?.is_converted || false,
+      generated_at: report?.created_at || null, // column renamed from generated_at to created_at
     };
 
     return new Response(
@@ -151,14 +151,15 @@ function buildMetricsFromAnalyses(
   }>,
   indicatorScores?: Record<string, any>
 ): Record<string, any> {
+  // snake_case keys for consistency with DB schema
   const metrics: Record<string, any> = {
-    talkRatio: { score: 0, details: '', stylistRatio: 50, customerRatio: 50 },
-    questionQuality: { score: 0, details: '', openCount: 0, closedCount: 0 },
-    emotion: { score: 0, details: '', positiveRatio: 0 },
-    concernKeywords: { score: 0, details: '', keywords: [] },
-    proposalTiming: { score: 0, details: '' },
-    proposalQuality: { score: 0, details: '', matchRate: 0 },
-    conversion: { score: 0, details: '', isConverted: false },
+    talk_ratio: { score: 0, details: '', stylist_ratio: 50, customer_ratio: 50 },
+    question_quality: { score: 0, details: '', open_count: 0, closed_count: 0 },
+    emotion: { score: 0, details: '', positive_ratio: 0 },
+    concern_keywords: { score: 0, details: '', keywords: [] },
+    proposal_timing: { score: 0, details: '' },
+    proposal_quality: { score: 0, details: '', match_rate: 0 },
+    conversion: { score: 0, details: '', is_converted: false },
   };
 
   // Use stored indicator scores if available
@@ -178,21 +179,21 @@ function buildMetricsFromAnalyses(
   // Map to metrics
   if (latestByType['talk_ratio']) {
     const tr = latestByType['talk_ratio'];
-    metrics.talkRatio = {
+    metrics.talk_ratio = {
       score: tr.score,
       details: tr.details?.description || `スタイリストの発話比率: ${Math.round(tr.value)}%`,
-      stylistRatio: Math.round(tr.value),
-      customerRatio: Math.round(100 - tr.value),
+      stylist_ratio: Math.round(tr.value),
+      customer_ratio: Math.round(100 - tr.value),
     };
   }
 
   if (latestByType['question_analysis']) {
     const qa = latestByType['question_analysis'];
-    metrics.questionQuality = {
+    metrics.question_quality = {
       score: qa.score,
       details: qa.details?.description || `質問数: ${Math.round(qa.value)}`,
-      openCount: qa.details?.openQuestions || 0,
-      closedCount: qa.details?.closedQuestions || 0,
+      open_count: qa.details?.openQuestions || 0,
+      closed_count: qa.details?.closedQuestions || 0,
     };
   }
 
@@ -201,13 +202,13 @@ function buildMetricsFromAnalyses(
     metrics.emotion = {
       score: ea.score,
       details: ea.details?.description || `ポジティブ比率: ${Math.round(ea.value)}%`,
-      positiveRatio: Math.round(ea.value),
+      positive_ratio: Math.round(ea.value),
     };
   }
 
   if (latestByType['concern_keywords']) {
     const ck = latestByType['concern_keywords'];
-    metrics.concernKeywords = {
+    metrics.concern_keywords = {
       score: ck.score,
       details: ck.details?.description || '悩みキーワードの検出状況',
       keywords: ck.details?.detectedKeywords || [],
@@ -216,7 +217,7 @@ function buildMetricsFromAnalyses(
 
   if (latestByType['proposal_timing']) {
     const pt = latestByType['proposal_timing'];
-    metrics.proposalTiming = {
+    metrics.proposal_timing = {
       score: pt.score,
       details: pt.details?.description || '提案タイミングの評価',
     };
@@ -224,10 +225,10 @@ function buildMetricsFromAnalyses(
 
   if (latestByType['proposal_quality']) {
     const pq = latestByType['proposal_quality'];
-    metrics.proposalQuality = {
+    metrics.proposal_quality = {
       score: pq.score,
       details: pq.details?.description || '提案品質の評価',
-      matchRate: pq.details?.matchRate || Math.round(pq.value),
+      match_rate: pq.details?.matchRate || Math.round(pq.value),
     };
   }
 
@@ -236,7 +237,7 @@ function buildMetricsFromAnalyses(
     metrics.conversion = {
       score: cv.score,
       details: cv.details?.description || '成約状況',
-      isConverted: cv.value > 50,
+      is_converted: cv.value > 50,
     };
   }
 

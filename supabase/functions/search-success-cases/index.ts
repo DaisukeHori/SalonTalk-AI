@@ -10,7 +10,7 @@ import { createSupabaseClient, getUser, getStaff } from '../_shared/supabase.ts'
 import { jsonResponse, errorResponse, unauthorizedResponse } from '../_shared/response.ts';
 
 interface SearchRequest {
-  concernKeywords: string[];
+  concern_keywords: string[];
   limit?: number;
   threshold?: number;
 }
@@ -30,15 +30,15 @@ serve(async (req: Request) => {
     // Parse request body
     const body: SearchRequest = await req.json();
 
-    if (!body.concernKeywords || body.concernKeywords.length === 0) {
-      return errorResponse('VAL_001', 'concernKeywords is required', 400);
+    if (!body.concern_keywords || body.concern_keywords.length === 0) {
+      return errorResponse('VAL_001', 'concern_keywords is required', 400);
     }
 
     const limit = body.limit ?? 5;
     const threshold = body.threshold ?? 0.7;
 
     // Generate embedding for query
-    const queryText = body.concernKeywords.join(' ');
+    const queryText = body.concern_keywords.join(' ');
 
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
@@ -83,8 +83,8 @@ serve(async (req: Request) => {
       cases: cases.map((c: any) => ({
         id: c.id,
         similarity: c.similarity,
-        concernKeywords: c.concern_keywords,
-        approachText: c.approach_text,
+        concern_keywords: c.concern_keywords,
+        approach_text: c.approach_text,
         result: c.result,
       })),
       total: cases.length,

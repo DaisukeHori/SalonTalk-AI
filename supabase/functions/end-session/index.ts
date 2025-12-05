@@ -86,10 +86,10 @@ serve(async (req: Request) => {
     });
 
     return jsonResponse({
-      sessionId: updatedSession.id,
+      session_id: updatedSession.id,
       status: updatedSession.status,
-      endedAt: updatedSession.ended_at,
-      totalDurationMs,
+      ended_at: updatedSession.ended_at,
+      total_duration_ms: totalDurationMs,
     });
   } catch (error) {
     console.error('Error in end-session:', error);

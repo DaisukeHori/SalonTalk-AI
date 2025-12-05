@@ -1,6 +1,9 @@
 /**
  * User Types
  * ユーザー・スタッフ関連の型定義
+ *
+ * 方針: Supabase生成型と同じsnake_caseを使用
+ * 詳細は docs/詳細設計書/12-付録.md を参照
  */
 
 /**
@@ -15,11 +18,11 @@ export type StaffRole = 'stylist' | 'manager' | 'owner' | 'admin' | 'assistant';
 export interface AuthUser {
   id: string;
   email: string;
-  staffId: string;
-  salonId: string;
+  staff_id: string;
+  salon_id: string;
   role: StaffRole;
   name: string;
-  avatarUrl: string | null;
+  avatar_url: string | null;
 }
 
 /**
@@ -27,24 +30,24 @@ export interface AuthUser {
  */
 export interface Staff {
   id: string;
-  salonId: string;
+  salon_id: string;
   name: string;
   email: string;
   role: StaffRole;
-  avatarUrl: string | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  avatar_url: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
  * スタッフ詳細情報
  */
 export interface StaffDetail extends Staff {
-  totalSessions: number;
-  averageScore: number;
-  conversionRate: number;
-  recentSessions: Array<{
+  total_sessions: number;
+  average_score: number;
+  conversion_rate: number;
+  recent_sessions: Array<{
     id: string;
     date: string;
     score: number;
@@ -55,12 +58,12 @@ export interface StaffDetail extends Staff {
  * スタッフ統計
  */
 export interface StaffStats {
-  staffId: string;
+  staff_id: string;
   period: 'week' | 'month' | 'year';
-  sessionCount: number;
-  averageScore: number;
-  conversionRate: number;
-  scoresByMetric: Record<string, number>;
+  session_count: number;
+  average_score: number;
+  conversion_rate: number;
+  scores_by_metric: Record<string, number>;
   trend: 'up' | 'down' | 'stable';
 }
 
@@ -78,20 +81,20 @@ export interface Salon {
   address: string | null;
   phone: string | null;
   plan: SalonPlan;
-  seatsCount: number | null;
+  seats_count: number | null;
   settings: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
  * ユーザー設定
  */
 export interface UserSettings {
-  notificationEnabled: boolean;
-  soundEnabled: boolean;
-  vibrationEnabled: boolean;
-  autoStartRecording: boolean;
+  notification_enabled: boolean;
+  sound_enabled: boolean;
+  vibration_enabled: boolean;
+  auto_start_recording: boolean;
   language: 'ja' | 'en';
   theme: 'light' | 'dark' | 'system';
 }
@@ -100,12 +103,12 @@ export interface UserSettings {
  * 通知設定
  */
 export interface NotificationPreferences {
-  sessionComplete: boolean;
-  reportReady: boolean;
-  dailySummary: boolean;
-  weeklySummary: boolean;
-  achievementUnlocked: boolean;
-  systemAnnouncements: boolean;
+  session_complete: boolean;
+  report_ready: boolean;
+  daily_summary: boolean;
+  weekly_summary: boolean;
+  achievement_unlocked: boolean;
+  system_announcements: boolean;
 }
 
 /**
@@ -113,16 +116,16 @@ export interface NotificationPreferences {
  */
 export interface UpdateProfileParams {
   name?: string;
-  avatarUrl?: string;
+  avatar_url?: string;
 }
 
 /**
  * パスワード変更パラメータ
  */
 export interface ChangePasswordParams {
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
 }
 
 /**
@@ -140,5 +143,5 @@ export interface RegisterParams {
   email: string;
   password: string;
   name: string;
-  salonCode?: string;
+  salon_code?: string;
 }
