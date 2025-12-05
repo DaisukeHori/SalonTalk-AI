@@ -269,8 +269,7 @@
 | staffs | ✅ | スタッフマスタ |
 | sessions | ✅ | セッション |
 | speaker_segments | ✅ | 話者セグメント |
-| analysis_results | ✅ | 分析結果 |
-| session_analyses | ✅ | セッション分析（新） |
+| session_analyses | ✅ | セッション分析（正規化構造） |
 | session_reports | ✅ | セッションレポート |
 | success_cases | ✅ | 成功事例 |
 | training_scenarios | ✅ | トレーニングシナリオ |
@@ -852,7 +851,7 @@ CREATE TABLE session_analyses (
 
 1. **`analyze-segment/index.ts`** - スキーマ構造に合わせて修正
    - 各指標を個別の行として `session_analyses` にupsert
-   - 後方互換性のため `analysis_results` テーブルにも保存
+   - ※ `analysis_results` テーブルは存在しないため、`session_analyses` のみに保存
 
 2. **`generate-report/index.ts`** - 読み込みロジックを修正
    - `aggregateAnalysisResults` 関数を正規化スキーマ対応に変更
@@ -1283,7 +1282,7 @@ const { data: transcripts } = await supabase
 **修正内容**:
 - `analyze-segment/index.ts`と同様に正規化スキーマへ変更
 - 7つの指標を個別の行としてupsert
-- `analysis_results`テーブルにも後方互換性のため保存
+- ※ `analysis_results` テーブルは存在しないため、`session_analyses` のみに保存
 
 #### ✅ 追加確認済みEdge Functions
 - `trigger-diarization/index.ts` - 問題なし（`audio_chunks`テーブルは存在）
