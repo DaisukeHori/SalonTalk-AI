@@ -16,7 +16,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-// Force resolving nested modules to the root node_modules
-config.resolver.disableHierarchicalLookup = true;
+// Allow hierarchical lookup for better pnpm compatibility
+// config.resolver.disableHierarchicalLookup = true;
 
 module.exports = withNativeWind(config, { input: './src/global.css' });
