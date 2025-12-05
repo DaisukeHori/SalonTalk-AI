@@ -5,8 +5,9 @@
 
 /**
  * スタッフロール
+ * DBスキーマ: CHECK (role IN ('stylist', 'manager', 'owner', 'admin', 'assistant'))
  */
-export type StaffRole = 'owner' | 'manager' | 'stylist';
+export type StaffRole = 'stylist' | 'manager' | 'owner' | 'admin' | 'assistant';
 
 /**
  * 認証ユーザー

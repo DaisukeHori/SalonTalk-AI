@@ -11,7 +11,7 @@ const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXP
 export interface CreateSessionRequest {
   stylistId: string;
   customerInfo?: {
-    ageGroup?: '10s' | '20s' | '30s' | '40s' | '50s' | '60s+';
+    ageGroup?: '10s' | '20s' | '30s' | '40s' | '50s' | '60s' | '70s_plus';
     gender?: 'male' | 'female' | 'other';
     visitFrequency?: 'first' | 'monthly' | 'bimonthly' | 'quarterly' | 'irregular';
     notes?: string;
@@ -225,7 +225,7 @@ export class ApiService {
   async analyzeConversation(
     sessionId: string,
     segments: Array<{
-      speaker: 'stylist' | 'customer';
+      speaker: 'stylist' | 'customer' | 'unknown';
       text: string;
       startTimeMs: number;
       endTimeMs: number;

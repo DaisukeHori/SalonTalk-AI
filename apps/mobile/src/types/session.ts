@@ -5,8 +5,9 @@
 
 /**
  * セッションステータス
+ * DBスキーマ: CHECK (status IN ('recording', 'processing', 'analyzing', 'completed', 'error'))
  */
-export type SessionStatus = 'recording' | 'processing' | 'completed' | 'error';
+export type SessionStatus = 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
 
 /**
  * 顧客情報
@@ -114,9 +115,10 @@ export interface ConversionMetric extends BaseMetric {
 
 /**
  * トランスクリプトメッセージ
+ * speaker: DBスキーマでは 'unknown' も許容
  */
 export interface TranscriptMessage {
-  speaker: 'stylist' | 'customer';
+  speaker: 'stylist' | 'customer' | 'unknown';
   text: string;
   timestamp: number;
 }
