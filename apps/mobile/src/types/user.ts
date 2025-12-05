@@ -64,16 +64,21 @@ export interface StaffStats {
 }
 
 /**
+ * サロンプラン
+ */
+export type SalonPlan = 'free' | 'standard' | 'premium' | 'enterprise';
+
+/**
  * サロン情報
  */
 export interface Salon {
   id: string;
   name: string;
-  address: string;
-  phoneNumber: string;
-  email: string;
-  logoUrl: string | null;
-  plan: 'trial' | 'basic' | 'professional' | 'enterprise';
+  address: string | null;
+  phone: string | null;
+  plan: SalonPlan;
+  seatsCount: number | null;
+  settings: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }

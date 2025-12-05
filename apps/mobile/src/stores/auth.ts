@@ -19,12 +19,16 @@ interface AuthState {
   initialize: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  setUser: (user: Staff, salon: Salon) => void;
+  setUser: (user: Staff) => void;
+  setSalon: (salon: Salon) => void;
+  setAccessToken: (token: string | null) => void;
+  setIsAuthenticated: (isAuthenticated: boolean) => void;
+  setIsLoading: (isLoading: boolean) => void;
 }
 
 const USER_DATA_KEY = 'salontalk_user_data';
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isLoading: true,
   user: null,
@@ -127,8 +131,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  setUser: (user: Staff, salon: Salon) => {
-    set({ user, salon });
+  setUser: (user: Staff) => {
+    set({ user });
+  },
+
+  setSalon: (salon: Salon) => {
+    set({ salon });
+  },
+
+  setAccessToken: (token: string | null) => {
+    set({ accessToken: token });
+  },
+
+  setIsAuthenticated: (isAuthenticated: boolean) => {
+    set({ isAuthenticated });
+  },
+
+  setIsLoading: (isLoading: boolean) => {
+    set({ isLoading });
   },
 }));
 

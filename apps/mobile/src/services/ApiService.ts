@@ -82,8 +82,8 @@ export class ApiService {
   /**
    * Get default headers
    */
-  private getHeaders(): HeadersInit {
-    const headers: HeadersInit = {
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
@@ -152,7 +152,7 @@ export class ApiService {
     // Create blob from file
     const response = await fetch(request.audioUri);
     const blob = await response.blob();
-    formData.append('audio', blob, `chunk_${request.chunkIndex}.wav`);
+    formData.append('audio', blob as any);
 
     const url = `${SUPABASE_URL}/functions/v1/process-audio`;
 

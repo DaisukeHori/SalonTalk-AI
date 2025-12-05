@@ -3,7 +3,7 @@
  * 音声認識フック
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { speechRecognitionService, audioRecorderService, SpeechRecognitionResult } from '@/services';
+import { speechRecognitionService, audioRecorderService, TranscriptSegment } from '@/services';
 
 interface SpeechConfig {
   continuous?: boolean;
@@ -18,27 +18,19 @@ export function useSpeech(config: SpeechConfig = {}) {
   const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const resultsRef = useRef<SpeechRecognitionResult[]>([]);
+  const resultsRef = useRef<TranscriptSegment[]>([]);
 
   useEffect(() => {
     const unsubscribeSpeech = speechRecognitionService.addListener((event) => {
       switch (event.type) {
-        case 'result':
-          if (event.result.isFinal) {
-            resultsRef.current.push(event.result);
-            setTranscript((prev) => prev + event.result.text + ' ');
+        case 'transcript_update':
+          if (event.transcript.isFinal) {
+            resultsRef.current.push(event.transcript);
+            setTranscript((prev) => prev + event.transcript.text + ' ');
             setInterimTranscript('');
           } else {
-            setInterimTranscript(event.result.text);
+            setInterimTranscript(event.transcript.text);
           }
-          break;
-        case 'started':
-          setIsListening(true);
-          setError(null);
-          break;
-        case 'stopped':
-          setIsListening(false);
-          setInterimTranscript('');
           break;
         case 'error':
           setError(event.error.message);
@@ -49,11 +41,15 @@ export function useSpeech(config: SpeechConfig = {}) {
 
     const unsubscribeRecorder = audioRecorderService.addListener((event) => {
       switch (event.type) {
-        case 'recording_started':
+        case 'started':
           setIsRecording(true);
+          setIsListening(true);
+          setError(null);
           break;
-        case 'recording_stopped':
+        case 'stopped':
           setIsRecording(false);
+          setIsListening(false);
+          setInterimTranscript('');
           break;
         case 'error':
           setError(event.error.message);
@@ -75,11 +71,7 @@ export function useSpeech(config: SpeechConfig = {}) {
     setInterimTranscript('');
 
     try {
-      await speechRecognitionService.start({
-        continuous: config.continuous ?? true,
-        interimResults: config.interimResults ?? true,
-        language: config.language ?? 'ja-JP',
-      });
+      await speechRecognitionService.start();
     } catch (err) {
       setError(err instanceof Error ? err.message : '音声認識の開始に失敗しました');
     }
@@ -93,14 +85,18 @@ export function useSpeech(config: SpeechConfig = {}) {
     setError(null);
 
     try {
-      await audioRecorderService.start();
+      await audioRecorderService.startRecording();
     } catch (err) {
       setError(err instanceof Error ? err.message : '録音の開始に失敗しました');
     }
   }, []);
 
-  const stopRecording = useCallback(() => {
-    audioRecorderService.stop();
+  const stopRecording = useCallback(async () => {
+    try {
+      await audioRecorderService.stopRecording();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '録音の停止に失敗しました');
+    }
   }, []);
 
   const startBoth = useCallback(async () => {

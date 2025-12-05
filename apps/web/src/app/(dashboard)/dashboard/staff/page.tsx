@@ -8,10 +8,12 @@ interface Staff {
   id: string;
   name: string;
   email: string;
-  role: 'owner' | 'manager' | 'stylist' | 'assistant';
+  role: 'owner' | 'manager' | 'stylist' | 'assistant' | 'admin';
   position: string | null;
+  join_date: string | null;
   is_active: boolean;
-  profile_image_url: string | null;
+  avatar_url: string | null;
+  profile_image_url?: string | null; // Alias for compatibility
   created_at: string;
   // Stats (calculated from sessions)
   sessionCount?: number;
@@ -24,6 +26,7 @@ const roleLabels: Record<string, string> = {
   manager: 'マネージャー',
   stylist: 'スタイリスト',
   assistant: 'アシスタント',
+  admin: '管理者',
 };
 
 export default function StaffPage() {
@@ -52,7 +55,7 @@ export default function StaffPage() {
         .from('staffs')
         .select('salon_id')
         .eq('id', user.id)
-        .single();
+        .single() as { data: { salon_id: string } | null };
 
       if (!currentStaff) return;
 
@@ -61,7 +64,7 @@ export default function StaffPage() {
         .from('staffs')
         .select('*')
         .eq('salon_id', currentStaff.salon_id)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true }) as { data: any[] | null; error: any };
 
       if (error) {
         console.error('Error fetching staff:', error);
@@ -81,7 +84,7 @@ export default function StaffPage() {
               )
             `)
             .eq('stylist_id', s.id)
-            .eq('status', 'completed');
+            .eq('status', 'completed') as { data: any[] | null };
 
           const sessionCount = sessions?.length || 0;
           const scores = sessions
@@ -122,28 +125,76 @@ export default function StaffPage() {
       .from('staffs')
       .select('salon_id')
       .eq('id', user.id)
-      .single();
+      .single() as { data: { salon_id: string } | null };
 
     if (!currentStaff) {
       setIsSubmitting(false);
       return;
     }
 
-    // Note: In production, this would send an invitation email
-    // For now, we just create a placeholder staff record
-    // The actual user would need to sign up and link to this staff record
+    // FR-804: Call invite-staff edge function
+    try {
+      const session = await supabase.auth.getSession();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/invite-staff`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.data.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            displayName: formData.name,
+            role: formData.role,
+            salonId: currentStaff.salon_id,
+          }),
+        }
+      );
 
-    alert('スタッフ招待機能は現在準備中です。\n将来的にはメールで招待を送信できるようになります。');
-    setIsModalOpen(false);
-    setIsSubmitting(false);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error?.message || '招待の送信に失敗しました');
+      }
+
+      alert(`${formData.email} に招待メールを送信しました。\nスタッフがメールのリンクをクリックすると、アカウントが有効になります。`);
+
+      // Refresh staff list
+      const { data: newStaff } = await supabase
+        .from('staffs')
+        .select('*')
+        .eq('salon_id', currentStaff.salon_id)
+        .order('created_at', { ascending: false }) as { data: any[] | null };
+
+      if (newStaff) {
+        setStaff(newStaff.map((s: any) => ({
+          ...s,
+          name: s.display_name || s.email,
+          sessionCount: 0,
+          avgScore: 0,
+          conversionRate: 0,
+        })));
+      }
+
+      setFormData({ name: '', email: '', role: 'stylist', position: '' });
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Invitation error:', error);
+      alert(error instanceof Error ? error.message : '招待の送信に失敗しました');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const toggleActiveStatus = async (staffId: string, currentStatus: boolean) => {
     const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase
-      .from('staffs')
+    const result = await (supabase
+      .from('staffs') as any)
       .update({ is_active: !currentStatus })
       .eq('id', staffId);
+
+    const { error } = result;
 
     if (error) {
       console.error('Error updating staff status:', error);
@@ -214,9 +265,9 @@ export default function StaffPage() {
           >
             <div className="flex items-center mb-4">
               <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
-                {member.profile_image_url ? (
+                {(member.avatar_url || member.profile_image_url) ? (
                   <img
-                    src={member.profile_image_url}
+                    src={member.avatar_url || member.profile_image_url || ''}
                     alt={member.name}
                     className="w-12 h-12 rounded-full object-cover"
                   />

@@ -15,16 +15,6 @@ interface ScoreChartProps {
   overallScore: number;
 }
 
-const DEFAULT_METRICS = [
-  { key: 'talkRatio', label: 'トーク比率' },
-  { key: 'questionAnalysis', label: '質問分析' },
-  { key: 'emotionAnalysis', label: '感情分析' },
-  { key: 'concernKeywords', label: '悩みKW' },
-  { key: 'proposalTiming', label: '提案タイミング' },
-  { key: 'proposalQuality', label: '提案品質' },
-  { key: 'conversion', label: '成約' },
-];
-
 function getScoreColor(score: number): string {
   if (score >= 80) return 'bg-green-500';
   if (score >= 60) return 'bg-yellow-500';

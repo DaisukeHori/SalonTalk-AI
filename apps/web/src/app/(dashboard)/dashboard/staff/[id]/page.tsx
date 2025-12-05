@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   LineChart,
@@ -20,7 +20,8 @@ interface StaffDetail {
   email: string;
   role: string;
   position: string | null;
-  profileImageUrl: string | null;
+  avatarUrl: string | null;
+  profileImageUrl?: string | null; // For compatibility
   joinDate: string | null;
   isActive: boolean;
 }
@@ -44,11 +45,11 @@ const roleLabels: Record<string, string> = {
   manager: 'マネージャー',
   stylist: 'スタイリスト',
   assistant: 'アシスタント',
+  admin: '管理者',
 };
 
 export default function StaffDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const staffId = params.id as string;
 
   const [staff, setStaff] = useState<StaffDetail | null>(null);
@@ -72,7 +73,7 @@ export default function StaffDetailPage() {
         .from('staffs')
         .select('*')
         .eq('id', staffId)
-        .single();
+        .single() as { data: any; error: any };
 
       if (staffError || !staffData) {
         console.error('Error fetching staff:', staffError);
@@ -86,6 +87,7 @@ export default function StaffDetailPage() {
         email: staffData.email,
         role: staffData.role,
         position: staffData.position,
+        avatarUrl: staffData.avatar_url || staffData.profile_image_url,
         profileImageUrl: staffData.profile_image_url,
         joinDate: staffData.join_date,
         isActive: staffData.is_active,
@@ -108,7 +110,7 @@ export default function StaffDetailPage() {
         `)
         .eq('stylist_id', staffId)
         .gte('started_at', thirtyDaysAgo.toISOString())
-        .order('started_at', { ascending: false });
+        .order('started_at', { ascending: false }) as { data: any[] | null; error: any };
 
       if (sessionError) {
         console.error('Error fetching sessions:', sessionError);
@@ -118,7 +120,7 @@ export default function StaffDetailPage() {
       const formattedSessions: Session[] = (sessionData || []).map((s: any) => {
         const startDate = new Date(s.started_at);
         const endDate = s.ended_at ? new Date(s.ended_at) : null;
-        const durationMins = endDate
+        const duration = endDate
           ? Math.round((endDate.getTime() - startDate.getTime()) / 1000 / 60)
           : 0;
 
@@ -126,7 +128,7 @@ export default function StaffDetailPage() {
           id: s.id,
           date: startDate.toLocaleDateString('ja-JP'),
           time: startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-          duration: `\${durationMins}分`,
+          duration: `${duration}分`,
           score: s.session_reports?.overall_score || 0,
           status: s.status,
         };
@@ -215,9 +217,9 @@ export default function StaffDetailPage() {
         </Link>
         <div className="flex items-center mt-4">
           <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
-            {staff.profileImageUrl ? (
+            {(staff.avatarUrl || staff.profileImageUrl) ? (
               <img
-                src={staff.profileImageUrl}
+                src={staff.avatarUrl || staff.profileImageUrl || ''}
                 alt={staff.name}
                 className="w-16 h-16 rounded-full object-cover"
               />

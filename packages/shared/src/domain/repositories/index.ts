@@ -56,7 +56,7 @@ export interface StaffRepository {
   findByAuthUserId(authUserId: string): Promise<Staff | null>;
   findBySalonId(salonId: SalonId, options?: QueryOptions): Promise<Staff[]>;
   findActiveByRole(salonId: SalonId, role: StaffRole): Promise<Staff[]>;
-  create(data: Omit<Staff, 'id' | 'createdAt' | 'updatedAt'>): Promise<Staff>;
+  create(id: StaffId, data: Omit<Staff, 'id' | 'createdAt' | 'updatedAt'>): Promise<Staff>;
   update(id: StaffId, data: Partial<Omit<Staff, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Staff>;
   delete(id: StaffId): Promise<void>;
   countBySalonId(salonId: SalonId): Promise<number>;

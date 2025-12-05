@@ -42,7 +42,7 @@ interface SessionState {
   setTalkRatio: (talkRatio: { stylist: number; customer: number } | null) => void;
 }
 
-export const useSessionStore = create<SessionState>((set, get) => ({
+export const useSessionStore = create<SessionState>((set) => ({
   currentSession: null,
   isRecording: false,
   elapsedTimeMs: 0,

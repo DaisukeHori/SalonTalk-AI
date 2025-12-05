@@ -3,7 +3,7 @@
  * 文字起こしフック
  */
 import { useEffect, useState, useCallback } from 'react';
-import { speechRecognitionService, SpeechRecognitionResult } from '@/services';
+import { speechRecognitionService, TranscriptSegment as ImportedTranscriptSegment } from '@/services';
 
 interface TranscriptSegment {
   id: string;
@@ -21,17 +21,13 @@ export function useTranscript() {
   useEffect(() => {
     const unsubscribe = speechRecognitionService.addListener((event) => {
       switch (event.type) {
-        case 'result':
-          handleSpeechResult(event.result);
+        case 'transcript_update':
+          if (event.transcript.isFinal) {
+            handleSpeechResult(event.transcript);
+          }
           break;
         case 'error':
           setError(event.error.message);
-          break;
-        case 'started':
-          setIsListening(true);
-          setError(null);
-          break;
-        case 'stopped':
           setIsListening(false);
           break;
       }
@@ -42,12 +38,12 @@ export function useTranscript() {
     };
   }, []);
 
-  const handleSpeechResult = useCallback((result: SpeechRecognitionResult) => {
+  const handleSpeechResult = useCallback((result: ImportedTranscriptSegment) => {
     const segment: TranscriptSegment = {
       id: `segment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      speaker: result.speaker || 'stylist', // Default to stylist, will be updated after diarization
+      speaker: 'stylist', // Default to stylist, will be updated after diarization
       text: result.text,
-      timestamp: result.timestamp,
+      timestamp: result.startTimeMs,
       confidence: result.confidence,
     };
 

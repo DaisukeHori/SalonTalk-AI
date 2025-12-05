@@ -2,7 +2,7 @@
  * ReportCard Component
  * レポートカードコンポーネント
  */
-import { View, Text, Pressable } from 'react-native';
+import { View, Text } from 'react-native';
 import { Card } from '../common/Card';
 
 interface ReportCardProps {

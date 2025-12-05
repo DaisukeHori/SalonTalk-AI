@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { apiService, RoleplayMessage, RoleplayEvaluation } from '@/services';
+import { apiService, RoleplayMessage } from '@/services';
 
 interface Message {
   role: 'customer' | 'stylist';
@@ -99,7 +99,7 @@ function ScenarioCard({
   );
 }
 
-function ChatMessage({ message, isLast }: { message: Message; isLast: boolean }) {
+function ChatMessage({ message }: { message: Message }) {
   const isCustomer = message.role === 'customer';
 
   return (
@@ -363,7 +363,7 @@ export default function TrainingScreen() {
       {/* Messages */}
       <ScrollView ref={scrollViewRef} className="flex-1 px-4 py-4">
         {messages.map((message, index) => (
-          <ChatMessage key={index} message={message} isLast={index === messages.length - 1} />
+          <ChatMessage key={index} message={message} />
         ))}
         {isLoading && (
           <View className="items-start mb-3">

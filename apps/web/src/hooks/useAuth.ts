@@ -68,7 +68,7 @@ export function useAuth(): UseAuthReturn {
           )
         `)
         .eq('id', authUser.id)
-        .single();
+        .single() as { data: any; error: any };
 
       if (staffError || !staff) {
         setState({ user: null, loading: false, error: 'スタッフ情報の取得に失敗しました' });

@@ -52,17 +52,6 @@ export function useExport(): UseExportReturn {
     }
   };
 
-  const getContentType = (format: ExportFormat): string => {
-    switch (format) {
-      case 'pdf':
-        return 'application/pdf';
-      case 'csv':
-        return 'text/csv';
-      case 'excel':
-        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    }
-  };
-
   const exportReport = useCallback(async (reportId: string, options: ExportOptions) => {
     setExporting(true);
     setError(null);

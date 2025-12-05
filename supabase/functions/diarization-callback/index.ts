@@ -89,16 +89,21 @@ Deno.serve(async (req: Request) => {
 
     let updatedCount = 0;
 
-    // Update existing transcripts with speaker information based on timing overlap
+    // Create speaker_segments based on timing overlap with transcripts
+    // Note: transcripts table uses seconds (NUMERIC), speaker_segments uses milliseconds
     if (existingTranscripts && existingTranscripts.length > 0) {
       for (const transcript of existingTranscripts) {
+        // Convert transcript time from seconds to milliseconds for comparison
+        const transcriptStartMs = Math.round(Number(transcript.start_time) * 1000);
+        const transcriptEndMs = Math.round(Number(transcript.end_time) * 1000);
+
         // Find the diarization segment that overlaps most with this transcript
         let bestMatch = null;
         let maxOverlap = 0;
 
         for (const diarSeg of diarizationSegments) {
-          const overlapStart = Math.max(transcript.start_time_ms, diarSeg.start_time_ms);
-          const overlapEnd = Math.min(transcript.end_time_ms, diarSeg.end_time_ms);
+          const overlapStart = Math.max(transcriptStartMs, diarSeg.start_time_ms);
+          const overlapEnd = Math.min(transcriptEndMs, diarSeg.end_time_ms);
           const overlap = Math.max(0, overlapEnd - overlapStart);
 
           if (overlap > maxOverlap) {
@@ -108,22 +113,8 @@ Deno.serve(async (req: Request) => {
         }
 
         if (bestMatch) {
-          // Determine the pyannote speaker label based on mapped role
-          // firstSpeaker (e.g., "SPEAKER_00") maps to "stylist"
-          // So if bestMatch.speaker is "stylist", use firstSpeaker, else use the other one
-          const speakerLabel = bestMatch.speaker === "stylist" ? firstSpeaker :
-            (firstSpeaker === "SPEAKER_00" ? "SPEAKER_01" : "SPEAKER_00");
-
-          // Update transcript with speaker info
-          await supabase
-            .from("transcripts")
-            .update({
-              speaker: bestMatch.speaker,
-              speaker_label: speakerLabel,
-            })
-            .eq("id", transcript.id);
-
-          // Also create speaker_segment entry for analyze-segment compatibility
+          // Create speaker_segment entry with speaker information
+          // speaker_segments table stores speaker + text + timestamps
           await supabase
             .from("speaker_segments")
             .upsert({
@@ -131,8 +122,8 @@ Deno.serve(async (req: Request) => {
               chunk_index,
               speaker: bestMatch.speaker,
               text: transcript.text,
-              start_time_ms: transcript.start_time_ms,
-              end_time_ms: transcript.end_time_ms,
+              start_time_ms: transcriptStartMs,
+              end_time_ms: transcriptEndMs,
               confidence: bestMatch.confidence,
             });
 

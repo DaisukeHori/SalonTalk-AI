@@ -147,7 +147,9 @@ export function createSessionRepository(
         total_duration_ms: data.totalDurationMs,
       };
 
-      const { data: result, error } = await supabase
+      // Use type assertion due to Supabase type inference limitations
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: result, error } = await (supabase as any)
         .from('sessions')
         .insert(insertData)
         .select()
@@ -157,26 +159,28 @@ export function createSessionRepository(
         throw new Error(`Failed to create session: ${error?.message}`);
       }
 
-      return toEntity(result);
+      return toEntity(result as SessionRow);
     },
 
     async update(
       id: SessionId,
       data: Partial<Omit<Session, 'id' | 'createdAt' | 'updatedAt'>>
     ): Promise<Session> {
-      const updateData: Database['public']['Tables']['sessions']['Update'] = {};
+      const updateData: Partial<Database['public']['Tables']['sessions']['Update']> = {};
 
       if (data.salonId !== undefined) updateData.salon_id = data.salonId;
       if (data.stylistId !== undefined) updateData.stylist_id = data.stylistId;
       if (data.status !== undefined) updateData.status = data.status;
       if (data.customerInfo !== undefined)
-        updateData.customer_info = data.customerInfo as Record<string, unknown>;
+        updateData.customer_info = data.customerInfo as unknown as Record<string, unknown>;
       if (data.endedAt !== undefined)
         updateData.ended_at = data.endedAt?.toISOString() ?? null;
       if (data.totalDurationMs !== undefined)
         updateData.total_duration_ms = data.totalDurationMs;
 
-      const { data: result, error } = await supabase
+      // Use type assertion due to Supabase type inference limitations
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: result, error } = await (supabase as any)
         .from('sessions')
         .update(updateData)
         .eq('id', id)

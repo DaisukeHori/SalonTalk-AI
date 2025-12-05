@@ -12,6 +12,7 @@ import {
   AnalysisUpdate,
   NotificationPayload,
 } from '@/services';
+import { useSpeechRecognition } from '@/services/SpeechRecognitionService';
 
 interface ConversationItem {
   id: string;
@@ -28,6 +29,7 @@ interface Notification {
   successTalk?: string;
   recommendedProduct?: string;
   timestamp: number;
+  severity?: 'info' | 'warning' | 'critical';
 }
 
 export default function SessionScreen() {
@@ -42,8 +44,6 @@ export default function SessionScreen() {
     setIsRecording,
     setCurrentScore,
     setTalkRatio,
-    addSegment,
-    addAnalysisResult,
     reset,
   } = useSessionStore();
 
@@ -53,7 +53,6 @@ export default function SessionScreen() {
   const [isStarting, setIsStarting] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotification, setShowNotification] = useState(false);
   const [currentNotification, setCurrentNotification] = useState<Notification | null>(null);
   const [detectedConcerns, setDetectedConcerns] = useState<string[]>([]);
@@ -63,6 +62,9 @@ export default function SessionScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const notificationAnim = useRef(new Animated.Value(0)).current;
   const elapsedTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize speech recognition event listeners
+  useSpeechRecognition();
 
   // Set API token when auth changes
   useEffect(() => {
@@ -171,9 +173,9 @@ export default function SessionScreen() {
       successTalk: notification.successTalk,
       recommendedProduct: notification.recommendedProduct,
       timestamp: Date.now(),
+      severity: notification.severity || 'info',
     };
 
-    setNotifications((prev) => [...prev, newNotification]);
     setCurrentNotification(newNotification);
     setShowNotification(true);
 
@@ -278,20 +280,10 @@ export default function SessionScreen() {
 
       // Create local session object
       const session = {
-        id: response.sessionId as any,
-        salonId: salon.id,
-        stylistId: user.id,
-        status: 'recording' as const,
-        customerInfo: {
-          visitType: customerType,
-          ageGroup: customerAge,
-          gender: customerGender,
-        },
+        id: response.sessionId,
+        status: 'recording',
         startedAt: new Date(response.startedAt),
-        endedAt: null,
-        totalDurationMs: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        realtimeChannel: 'session:' + response.sessionId,
       };
 
       setCurrentSession(session);
@@ -308,7 +300,6 @@ export default function SessionScreen() {
 
       // Reset UI state
       setConversations([]);
-      setNotifications([]);
       setDetectedConcerns([]);
       setQuestionCount(0);
       setEmotionIndicator('neutral');
@@ -367,7 +358,6 @@ export default function SessionScreen() {
             onPress: () => {
               reset();
               setConversations([]);
-              setNotifications([]);
             },
           },
         ]
@@ -380,12 +370,6 @@ export default function SessionScreen() {
     }
   };
 
-  const handleReset = () => {
-    reset();
-    setConversations([]);
-    setNotifications([]);
-    setDetectedConcerns([]);
-  };
 
   const getEmotionEmoji = () => {
     switch (emotionIndicator) {
@@ -395,6 +379,33 @@ export default function SessionScreen() {
         return '😟';
       default:
         return '😐';
+    }
+  };
+
+  // FR-304: Get notification banner colors based on severity
+  const getNotificationColors = (severity?: 'info' | 'warning' | 'critical') => {
+    switch (severity) {
+      case 'critical':
+        return {
+          bg: 'bg-red-500',
+          title: 'text-red-900',
+          message: 'text-red-800',
+          accent: 'bg-red-400/50',
+        };
+      case 'warning':
+        return {
+          bg: 'bg-yellow-500',
+          title: 'text-yellow-900',
+          message: 'text-yellow-800',
+          accent: 'bg-yellow-400/50',
+        };
+      default: // info
+        return {
+          bg: 'bg-blue-500',
+          title: 'text-blue-900',
+          message: 'text-blue-800',
+          accent: 'bg-blue-400/50',
+        };
     }
   };
 
@@ -503,44 +514,47 @@ export default function SessionScreen() {
         </View>
       </View>
 
-      {/* Notification Banner */}
-      {showNotification && currentNotification && (
-        <Animated.View
-          style={{
-            opacity: notificationAnim,
-            transform: [
-              {
-                translateY: notificationAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-100, 0],
-                }),
-              },
-            ],
-          }}
-          className="absolute top-24 left-4 right-4 z-50 bg-yellow-500 rounded-xl p-4 shadow-lg"
-        >
-          <View className="flex-row justify-between items-start">
-            <View className="flex-1">
-              <Text className="text-yellow-900 font-bold text-lg">{currentNotification.title}</Text>
-              <Text className="text-yellow-800 mt-1">{currentNotification.message}</Text>
-              {currentNotification.recommendedProduct && (
-                <Text className="text-yellow-900 font-semibold mt-2">
-                  おすすめ: {currentNotification.recommendedProduct}
-                </Text>
-              )}
-              {currentNotification.successTalk && (
-                <View className="mt-2 bg-yellow-400/50 rounded-lg p-3">
-                  <Text className="text-yellow-900 text-sm">💡 成功トーク例:</Text>
-                  <Text className="text-yellow-800 mt-1">{currentNotification.successTalk}</Text>
-                </View>
-              )}
+      {/* Notification Banner - FR-304: Dynamic colors based on severity */}
+      {showNotification && currentNotification && (() => {
+        const colors = getNotificationColors(currentNotification.severity);
+        return (
+          <Animated.View
+            style={{
+              opacity: notificationAnim,
+              transform: [
+                {
+                  translateY: notificationAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-100, 0],
+                  }),
+                },
+              ],
+            }}
+            className={`absolute top-24 left-4 right-4 z-50 ${colors.bg} rounded-xl p-4 shadow-lg`}
+          >
+            <View className="flex-row justify-between items-start">
+              <View className="flex-1">
+                <Text className={`${colors.title} font-bold text-lg`}>{currentNotification.title}</Text>
+                <Text className={`${colors.message} mt-1`}>{currentNotification.message}</Text>
+                {currentNotification.recommendedProduct && (
+                  <Text className={`${colors.title} font-semibold mt-2`}>
+                    おすすめ: {currentNotification.recommendedProduct}
+                  </Text>
+                )}
+                {currentNotification.successTalk && (
+                  <View className={`mt-2 ${colors.accent} rounded-lg p-3`}>
+                    <Text className={`${colors.title} text-sm`}>💡 成功トーク例:</Text>
+                    <Text className={`${colors.message} mt-1`}>{currentNotification.successTalk}</Text>
+                  </View>
+                )}
+              </View>
+              <Pressable onPress={dismissNotification} className="p-1">
+                <Text className={`${colors.title} text-2xl`}>×</Text>
+              </Pressable>
             </View>
-            <Pressable onPress={dismissNotification} className="p-1">
-              <Text className="text-yellow-900 text-2xl">×</Text>
-            </Pressable>
-          </View>
-        </Animated.View>
-      )}
+          </Animated.View>
+        );
+      })()}
 
       <View className="flex-1 p-4">
         {/* Metrics Grid */}
