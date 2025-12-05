@@ -154,17 +154,24 @@ export interface CreateAnalysisResultParams {
 
 /**
  * 成功事例エンティティ
+ * DBスキーマ: success_cases
  */
 export interface SuccessCase {
   readonly id: SuccessCaseId;
   readonly salonId: SalonId;
   readonly sessionId: SessionId | null;
+  readonly stylistId: StaffId | null;
   readonly concernKeywords: string[];
+  readonly customerProfile: Record<string, unknown> | null;
   readonly approachText: string;
+  readonly successfulTalk: string | null;
+  readonly keyTactics: string[] | null;
   readonly result: string;
+  readonly soldProduct: string | null;
   readonly conversionRate: number | null;
   readonly embedding: number[] | null;
   readonly isActive: boolean;
+  readonly isPublic: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -172,10 +179,17 @@ export interface SuccessCase {
 export interface CreateSuccessCaseParams {
   salonId: SalonId;
   sessionId?: SessionId;
+  stylistId?: StaffId;
   concernKeywords: string[];
+  customerProfile?: Record<string, unknown>;
   approachText: string;
+  successfulTalk?: string;
+  keyTactics?: string[];
   result: string;
+  soldProduct?: string;
   conversionRate?: number;
+  isActive?: boolean;
+  isPublic?: boolean;
 }
 
 /**
