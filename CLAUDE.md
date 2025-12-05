@@ -419,46 +419,48 @@ $$;
 
 ### リクエスト/レスポンス例
 
+> **📌 全て snake_case を使用（2025-12-05 統一）**
+
 ```typescript
 // セッション開始
 // POST /create-session
 interface CreateSessionRequest {
-  stylistId: string;
-  customerInfo?: {
-    ageGroup?: '10s' | '20s' | '30s' | '40s' | '50s' | '60s';
+  stylist_id: string;
+  customer_info?: {
+    age_group?: '10s' | '20s' | '30s' | '40s' | '50s' | '60s';
     gender?: 'male' | 'female' | 'other';
-    visitType?: 'new' | 'repeat';
+    visit_type?: 'new' | 'repeat';
   };
 }
 
 interface CreateSessionResponse {
-  sessionId: string;
+  session_id: string;
   status: 'recording';
-  realtimeChannel: string;
-  startedAt: string;
+  realtime_channel: string;
+  started_at: string;
 }
 
 // 会話分析
 // POST /analyze-conversation
 interface AnalyzeConversationRequest {
-  sessionId: string;
-  chunkIndex: number;
+  session_id: string;
+  chunk_index: number;
   segments: SpeakerSegment[];
 }
 
 interface AnalyzeConversationResponse {
-  overallScore: number;
+  overall_score: number;
   metrics: {
-    talkRatio: MetricResult;
-    questionQuality: MetricResult;
+    talk_ratio: MetricResult;
+    question_quality: MetricResult;
     emotion: MetricResult;
-    concernKeywords: MetricResult;
-    proposalTiming: MetricResult;
-    proposalQuality: MetricResult;
+    concern_keywords: MetricResult;
+    proposal_timing: MetricResult;
+    proposal_quality: MetricResult;
     conversion: MetricResult;
   };
   suggestions: string[];
-  matchedSuccessCases: SuccessCase[];
+  matched_success_cases: SuccessCase[];
 }
 ```
 
@@ -512,12 +514,20 @@ CREATE POLICY "sessions_access" ON sessions
 
 #### TypeScript
 
+> **📌 2025-12-05: データ構造（型・インターフェース）は snake_case に統一**
+
 ```typescript
 // 命名規則
-const sessionId: string;              // 変数: camelCase
+const sessionId: string;              // ローカル変数: camelCase 可
 const MAX_CHUNK_DURATION = 60;        // 定数: UPPER_SNAKE_CASE
-interface SessionData {}              // 型: PascalCase
 function createSession() {}           // 関数: camelCase
+
+// 🔴 データ構造（型・インターフェース）: snake_case 必須
+interface SessionData {
+  session_id: string;        // ✅ snake_case
+  started_at: string;        // ✅ snake_case
+  customer_info: object;     // ✅ snake_case
+}
 
 // ファイル名
 // components/SessionCard.tsx          # コンポーネント: PascalCase
@@ -867,8 +877,90 @@ export const SessionCard: React.FC<SessionCardProps> = ({ session, onPress }) =>
 
 | バージョン | 日付 | 変更内容 |
 |-----------|------|---------|
+| 1.2 | 2025-12-05 | **snake_case 統一規則を追加**（全レイヤーで snake_case 使用を必須化） |
 | 1.1 | 2025-12-05 | 全レイヤー一貫性ルールを追加 |
 | 1.0 | 2025-12-04 | 初版作成 |
+
+---
+
+## 🔴 snake_case 統一規則（最重要）
+
+> **⚠️ 2025-12-05 決定: プロジェクト全体で snake_case を使用**
+>
+> 企画・設計・データベース・API・UI・Edge Functions 等、全てのレイヤーにおいて **snake_case のみ** を使用します。
+
+### なぜ snake_case に統一するのか
+
+1. **単一ソースの原則**: Supabase 生成型（PostgreSQL）を唯一の型定義ソースとする
+2. **変換ロジック排除**: camelCase ↔ snake_case の変換が不要になりバグを削減
+3. **一貫性**: DB → API → UI の全レイヤーで同一の命名規則
+
+### 適用範囲
+
+| レイヤー | 例 | 備考 |
+|---------|-----|------|
+| **データベース** | `session_id`, `started_at`, `customer_info` | PostgreSQL 標準 |
+| **Edge Functions** | リクエスト/レスポンス全て snake_case | `{ session_id, chunk_index }` |
+| **API 型定義** | `interface CreateSessionRequest { stylist_id: string }` | |
+| **UI 状態** | `session.started_at`, `report.overall_score` | 内部 state も snake_case |
+| **設計書** | プロパティ名は snake_case で記載 | |
+
+### ❌ 禁止パターン
+
+```typescript
+// ❌ camelCase は使用しない
+interface Session {
+  sessionId: string;      // ❌
+  startedAt: string;      // ❌
+  customerInfo: object;   // ❌
+}
+
+// ❌ 変換ロジックは書かない
+const session = {
+  id: response.session_id,        // ❌ マッピング不要
+  startedAt: response.started_at, // ❌
+};
+```
+
+### ✅ 正しいパターン
+
+```typescript
+// ✅ snake_case をそのまま使用
+interface Session {
+  session_id: string;
+  started_at: string;
+  customer_info: object;
+}
+
+// ✅ API レスポンスをそのまま使用
+const session = response; // マッピング不要
+
+// ✅ JSX でも snake_case
+<Text>{session.started_at}</Text>
+<Text>{report.overall_score}</Text>
+```
+
+### 例外
+
+| 項目 | 規則 | 理由 |
+|------|------|------|
+| **ローカル変数** | camelCase 可 | `const sessionId = params.id` |
+| **関数名** | camelCase | JavaScript 標準 `createSession()` |
+| **コンポーネント名** | PascalCase | React 標準 `<SessionCard />` |
+| **定数** | UPPER_SNAKE_CASE | `const MAX_DURATION = 60` |
+
+### Supabase 生成型の使用方法
+
+```typescript
+// ✅ 推奨: Supabase 生成型を直接使用
+import type { Database } from '@/types/database';
+
+type Session = Database['public']['Tables']['sessions']['Row'];
+type Staff = Database['public']['Tables']['staffs']['Row'];
+
+// ❌ 非推奨: 概念モデル（packages/shared/domain/entities）は実装で使用しない
+import { Session } from '@salontalk/shared'; // ← 使用禁止
+```
 
 ---
 
