@@ -347,22 +347,6 @@ serve(async (req: Request) => {
       }
     }
 
-    // Also save to analysis_results for backwards compatibility
-    const { error: resultsError } = await supabase
-      .from('analysis_results')
-      .upsert({
-        session_id: body.session_id,
-        chunk_index: body.chunk_index,
-        overall_score: analysis.overallScore,
-        metrics: analysis.metrics,
-        suggestions: analysis.suggestions,
-        highlights: analysis.highlights,
-      }, { onConflict: 'session_id,chunk_index' });
-
-    if (resultsError) {
-      console.error('Failed to save analysis_results:', resultsError);
-    }
-
     // Broadcast score update via realtime
     await supabase.channel(`session:${body.session_id}`).send({
       type: 'broadcast',
