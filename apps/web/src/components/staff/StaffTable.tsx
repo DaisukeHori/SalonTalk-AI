@@ -17,10 +17,10 @@ interface StaffMember {
   sessionCount: number;
   conversionRate: number;
   status: 'active' | 'inactive';
-  joinedAt: Date;
+  createdAt: Date;
 }
 
-type SortField = 'name' | 'averageScore' | 'sessionCount' | 'conversionRate' | 'joinedAt';
+type SortField = 'name' | 'averageScore' | 'sessionCount' | 'conversionRate' | 'createdAt';
 type SortOrder = 'asc' | 'desc';
 
 interface StaffTableProps {
@@ -66,8 +66,8 @@ export function StaffTable({
       case 'conversionRate':
         comparison = a.conversionRate - b.conversionRate;
         break;
-      case 'joinedAt':
-        comparison = a.joinedAt.getTime() - b.joinedAt.getTime();
+      case 'createdAt':
+        comparison = a.createdAt.getTime() - b.createdAt.getTime();
         break;
     }
     return sortOrder === 'asc' ? comparison : -comparison;

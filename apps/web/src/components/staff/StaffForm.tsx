@@ -5,13 +5,12 @@
  * スタッフ登録・編集フォームコンポーネント
  */
 import { useState } from 'react';
-import { User, Mail, Phone, Briefcase, Save, X } from 'lucide-react';
+import { User, Mail, Briefcase, Save, X } from 'lucide-react';
 
 interface StaffFormData {
   name: string;
   email: string;
-  phone: string;
-  role: 'stylist' | 'manager' | 'receptionist';
+  role: 'stylist' | 'manager' | 'owner' | 'admin';
   status: 'active' | 'inactive';
 }
 
@@ -26,7 +25,8 @@ interface StaffFormProps {
 const roleOptions = [
   { value: 'stylist', label: 'スタイリスト' },
   { value: 'manager', label: 'マネージャー' },
-  { value: 'receptionist', label: 'レセプション' },
+  { value: 'owner', label: 'オーナー' },
+  { value: 'admin', label: '管理者' },
 ];
 
 const statusOptions = [
@@ -44,7 +44,6 @@ export function StaffForm({
   const [formData, setFormData] = useState<StaffFormData>({
     name: initialData?.name || '',
     email: initialData?.email || '',
-    phone: initialData?.phone || '',
     role: initialData?.role || 'stylist',
     status: initialData?.status || 'active',
   });
@@ -62,10 +61,6 @@ export function StaffForm({
       newErrors.email = 'メールアドレスを入力してください';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = '有効なメールアドレスを入力してください';
-    }
-
-    if (formData.phone && !/^[\d-]+$/.test(formData.phone)) {
-      newErrors.phone = '有効な電話番号を入力してください';
     }
 
     setErrors(newErrors);
@@ -129,28 +124,6 @@ export function StaffForm({
         </div>
         {errors.email && (
           <p className="mt-1 text-sm text-red-500">{errors.email}</p>
-        )}
-      </div>
-
-      {/* Phone */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          電話番号
-        </label>
-        <div className="relative">
-          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="tel"
-            value={formData.phone}
-            onChange={(e) => handleChange('phone', e.target.value)}
-            className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-              errors.phone ? 'border-red-300' : 'border-gray-200'
-            }`}
-            placeholder="090-1234-5678"
-          />
-        </div>
-        {errors.phone && (
-          <p className="mt-1 text-sm text-red-500">{errors.phone}</p>
         )}
       </div>
 
