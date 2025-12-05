@@ -51,48 +51,34 @@ export interface Database {
       };
       staffs: {
         Row: {
-          id: string;
+          id: string; // = auth.users(id)
           salon_id: string;
-          name: string;
           email: string;
-          role: string;
+          name: string;
+          role: 'stylist' | 'manager' | 'owner' | 'admin';
           avatar_url: string | null;
-          position: string | null;
-          join_date: string | null;
-          profile_image_url: string | null;
-          settings: Json | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
         };
         Insert: {
-          id: string;
+          id: string; // = auth.users(id)
           salon_id: string;
-          name: string;
           email: string;
-          role?: string;
+          name: string;
+          role?: 'stylist' | 'manager' | 'owner' | 'admin';
           avatar_url?: string | null;
-          position?: string | null;
-          join_date?: string | null;
-          profile_image_url?: string | null;
-          settings?: Json | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
-          id?: string;
           salon_id?: string;
-          name?: string;
           email?: string;
-          role?: string;
+          name?: string;
+          role?: 'stylist' | 'manager' | 'owner' | 'admin';
           avatar_url?: string | null;
-          position?: string | null;
-          join_date?: string | null;
-          profile_image_url?: string | null;
-          settings?: Json | null;
           is_active?: boolean;
-          created_at?: string;
           updated_at?: string;
         };
       };
@@ -102,8 +88,8 @@ export interface Database {
           salon_id: string;
           stylist_id: string;
           customer_info: Json | null;
-          status: string;
-          diarization_status: string | null;
+          status: 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
+          diarization_status: 'pending' | 'processing' | 'completed' | 'failed' | null;
           started_at: string;
           ended_at: string | null;
           total_duration_ms: number | null;
@@ -115,8 +101,8 @@ export interface Database {
           salon_id: string;
           stylist_id: string;
           customer_info?: Json | null;
-          status?: string;
-          diarization_status?: string | null;
+          status?: 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
+          diarization_status?: 'pending' | 'processing' | 'completed' | 'failed' | null;
           started_at?: string;
           ended_at?: string | null;
           total_duration_ms?: number | null;
@@ -128,8 +114,8 @@ export interface Database {
           salon_id?: string;
           stylist_id?: string;
           customer_info?: Json | null;
-          status?: string;
-          diarization_status?: string | null;
+          status?: 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
+          diarization_status?: 'pending' | 'processing' | 'completed' | 'failed' | null;
           started_at?: string;
           ended_at?: string | null;
           total_duration_ms?: number | null;
@@ -181,6 +167,7 @@ export interface Database {
           start_time_ms: number;
           end_time_ms: number;
           audio_url: string | null;
+          confidence: number | null;
           created_at: string;
         };
         Insert: {
@@ -191,6 +178,7 @@ export interface Database {
           start_time_ms: number;
           end_time_ms: number;
           audio_url?: string | null;
+          confidence?: number | null;
           created_at?: string;
         };
         Update: {
@@ -201,6 +189,7 @@ export interface Database {
           start_time_ms?: number;
           end_time_ms?: number;
           audio_url?: string | null;
+          confidence?: number | null;
           created_at?: string;
         };
       };
@@ -467,8 +456,9 @@ export interface Database {
           title: string;
           body: string;
           data: Json | null;
+          status: 'sent' | 'delivered' | 'failed' | 'read';
           sent_at: string;
-          status: string;
+          read_at: string | null;
         };
         Insert: {
           id?: string;
@@ -477,8 +467,9 @@ export interface Database {
           title: string;
           body: string;
           data?: Json | null;
+          status?: 'sent' | 'delivered' | 'failed' | 'read';
           sent_at?: string;
-          status?: string;
+          read_at?: string | null;
         };
         Update: {
           id?: string;
@@ -487,8 +478,37 @@ export interface Database {
           title?: string;
           body?: string;
           data?: Json | null;
+          status?: 'sent' | 'delivered' | 'failed' | 'read';
           sent_at?: string;
-          status?: string;
+          read_at?: string | null;
+        };
+      };
+      staff_training_stats: {
+        Row: {
+          id: string;
+          staff_id: string;
+          total_training_count: number;
+          total_score_sum: number;
+          average_score: number;
+          highest_score: number;
+          last_training_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          staff_id: string;
+          total_training_count?: number;
+          total_score_sum?: number;
+          highest_score?: number;
+          last_training_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          total_training_count?: number;
+          total_score_sum?: number;
+          highest_score?: number;
+          last_training_at?: string | null;
+          updated_at?: string;
         };
       };
     };

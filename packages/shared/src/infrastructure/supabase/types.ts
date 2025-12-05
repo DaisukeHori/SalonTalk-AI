@@ -87,6 +87,7 @@ export interface Database {
           salon_id: string;
           stylist_id: string;
           status: 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
+          diarization_status: 'pending' | 'processing' | 'completed' | 'failed' | null;
           customer_info: Record<string, unknown> | null;
           started_at: string;
           ended_at: string | null;
@@ -99,6 +100,7 @@ export interface Database {
           salon_id: string;
           stylist_id: string;
           status?: 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
+          diarization_status?: 'pending' | 'processing' | 'completed' | 'failed' | null;
           customer_info?: Record<string, unknown> | null;
           started_at?: string;
           ended_at?: string | null;
@@ -110,6 +112,7 @@ export interface Database {
           salon_id?: string;
           stylist_id?: string;
           status?: 'recording' | 'processing' | 'analyzing' | 'completed' | 'error';
+          diarization_status?: 'pending' | 'processing' | 'completed' | 'failed' | null;
           customer_info?: Record<string, unknown> | null;
           ended_at?: string | null;
           total_duration_ms?: number | null;

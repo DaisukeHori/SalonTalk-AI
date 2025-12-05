@@ -11,7 +11,7 @@ interface StaffMember {
   id: string;
   name: string;
   email: string;
-  role: 'stylist' | 'manager' | 'receptionist';
+  role: 'stylist' | 'manager' | 'owner' | 'admin';
   avatarUrl?: string;
   averageScore: number;
   sessionCount: number;
@@ -73,10 +73,11 @@ export function StaffTable({
     return sortOrder === 'asc' ? comparison : -comparison;
   });
 
-  const roleLabels = {
+  const roleLabels: Record<StaffMember['role'], string> = {
     stylist: 'スタイリスト',
     manager: 'マネージャー',
-    receptionist: 'レセプション',
+    owner: 'オーナー',
+    admin: '管理者',
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
