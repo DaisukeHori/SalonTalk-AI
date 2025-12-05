@@ -240,14 +240,14 @@ export default function TrainingScreen() {
 
       // Call roleplay-chat API
       const response = await apiService.roleplayChat({
-        scenarioId: selectedScenario.id,
-        userMessage: userMessage.content,
-        conversationHistory,
+        scenario_id: selectedScenario.id,
+        user_message: userMessage.content,
+        conversation_history: conversationHistory,
       });
 
       const aiResponse: Message = {
         role: 'customer',
-        content: response.aiResponse,
+        content: response.ai_response,
         timestamp: new Date(),
       };
 
@@ -259,13 +259,13 @@ export default function TrainingScreen() {
       }
 
       // Show evaluation if conversation is complete
-      if (response.isCompleted && response.evaluation) {
+      if (response.is_completed && response.evaluation) {
         setTimeout(() => {
           setEvaluation({
-            overallScore: response.evaluation!.overallScore,
+            overallScore: response.evaluation!.overall_score,
             feedback: response.evaluation!.feedback,
             improvements: response.evaluation!.improvements,
-            modelAnswer: response.evaluation!.modelAnswer,
+            modelAnswer: response.evaluation!.model_answer,
           });
         }, 500);
       }

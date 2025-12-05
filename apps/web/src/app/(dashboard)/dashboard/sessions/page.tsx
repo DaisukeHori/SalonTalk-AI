@@ -74,7 +74,7 @@ export default function SessionsPage() {
         return {
           id: s.id,
           staff: s.staffs?.name || '不明',
-          customer: s.customer_info?.notes || `${s.customer_info?.gender === 'female' ? '女性' : s.customer_info?.gender === 'male' ? '男性' : ''}${s.customer_info?.ageGroup || ''}`,
+          customer: s.customer_info?.notes || `${s.customer_info?.gender === 'female' ? '女性' : s.customer_info?.gender === 'male' ? '男性' : ''}${s.customer_info?.age_group || ''}`,
           date: startDate.toLocaleDateString('ja-JP'),
           time: startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
           duration: `${durationMins}分`,

@@ -20,11 +20,11 @@ interface Scenario {
   id: string;
   title: string;
   description: string;
-  customerPersona: {
+  customer_persona: {
     name: string;
-    ageGroup: string;
+    age_group: string;
     personality: string;
-    hairConcerns: string[];
+    hair_concerns: string[];
   };
   objectives: string[];
 }
@@ -76,12 +76,12 @@ export default function RoleplayScreen() {
       setSessionId(session.id);
 
       // Add initial customer message
-      if (session.initialMessage) {
+      if (session.initial_message) {
         setMessages([
           {
             id: `msg_${Date.now()}`,
             role: 'customer',
-            content: session.initialMessage,
+            content: session.initial_message,
             timestamp: new Date(),
           },
         ]);
@@ -123,7 +123,7 @@ export default function RoleplayScreen() {
       setMessages((prev) => [...prev, aiMessage]);
 
       // Check if conversation should end
-      if (response.shouldEnd) {
+      if (response.should_end) {
         handleEndRoleplay();
       }
     } catch (error) {
@@ -185,11 +185,11 @@ export default function RoleplayScreen() {
           <View className="flex-row items-center mb-1">
             <Text className="text-lg mr-2">💇</Text>
             <Text className="text-gray-700 font-medium">
-              {scenario.customerPersona.name}（{scenario.customerPersona.ageGroup}）
+              {scenario.customer_persona.name}（{scenario.customer_persona.age_group}）
             </Text>
           </View>
           <Text className="text-gray-500 text-sm">
-            悩み: {scenario.customerPersona.hairConcerns.join('、')}
+            悩み: {scenario.customer_persona.hair_concerns.join('、')}
           </Text>
         </View>
       )}

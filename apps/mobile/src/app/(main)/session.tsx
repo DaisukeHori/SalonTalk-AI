@@ -237,13 +237,13 @@ export default function SessionScreen() {
 
       // Send to server for processing
       await apiService.processAudio({
-        sessionId: currentSession.id as string,
-        chunkIndex: chunk.chunkIndex,
-        audioUri: chunk.uri,
+        session_id: currentSession.id as string,
+        chunk_index: chunk.chunkIndex,
+        audio_uri: chunk.uri,
         transcripts: {
           text: transcript.text,
-          startTime: chunk.startTimeMs / 1000,
-          endTime: chunk.endTimeMs / 1000,
+          start_time: chunk.startTimeMs / 1000,
+          end_time: chunk.endTimeMs / 1000,
         },
       });
 
@@ -270,27 +270,27 @@ export default function SessionScreen() {
 
       // Create session via API
       const response = await apiService.createSession({
-        stylistId: user.id as string,
-        customerInfo: {
-          ageGroup: customerAge as any,
+        stylist_id: user.id as string,
+        customer_info: {
+          age_group: customerAge as any,
           gender: customerGender,
-          visitFrequency: customerType === 'new' ? 'first' : 'irregular',
+          visit_frequency: customerType === 'new' ? 'first' : 'irregular',
         },
       });
 
       // Create local session object
       const session = {
-        id: response.sessionId,
+        id: response.session_id,
         status: 'recording',
-        startedAt: new Date(response.startedAt),
-        realtimeChannel: 'session:' + response.sessionId,
+        startedAt: new Date(response.started_at),
+        realtimeChannel: 'session:' + response.session_id,
       };
 
       setCurrentSession(session);
       setIsRecording(true);
 
       // Subscribe to realtime channel
-      await realtimeService.subscribeToSession(response.sessionId);
+      await realtimeService.subscribeToSession(response.session_id);
 
       // Start audio recording
       await audioRecorderService.startRecording();
@@ -336,7 +336,7 @@ export default function SessionScreen() {
 
       // End session via API
       await apiService.endSession({
-        sessionId: currentSession.id as string,
+        session_id: currentSession.id as string,
       });
 
       // Generate report
@@ -351,7 +351,7 @@ export default function SessionScreen() {
       // Show report summary
       Alert.alert(
         'セッション完了',
-        `総合スコア: ${report.overallScore}点\n\n良かった点:\n${report.goodPoints.join('\n')}\n\n改善点:\n${report.improvementPoints.join('\n')}`,
+        `総合スコア: ${report.overall_score}点\n\n良かった点:\n${report.good_points.join('\n')}\n\n改善点:\n${report.improvement_points.join('\n')}`,
         [
           {
             text: 'OK',
