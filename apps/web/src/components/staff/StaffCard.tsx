@@ -4,6 +4,7 @@
  * StaffCard Component
  * スタッフカードコンポーネント
  */
+import Image from 'next/image';
 import { Mail, Calendar, TrendingUp, Target, MessageSquare } from 'lucide-react';
 
 interface StaffCardProps {
@@ -76,12 +77,14 @@ export function StaffCard({
       {/* Header */}
       <div className="flex items-start gap-4">
         <div className="relative">
-          <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+          <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 relative overflow-hidden">
             {avatarUrl ? (
-              <img
+              <Image
                 src={avatarUrl}
                 alt={name}
-                className="w-full h-full rounded-full object-cover"
+                fill
+                sizes="64px"
+                className="rounded-full object-cover"
               />
             ) : (
               <span className="text-2xl text-indigo-600 font-medium">

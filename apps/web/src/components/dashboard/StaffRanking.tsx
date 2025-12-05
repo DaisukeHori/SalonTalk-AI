@@ -4,6 +4,7 @@
  * StaffRanking Component
  * スタッフランキングコンポーネント
  */
+import Image from 'next/image';
 import { Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 interface StaffRankingItem {
@@ -114,12 +115,14 @@ export function StaffRanking({
             </div>
 
             {/* Avatar */}
-            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 relative overflow-hidden">
               {staff.avatarUrl ? (
-                <img
+                <Image
                   src={staff.avatarUrl}
                   alt={staff.name}
-                  className="w-full h-full rounded-full object-cover"
+                  fill
+                  sizes="40px"
+                  className="rounded-full object-cover"
                 />
               ) : (
                 <span className="text-indigo-600 font-medium">

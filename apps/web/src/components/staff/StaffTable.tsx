@@ -4,6 +4,7 @@
  * StaffTable Component
  * スタッフテーブルコンポーネント
  */
+import Image from 'next/image';
 import { ChevronUp, ChevronDown, MoreVertical, Eye, Edit, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -168,12 +169,14 @@ export function StaffTable({
                 <tr key={staff.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 relative overflow-hidden">
                         {staff.avatarUrl ? (
-                          <img
+                          <Image
                             src={staff.avatarUrl}
                             alt={staff.name}
-                            className="w-full h-full rounded-full object-cover"
+                            fill
+                            sizes="40px"
+                            className="rounded-full object-cover"
                           />
                         ) : (
                           <span className="text-indigo-600 font-medium">
