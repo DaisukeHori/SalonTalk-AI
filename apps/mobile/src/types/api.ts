@@ -45,32 +45,32 @@ export interface PaginatedResponse<T> {
  * セッション開始レスポンス
  */
 export interface StartSessionResponse {
-  sessionId: string;
+  session_id: string;
   status: 'recording';
-  realtimeChannel: string;
-  startedAt: string;
+  realtime_channel: string;
+  started_at: string;
 }
 
 /**
  * セッション終了レスポンス
  */
 export interface EndSessionResponse {
-  sessionId: string;
+  session_id: string;
   status: 'processing';
-  endedAt: string;
-  totalDurationMs: number;
+  ended_at: string;
+  total_duration_ms: number;
 }
 
 /**
  * レポート生成レスポンス
  */
 export interface GenerateReportResponse {
-  reportId: string;
+  report_id: string;
   summary: string;
-  overallScore: number;
+  overall_score: number;
   improvements: string[];
   strengths: string[];
-  generatedAt: string;
+  generated_at: string;
 }
 
 /**
@@ -80,8 +80,8 @@ export interface SearchSuccessCasesResponse {
   cases: Array<{
     id: string;
     similarity: number;
-    approachText: string;
-    concernKeywords: string[];
+    approach_text: string;
+    concern_keywords: string[];
   }>;
   total: number;
 }
@@ -95,10 +95,10 @@ export interface TrainingScenario {
   description: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   category: string;
-  estimatedMinutes: number;
+  estimated_minutes: number;
   objectives: string[];
-  customerPersona: {
-    ageGroup: string;
+  customer_persona: {
+    age_group: string;
     gender: string;
     personality: string;
     concerns: string[];
@@ -109,8 +109,8 @@ export interface TrainingScenario {
  * ロールプレイ開始レスポンス
  */
 export interface StartRoleplayResponse {
-  sessionId: string;
-  initialMessage: string;
+  session_id: string;
+  initial_message: string;
   scenario: TrainingScenario;
 }
 
@@ -118,17 +118,17 @@ export interface StartRoleplayResponse {
  * ロールプレイメッセージレスポンス
  */
 export interface RoleplayMessageResponse {
-  customerResponse: string;
+  customer_response: string;
   hints?: string[];
-  currentScore?: number;
+  current_score?: number;
 }
 
 /**
  * ロールプレイ終了結果
  */
 export interface RoleplayEndResult {
-  sessionId: string;
-  overallScore: number;
+  session_id: string;
+  overall_score: number;
   feedback: string;
   improvements: string[];
   strengths: string[];
@@ -143,9 +143,9 @@ export interface LoginResponse {
     email: string;
   };
   session: {
-    accessToken: string;
-    refreshToken: string;
-    expiresAt: number;
+    access_token: string;
+    refresh_token: string;
+    expires_at: number;
   };
 }
 
@@ -153,9 +153,9 @@ export interface LoginResponse {
  * リフレッシュトークンレスポンス
  */
 export interface RefreshTokenResponse {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;
 }
 
 /**
@@ -176,10 +176,10 @@ export interface NotificationsResponse {
     title: string;
     body: string;
     data: Record<string, unknown>;
-    readAt: string | null;
-    createdAt: string;
+    read_at: string | null;
+    created_at: string;
   }>;
-  unreadCount: number;
+  unread_count: number;
 }
 
 /**

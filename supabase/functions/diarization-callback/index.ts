@@ -50,16 +50,16 @@ Deno.serve(async (req: Request) => {
       // and failing one chunk shouldn't fail the entire session
       return jsonResponse({
         processed: false,
-        segmentCount: 0,
-        analysisTriggered: false,
+        segment_count: 0,
+        analysis_triggered: false,
       });
     }
 
     if (!segments || segments.length === 0) {
       return jsonResponse({
         processed: false,
-        segmentCount: 0,
-        analysisTriggered: false,
+        segment_count: 0,
+        analysis_triggered: false,
       });
     }
 
@@ -144,8 +144,8 @@ Deno.serve(async (req: Request) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            sessionId: session_id,
-            chunkIndex: chunk_index,
+            session_id: session_id,
+            chunk_index: chunk_index,
           }),
         }
       );
@@ -161,8 +161,8 @@ Deno.serve(async (req: Request) => {
 
     return jsonResponse({
       processed: true,
-      segmentCount: updatedCount,
-      analysisTriggered,
+      segment_count: updatedCount,
+      analysis_triggered: analysisTriggered,
     });
   } catch (error) {
     console.error("Callback error:", error);

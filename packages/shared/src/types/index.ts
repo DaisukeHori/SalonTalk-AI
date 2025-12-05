@@ -1,6 +1,9 @@
 /**
  * Shared Types
  * 共有型定義
+ *
+ * 方針: Supabase生成型と同じsnake_caseを使用
+ * 詳細は docs/詳細設計書/12-付録.md を参照
  */
 
 // Note: Importing from domain but using through main exports to avoid duplication
@@ -38,8 +41,8 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   limit: number;
-  hasNext: boolean;
-  nextCursor?: string;
+  has_next: boolean;
+  next_cursor?: string;
 }
 
 // ===========================================
@@ -47,32 +50,32 @@ export interface PaginatedResponse<T> {
 // ===========================================
 
 export interface CreateSessionRequest {
-  stylistId: string;
-  customerInfo?: {
+  stylist_id: string;
+  customer_info?: {
     name?: string;
-    ageGroup?: string;
+    age_group?: string;
     gender?: string;
-    visitType: 'new' | 'repeat';
+    visit_type: 'new' | 'repeat';
     notes?: string;
   };
 }
 
 export interface CreateSessionResponse {
-  sessionId: string;
+  session_id: string;
   status: 'recording';
-  realtimeChannel: string;
-  startedAt: string;
+  realtime_channel: string;
+  started_at: string;
 }
 
 export interface EndSessionRequest {
-  sessionId: string;
+  session_id: string;
 }
 
 export interface EndSessionResponse {
-  sessionId: string;
+  session_id: string;
   status: 'processing';
-  endedAt: string;
-  totalDurationMs: number;
+  ended_at: string;
+  total_duration_ms: number;
 }
 
 // ===========================================
@@ -80,29 +83,29 @@ export interface EndSessionResponse {
 // ===========================================
 
 export interface ProcessTranscriptionRequest {
-  sessionId: string;
-  chunkIndex: number;
-  audioUrl: string;
+  session_id: string;
+  chunk_index: number;
+  audio_url: string;
   transcription: TranscriptionChunk;
 }
 
 export interface TranscriptionChunk {
   text: string;
-  startTimeMs: number;
-  endTimeMs: number;
+  start_time_ms: number;
+  end_time_ms: number;
   words: TranscriptionWord[];
 }
 
 export interface TranscriptionWord {
   word: string;
-  startTimeMs: number;
-  endTimeMs: number;
+  start_time_ms: number;
+  end_time_ms: number;
   confidence: number;
 }
 
 export interface ProcessTranscriptionResponse {
   success: boolean;
-  segmentCount: number;
+  segment_count: number;
 }
 
 // ===========================================
@@ -110,29 +113,29 @@ export interface ProcessTranscriptionResponse {
 // ===========================================
 
 export interface DiarizationRequest {
-  sessionId: string;
-  chunkIndex: number;
-  audioUrl: string;
+  session_id: string;
+  chunk_index: number;
+  audio_url: string;
   transcription: TranscriptionChunk;
 }
 
 export interface DiarizationResult {
-  sessionId: string;
-  chunkIndex: number;
+  session_id: string;
+  chunk_index: number;
   segments: DiarizationSegment[];
-  processingTimeMs: number;
+  processing_time_ms: number;
 }
 
 export interface DiarizationSegment {
   speaker: 'SPEAKER_00' | 'SPEAKER_01';
-  startTimeMs: number;
-  endTimeMs: number;
+  start_time_ms: number;
+  end_time_ms: number;
   text: string;
 }
 
 export interface DiarizationCallbackRequest {
-  sessionId: string;
-  chunkIndex: number;
+  session_id: string;
+  chunk_index: number;
   success: boolean;
   result?: DiarizationResult;
   error?: string;
@@ -143,29 +146,29 @@ export interface DiarizationCallbackRequest {
 // ===========================================
 
 export interface AnalyzeConversationRequest {
-  sessionId: string;
-  chunkIndex: number;
+  session_id: string;
+  chunk_index: number;
   segments: Array<{
     speaker: 'stylist' | 'customer';
     text: string;
-    startTimeMs: number;
-    endTimeMs: number;
+    start_time_ms: number;
+    end_time_ms: number;
   }>;
 }
 
 export interface AnalyzeConversationResponse {
-  overallScore: number;
+  overall_score: number;
   metrics: {
-    talkRatio: MetricResult;
-    questionQuality: MetricResult;
+    talk_ratio: MetricResult;
+    question_quality: MetricResult;
     emotion: MetricResult;
-    concernKeywords: MetricResult;
-    proposalTiming: MetricResult;
-    proposalQuality: MetricResult;
+    concern_keywords: MetricResult;
+    proposal_timing: MetricResult;
+    proposal_quality: MetricResult;
     conversion: MetricResult;
   };
   suggestions: string[];
-  matchedSuccessCases: ApiSuccessCaseMatch[];
+  matched_success_cases: ApiSuccessCaseMatch[];
 }
 
 export interface MetricResult {
@@ -177,8 +180,8 @@ export interface MetricResult {
 export interface ApiSuccessCaseMatch {
   id: string;
   similarity: number;
-  approachText: string;
-  concernKeywords: string[];
+  approach_text: string;
+  concern_keywords: string[];
 }
 
 // ===========================================
@@ -186,16 +189,16 @@ export interface ApiSuccessCaseMatch {
 // ===========================================
 
 export interface GenerateReportRequest {
-  sessionId: string;
+  session_id: string;
 }
 
 export interface GenerateReportResponse {
-  reportId: string;
+  report_id: string;
   summary: string;
-  overallScore: number;
+  overall_score: number;
   improvements: string[];
   strengths: string[];
-  generatedAt: string;
+  generated_at: string;
 }
 
 // ===========================================
@@ -203,7 +206,7 @@ export interface GenerateReportResponse {
 // ===========================================
 
 export interface SearchSuccessCasesRequest {
-  concernKeywords: string[];
+  concern_keywords: string[];
   limit?: number;
   threshold?: number;
 }
@@ -218,29 +221,29 @@ export interface SearchSuccessCasesResponse {
 // ===========================================
 
 export interface RealtimeScoreUpdate {
-  sessionId: string;
-  chunkIndex: number;
-  overallScore: number;
+  session_id: string;
+  chunk_index: number;
+  overall_score: number;
   metrics: {
-    talkRatio: number;
-    questionQuality: number;
+    talk_ratio: number;
+    question_quality: number;
     emotion: number;
   };
   timestamp: string;
 }
 
 export interface RealtimeProposalTiming {
-  sessionId: string;
-  concernDetected: string;
+  session_id: string;
+  concern_detected: string;
   suggestion: string;
   urgency: 'low' | 'medium' | 'high';
   timestamp: string;
 }
 
 export interface RealtimeSuccessCaseSuggestion {
-  sessionId: string;
-  concernKeywords: string[];
-  successCase: ApiSuccessCaseMatch;
+  session_id: string;
+  concern_keywords: string[];
+  success_case: ApiSuccessCaseMatch;
   timestamp: string;
 }
 
@@ -249,23 +252,23 @@ export interface RealtimeSuccessCaseSuggestion {
 // ===========================================
 
 export interface RoleplayMessageRequest {
-  sessionId: string;
+  session_id: string;
   message: string;
 }
 
 export interface RoleplayMessageResponse {
-  customerResponse: string;
+  customer_response: string;
   hints?: string[];
-  currentScore?: number;
+  current_score?: number;
 }
 
 export interface RoleplayEndRequest {
-  sessionId: string;
+  session_id: string;
 }
 
 export interface RoleplayEndResponse {
   evaluation: {
-    overallScore: number;
+    overall_score: number;
     feedback: string;
     improvements: string[];
   };

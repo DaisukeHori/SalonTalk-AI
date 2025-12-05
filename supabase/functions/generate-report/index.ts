@@ -9,7 +9,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
 interface GenerateReportRequest {
-  sessionId: string;
+  session_id: string;
 }
 
 interface IndicatorScore {
@@ -39,17 +39,17 @@ Deno.serve(async (req: Request) => {
     }
 
     const body: GenerateReportRequest = await req.json();
-    const { sessionId } = body;
+    const { session_id } = body;
 
-    if (!sessionId) {
-      return errorResponse("VAL_001", "sessionIdが必要です", 400);
+    if (!session_id) {
+      return errorResponse("VAL_001", "session_idが必要です", 400);
     }
 
     // Get session data
     const { data: session, error: sessionError } = await supabase
       .from("sessions")
       .select("id, salon_id, stylist_id, status, customer_info, started_at, ended_at")
-      .eq("id", sessionId)
+      .eq("id", session_id)
       .single();
 
     if (sessionError || !session) {
@@ -65,14 +65,14 @@ Deno.serve(async (req: Request) => {
     const { data: analyses } = await adminClient
       .from("session_analyses")
       .select("*")
-      .eq("session_id", sessionId)
+      .eq("session_id", session_id)
       .order("chunk_index", { ascending: true });
 
     // Get all speaker segments
     const { data: segments } = await adminClient
       .from("speaker_segments")
       .select("*")
-      .eq("session_id", sessionId)
+      .eq("session_id", session_id)
       .order("start_time_ms", { ascending: true });
 
     if (!segments || segments.length === 0) {
@@ -109,7 +109,7 @@ Deno.serve(async (req: Request) => {
     const { data: report, error: reportError } = await adminClient
       .from("session_reports")
       .insert({
-        session_id: sessionId,
+        session_id: session_id,
         summary: aiReport.summary,
         overall_score: overallScore,
         metrics: aggregatedMetrics,
@@ -140,7 +140,7 @@ Deno.serve(async (req: Request) => {
     await adminClient
       .from("sessions")
       .update({ status: "completed", ended_at: new Date().toISOString() })
-      .eq("id", sessionId);
+      .eq("id", session_id);
 
     return jsonResponse({
       report_id: report.id,

@@ -12,12 +12,12 @@ const PYANNOTE_API_KEY = Deno.env.get("PYANNOTE_API_KEY");
 
 interface TranscriptData {
   text: string;
-  startTime: number;
-  endTime: number;
+  start_time: number;
+  end_time: number;
   segments?: Array<{
     text: string;
-    startTime: number;
-    endTime: number;
+    start_time: number;
+    end_time: number;
     confidence: number;
   }>;
 }
@@ -43,17 +43,17 @@ Deno.serve(async (req: Request) => {
 
     // Parse multipart form data
     const formData = await req.formData();
-    const sessionId = formData.get("sessionId") as string;
-    const chunkIndexStr = formData.get("chunkIndex") as string;
+    const sessionId = formData.get("session_id") as string;
+    const chunkIndexStr = formData.get("chunk_index") as string;
     const audioFile = formData.get("audio") as File;
     const transcriptsJson = formData.get("transcripts") as string;
 
     // Validation
     if (!sessionId) {
-      return errorResponse("VAL_001", "sessionIdが必要です", 400);
+      return errorResponse("VAL_001", "session_idが必要です", 400);
     }
     if (!chunkIndexStr || isNaN(parseInt(chunkIndexStr, 10))) {
-      return errorResponse("VAL_001", "chunkIndexが必要です", 400);
+      return errorResponse("VAL_001", "chunk_indexが必要です", 400);
     }
     if (!audioFile) {
       return errorResponse("VAL_001", "音声ファイルが必要です", 400);
@@ -123,8 +123,8 @@ Deno.serve(async (req: Request) => {
         session_id: sessionId,
         chunk_index: chunkIndex,
         text: transcriptData.text,
-        start_time_ms: Math.round(transcriptData.startTime * 1000), // convert seconds to milliseconds
-        end_time_ms: Math.round(transcriptData.endTime * 1000), // convert seconds to milliseconds
+        start_time_ms: Math.round(transcriptData.start_time * 1000), // convert seconds to milliseconds
+        end_time_ms: Math.round(transcriptData.end_time * 1000), // convert seconds to milliseconds
         audio_url: audioUrl,
       }, { onConflict: 'session_id,chunk_index' })
       .select()
@@ -171,9 +171,9 @@ Deno.serve(async (req: Request) => {
 
     return jsonResponse(
       {
-        transcriptId: transcript.id,
-        audioUrl,
-        diarizationTriggered,
+        transcript_id: transcript.id,
+        audio_url: audioUrl,
+        diarization_triggered: diarizationTriggered,
       },
       200
     );

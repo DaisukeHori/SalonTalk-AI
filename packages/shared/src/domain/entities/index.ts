@@ -1,6 +1,23 @@
 /**
  * Domain Entities
  * ドメインエンティティ定義
+ *
+ * ⚠️ 重要: 概念モデルとしての定義
+ * ================================
+ * このファイルのエンティティ定義は**概念モデル**（設計上のドキュメント）として維持しています。
+ *
+ * **実装では Supabase 生成型（snake_case）を単一ソースとして使用**してください。
+ * 詳細は docs/詳細設計書/12-付録.md を参照。
+ *
+ * 使用例:
+ * ```typescript
+ * // ❌ 避けるべき: このファイルのエンティティを実装で使用
+ * import { Staff } from '@salontalk/shared';
+ *
+ * // ✅ 推奨: Supabase生成型を直接使用
+ * import type { Database } from '@/types/database';
+ * type Staff = Database['public']['Tables']['staffs']['Row'];
+ * ```
  */
 
 import type {

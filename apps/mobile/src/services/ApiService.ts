@@ -28,7 +28,7 @@ export interface CreateSessionResponse {
 export interface ProcessAudioRequest {
   session_id: string;
   chunk_index: number;
-  audio_uri: string;
+  audio_uri: string; // Local file path - not sent to API
   transcripts: {
     text: string;
     start_time: number;
@@ -139,18 +139,18 @@ export class ApiService {
    */
   async processAudio(request: ProcessAudioRequest): Promise<ProcessAudioResponse> {
     const formData = new FormData();
-    formData.append('sessionId', request.sessionId);
-    formData.append('chunkIndex', request.chunkIndex.toString());
+    formData.append('session_id', request.session_id);
+    formData.append('chunk_index', request.chunk_index.toString());
     formData.append('transcripts', JSON.stringify(request.transcripts));
 
     // Read audio file and append
-    const audioInfo = await FileSystem.getInfoAsync(request.audioUri);
+    const audioInfo = await FileSystem.getInfoAsync(request.audio_uri);
     if (!audioInfo.exists) {
       throw new Error('Audio file does not exist');
     }
 
     // Create blob from file
-    const response = await fetch(request.audioUri);
+    const response = await fetch(request.audio_uri);
     const blob = await response.blob();
     formData.append('audio', blob as any);
 
@@ -190,10 +190,10 @@ export class ApiService {
   /**
    * Generate session report
    */
-  async generateReport(sessionId: string): Promise<GenerateReportResponse> {
+  async generateReport(session_id: string): Promise<GenerateReportResponse> {
     return this.request<GenerateReportResponse>('generate-report', {
       method: 'POST',
-      body: JSON.stringify({ sessionId }),
+      body: JSON.stringify({ session_id }),
     });
   }
 
@@ -264,8 +264,8 @@ export class ApiService {
   /**
    * Get report details
    */
-  async getReport(sessionId: string): Promise<ReportData> {
-    return this.request<ReportData>(`get-report?sessionId=${sessionId}`, {
+  async getReport(session_id: string): Promise<ReportData> {
+    return this.request<ReportData>(`get-report?session_id=${session_id}`, {
       method: 'GET',
     });
   }
@@ -294,8 +294,8 @@ export class ApiService {
   /**
    * Get training scenario details
    */
-  async getTrainingScenario(scenarioId: string): Promise<TrainingScenario> {
-    return this.request<TrainingScenario>(`get-training-scenario?id=${scenarioId}`, {
+  async getTrainingScenario(scenario_id: string): Promise<TrainingScenario> {
+    return this.request<TrainingScenario>(`get-training-scenario?id=${scenario_id}`, {
       method: 'GET',
     });
   }
@@ -303,30 +303,30 @@ export class ApiService {
   /**
    * Start a roleplay session
    */
-  async startRoleplay(scenarioId: string): Promise<StartRoleplayResponse> {
+  async startRoleplay(scenario_id: string): Promise<StartRoleplayResponse> {
     return this.request<StartRoleplayResponse>('start-roleplay', {
       method: 'POST',
-      body: JSON.stringify({ scenarioId }),
+      body: JSON.stringify({ scenario_id }),
     });
   }
 
   /**
    * Send a message in roleplay session
    */
-  async sendRoleplayMessage(sessionId: string, message: string): Promise<RoleplayMessageResponse> {
+  async sendRoleplayMessage(session_id: string, message: string): Promise<RoleplayMessageResponse> {
     return this.request<RoleplayMessageResponse>('roleplay-chat', {
       method: 'POST',
-      body: JSON.stringify({ sessionId, userMessage: message }),
+      body: JSON.stringify({ session_id, user_message: message }),
     });
   }
 
   /**
    * End roleplay session and get evaluation
    */
-  async endRoleplay(sessionId: string): Promise<RoleplayEndResult> {
+  async endRoleplay(session_id: string): Promise<RoleplayEndResult> {
     return this.request<RoleplayEndResult>('evaluate-roleplay', {
       method: 'POST',
-      body: JSON.stringify({ sessionId }),
+      body: JSON.stringify({ session_id }),
     });
   }
 

@@ -12,13 +12,13 @@ import { jsonResponse, errorResponse, unauthorizedResponse } from '../_shared/re
 interface Segment {
   speaker: 'stylist' | 'customer';
   text: string;
-  startTimeMs: number;
-  endTimeMs: number;
+  start_time_ms: number;
+  end_time_ms: number;
 }
 
 interface AnalyzeRequest {
-  sessionId: string;
-  chunkIndex: number;
+  session_id: string;
+  chunk_index: number;
   segments: Segment[];
 }
 
@@ -39,8 +39,8 @@ interface Alert {
   title: string;
   message: string;
   severity: 'info' | 'warning' | 'critical';
-  sessionId: string;
-  chunkIndex: number;
+  session_id: string;
+  chunk_index: number;
   timestamp: string;
   data?: Record<string, unknown>;
 }
@@ -48,8 +48,8 @@ interface Alert {
 // FR-304: Generate alerts based on analysis results
 function generateAlerts(
   analysis: Record<string, unknown>,
-  sessionId: string,
-  chunkIndex: number
+  session_id: string,
+  chunk_index: number
 ): Alert[] {
   const alerts: Alert[] = [];
   const timestamp = new Date().toISOString();
@@ -62,8 +62,8 @@ function generateAlerts(
       title: '⚠️ リスク警告',
       message: `接客スコアが${analysis.overallScore}点と低下しています。会話のバランスを見直してください。`,
       severity: 'critical',
-      sessionId,
-      chunkIndex,
+      session_id,
+      chunk_index,
       timestamp,
       data: { score: analysis.overallScore },
     });
@@ -77,10 +77,10 @@ function generateAlerts(
         title: '📊 トーク比率アラート',
         message: `美容師の発話比率が${metrics.talkRatio.stylistRatio}%です。お客様の話をもっと聞いてみましょう。`,
         severity: 'warning',
-        sessionId,
-        chunkIndex,
+        session_id,
+        chunk_index,
         timestamp,
-        data: { stylistRatio: metrics.talkRatio.stylistRatio },
+        data: { stylist_ratio: metrics.talkRatio.stylistRatio },
       });
     }
   }
@@ -93,10 +93,10 @@ function generateAlerts(
         title: '😟 お客様の反応に注意',
         message: 'ネガティブな反応が多く検出されています。お客様の気持ちに寄り添いましょう。',
         severity: 'warning',
-        sessionId,
-        chunkIndex,
+        session_id,
+        chunk_index,
         timestamp,
-        data: { positiveRatio: metrics.emotion.positiveRatio },
+        data: { positive_ratio: metrics.emotion.positiveRatio },
       });
     }
   }
@@ -106,16 +106,16 @@ function generateAlerts(
     const totalQuestions =
       (typeof metrics.questionQuality.openCount === 'number' ? metrics.questionQuality.openCount : 0) +
       (typeof metrics.questionQuality.closedCount === 'number' ? metrics.questionQuality.closedCount : 0);
-    if (totalQuestions < 3 && chunkIndex > 0) {
+    if (totalQuestions < 3 && chunk_index > 0) {
       alerts.push({
         type: 'question_shortage_alert',
         title: '❓ 質問を増やしましょう',
         message: '質問が少なくなっています。オープンクエスチョンでお客様の悩みを引き出しましょう。',
         severity: 'info',
-        sessionId,
-        chunkIndex,
+        session_id,
+        chunk_index,
         timestamp,
-        data: { questionCount: totalQuestions },
+        data: { question_count: totalQuestions },
       });
     }
   }
@@ -129,8 +129,8 @@ function generateAlerts(
         title: '💡 悩みキーワード検出',
         message: `お客様が「${keywords.join('」「')}」について悩んでいます。`,
         severity: 'info',
-        sessionId,
-        chunkIndex,
+        session_id,
+        chunk_index,
         timestamp,
         data: { keywords },
       });
@@ -141,10 +141,10 @@ function generateAlerts(
         title: '🎯 提案チャンス！',
         message: '今が商品を提案する絶好のタイミングです。',
         severity: 'info',
-        sessionId,
-        chunkIndex,
+        session_id,
+        chunk_index,
         timestamp,
-        data: { concernKeywords: keywords },
+        data: { concern_keywords: keywords },
       });
     }
   }
@@ -163,10 +163,10 @@ function generateAlerts(
         title: '💭 提案機会を逃しています',
         message: '悩みを検出してから3分以上経過しました。早めに提案しましょう。',
         severity: 'warning',
-        sessionId,
-        chunkIndex,
+        session_id,
+        chunk_index,
         timestamp,
-        data: { timingMs },
+        data: { timing_ms: timingMs },
       });
     }
   }
@@ -217,7 +217,7 @@ serve(async (req: Request) => {
     // Parse request body
     const body: AnalyzeRequest = await req.json();
 
-    if (!body.sessionId || body.chunkIndex === undefined || !body.segments) {
+    if (!body.session_id || body.chunk_index === undefined || !body.segments) {
       return errorResponse('VAL_001', 'Missing required parameters', 400);
     }
 
@@ -279,56 +279,56 @@ serve(async (req: Request) => {
     // Save analysis results to database - one row per indicator type (normalized schema)
     const analysisRows = [
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'talk_ratio',
         value: analysis.metrics.talkRatio?.stylistRatio || 0,
         score: analysis.metrics.talkRatio?.score || 0,
         details: analysis.metrics.talkRatio,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'question_analysis',
         value: analysis.metrics.questionQuality?.openCount || 0,
         score: analysis.metrics.questionQuality?.score || 0,
         details: analysis.metrics.questionQuality,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'emotion_analysis',
         value: analysis.metrics.emotion?.positiveRatio || 0,
         score: analysis.metrics.emotion?.score || 0,
         details: analysis.metrics.emotion,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'concern_keywords',
         value: (analysis.metrics.concernKeywords?.keywords?.length || 0),
         score: analysis.metrics.concernKeywords?.score || 0,
         details: analysis.metrics.concernKeywords,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'proposal_timing',
         value: analysis.metrics.proposalTiming?.timingMs || 0,
         score: analysis.metrics.proposalTiming?.score || 0,
         details: analysis.metrics.proposalTiming,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'proposal_quality',
         value: analysis.metrics.proposalQuality?.matchRate || 0,
         score: analysis.metrics.proposalQuality?.score || 0,
         details: analysis.metrics.proposalQuality,
       },
       {
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         indicator_type: 'conversion',
         value: analysis.metrics.conversion?.isConverted ? 100 : 0,
         score: analysis.metrics.conversion?.score || 0,
@@ -351,8 +351,8 @@ serve(async (req: Request) => {
     const { error: resultsError } = await supabase
       .from('analysis_results')
       .upsert({
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
         overall_score: analysis.overallScore,
         metrics: analysis.metrics,
         suggestions: analysis.suggestions,
@@ -364,16 +364,16 @@ serve(async (req: Request) => {
     }
 
     // Broadcast score update via realtime
-    await supabase.channel(`session:${body.sessionId}`).send({
+    await supabase.channel(`session:${body.session_id}`).send({
       type: 'broadcast',
       event: 'score_update',
       payload: {
-        sessionId: body.sessionId,
-        chunkIndex: body.chunkIndex,
-        overallScore: analysis.overallScore,
+        session_id: body.session_id,
+        chunk_index: body.chunk_index,
+        overall_score: analysis.overallScore,
         metrics: {
-          talkRatio: analysis.metrics.talkRatio.score,
-          questionQuality: analysis.metrics.questionQuality.score,
+          talk_ratio: analysis.metrics.talkRatio.score,
+          question_quality: analysis.metrics.questionQuality.score,
           emotion: analysis.metrics.emotion.score,
         },
         timestamp: new Date().toISOString(),
@@ -381,9 +381,9 @@ serve(async (req: Request) => {
     });
 
     // FR-304: Generate detailed alerts based on analysis
-    const alerts = generateAlerts(analysis, body.sessionId, body.chunkIndex);
+    const alerts = generateAlerts(analysis, body.session_id, body.chunk_index);
     for (const alert of alerts) {
-      await supabase.channel(`session:${body.sessionId}`).send({
+      await supabase.channel(`session:${body.session_id}`).send({
         type: 'broadcast',
         event: 'alert',
         payload: alert,

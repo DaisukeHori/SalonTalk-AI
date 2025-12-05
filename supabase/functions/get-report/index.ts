@@ -40,7 +40,7 @@ serve(async (req: Request) => {
 
     // Get session ID from query params
     const url = new URL(req.url);
-    const sessionId = url.searchParams.get('sessionId');
+    const sessionId = url.searchParams.get('session_id');
 
     if (!sessionId) {
       return new Response(
