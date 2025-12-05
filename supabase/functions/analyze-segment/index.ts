@@ -21,8 +21,8 @@ interface TranscriptSegment {
   session_id: string;
   chunk_index: number;
   text: string;
-  start_time: number;  // seconds (NUMERIC from DB)
-  end_time: number;    // seconds (NUMERIC from DB)
+  start_time_ms: number;  // milliseconds (INTEGER from DB)
+  end_time_ms: number;    // milliseconds (INTEGER from DB)
   confidence?: number;
   created_at: string;
 }
@@ -142,7 +142,7 @@ const ANALYSIS_SYSTEM_PROMPT = `あなたは美容室の接客会話を分析す
 
 /**
  * Merge transcript segments with speaker diarization results
- * Note: transcripts use seconds (NUMERIC), speaker_segments use milliseconds (INTEGER)
+ * Both tables use milliseconds (INTEGER)
  */
 function mergeSegments(
   transcripts: TranscriptSegment[],
@@ -151,9 +151,9 @@ function mergeSegments(
   const merged: MergedSegment[] = [];
 
   for (const transcript of transcripts) {
-    // Convert transcript time from seconds to milliseconds for comparison
-    const transcriptStartMs = Math.round(Number(transcript.start_time) * 1000);
-    const transcriptEndMs = Math.round(Number(transcript.end_time) * 1000);
+    // Both transcripts and speaker_segments use milliseconds
+    const transcriptStartMs = transcript.start_time_ms;
+    const transcriptEndMs = transcript.end_time_ms;
 
     // Find overlapping speaker segment (speaker_segments uses milliseconds)
     const speakerSegment = speakers.find(
@@ -229,13 +229,13 @@ serve(async (req: Request) => {
     }
 
     // Fetch transcripts for this chunk
-    // Note: transcripts table uses start_time/end_time in seconds (NUMERIC)
+    // transcripts table uses start_time_ms/end_time_ms in milliseconds (INTEGER)
     const { data: transcripts, error: transcriptError } = await supabase
       .from('transcripts')
       .select('*')
       .eq('session_id', body.sessionId)
       .eq('chunk_index', body.chunkIndex)
-      .order('start_time', { ascending: true });
+      .order('start_time_ms', { ascending: true });
 
     if (transcriptError) {
       console.error('Failed to fetch transcripts:', transcriptError);
@@ -396,22 +396,6 @@ serve(async (req: Request) => {
       if (insertError) {
         console.error(`Failed to save ${row.indicator_type} analysis:`, insertError);
       }
-    }
-
-    // Also save to analysis_results for backwards compatibility
-    const { error: resultsError } = await supabase
-      .from('analysis_results')
-      .upsert({
-        session_id: body.sessionId,
-        chunk_index: body.chunkIndex,
-        overall_score: analysis.overallScore,
-        metrics: analysis.metrics,
-        suggestions: analysis.suggestions,
-        highlights: analysis.highlights,
-      }, { onConflict: 'session_id,chunk_index' });
-
-    if (resultsError) {
-      console.error('Failed to save analysis_results:', resultsError);
     }
 
     // Broadcast score update via realtime
