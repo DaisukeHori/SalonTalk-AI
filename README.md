@@ -1807,17 +1807,228 @@ sudo journalctl -u cloudflared -f  # Linux
 
 ---
 
-### 4.5 Supabase に pyannote URL を設定
+### 4.5 pyannote サーバーとバックエンドの接続設定
 
-pyannote サーバーが起動したら、Supabase の Edge Functions 環境変数を更新：
+pyannote サーバーを起動したら、Supabase の Edge Functions からアクセスできるように設定します。
 
-1. Supabase ダッシュボード→「Edge Functions」→「Manage secrets」
-2. `PYANNOTE_SERVER_URL` を編集
-3. 実際の URL を入力：
-   - ローカル（同じ LAN）: `http://192.168.x.x:8000`
-   - ローカル（ngrok）: `https://abc123.ngrok.io`
-   - クラウド: `http://123.45.67.89:8000`
-4. 「Save」をクリック
+#### 4.5.1 システム構成の理解
+
+```
+┌─────────────────┐      ┌─────────────────────┐      ┌─────────────────┐
+│   iPad アプリ   │      │   Supabase          │      │  pyannote       │
+│   (フロント)    │─────▶│   Edge Functions    │─────▶│  サーバー       │
+│                 │      │   (バックエンド)    │      │  (GPU)          │
+└─────────────────┘      └─────────────────────┘      └─────────────────┘
+        │                         │                          │
+        │ 1. 音声データ送信       │ 2. pyannote に転送       │
+        │                         │                          │
+        │                         │ 3. 話者分離結果を受信    │
+        │                         │◀─────────────────────────│
+        │ 4. 結果を返却           │                          │
+        │◀────────────────────────│                          │
+```
+
+**データの流れ：**
+1. iPad アプリが音声データを Supabase Edge Functions に送信
+2. Edge Functions（`trigger-diarization`）が pyannote サーバーに音声を転送
+3. pyannote が話者分離を実行し、結果をコールバック
+4. Edge Functions（`diarization-callback`）が結果を受け取り、DB に保存
+
+#### 4.5.2 必要な環境変数
+
+pyannote との接続には、以下の環境変数を Supabase に設定する必要があります：
+
+| 環境変数 | 説明 | 例 |
+|---------|------|-----|
+| `PYANNOTE_SERVER_URL` | pyannote サーバーの URL | `https://xxx.trycloudflare.com` |
+| `PYANNOTE_API_KEY` | API 認証キー（自分で決める） | `my-secret-api-key-12345` |
+| `PYANNOTE_CALLBACK_SECRET` | コールバック署名用シークレット | `callback-secret-67890` |
+
+#### 4.5.3 Supabase Dashboard で環境変数を設定
+
+**手順：**
+
+1. **Supabase Dashboard にログイン**
+   - https://supabase.com/dashboard にアクセス
+   - プロジェクトを選択
+
+2. **Edge Functions の設定を開く**
+   - 左メニューの「Edge Functions」をクリック
+   - 右上の「Manage secrets」をクリック
+
+3. **環境変数を追加**
+
+   「Add new secret」をクリックして、以下を1つずつ追加：
+
+   **PYANNOTE_SERVER_URL:**
+   ```
+   Name: PYANNOTE_SERVER_URL
+   Value: https://your-tunnel-url.trycloudflare.com
+   ```
+
+   **PYANNOTE_API_KEY:**
+   ```
+   Name: PYANNOTE_API_KEY
+   Value: your-api-key-here
+   ```
+   > この値は pyannote サーバーの `.env` ファイルの `PYANNOTE_API_KEY` と同じ値にする
+
+   **PYANNOTE_CALLBACK_SECRET:**
+   ```
+   Name: PYANNOTE_CALLBACK_SECRET
+   Value: your-callback-secret-here
+   ```
+   > この値は pyannote サーバーの `.env` ファイルの `CALLBACK_SECRET` と同じ値にする
+
+4. **保存**
+   - 各項目を入力後「Save」をクリック
+
+#### 4.5.4 pyannote サーバー側の設定確認
+
+pyannote サーバーの `.env` ファイルが正しく設定されていることを確認：
+
+```bash
+# GPU サーバーに SSH 接続して確認
+cat ~/SalonTalk-AI/services/pyannote/.env
+```
+
+以下の値が Supabase の環境変数と一致していることを確認：
+
+```env
+# この値が Supabase の PYANNOTE_API_KEY と一致
+PYANNOTE_API_KEY=your-api-key-here
+
+# この値が Supabase の PYANNOTE_CALLBACK_SECRET と一致
+CALLBACK_SECRET=your-callback-secret-here
+
+# Supabase の URL（コールバック送信先）
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIs...
+```
+
+#### 4.5.5 URL の種類と設定例
+
+pyannote サーバーの公開方法によって、設定する URL が異なります：
+
+| 公開方法 | URL の形式 | 例 |
+|---------|-----------|-----|
+| **Cloudflare Quick Tunnel** | `https://xxx.trycloudflare.com` | `https://random-words.trycloudflare.com` |
+| **Cloudflare 名前付きトンネル** | `https://your-subdomain.yourdomain.com` | `https://pyannote.example.com` |
+| **ngrok** | `https://xxx.ngrok.io` | `https://abc123.ngrok.io` |
+| **直接 IP（非推奨）** | `http://IP:PORT` | `http://123.45.67.89:8000` |
+
+> **推奨**: Cloudflare Tunnel を使用（HTTPS 自動、セキュリティ高）
+
+#### 4.5.6 接続テスト
+
+設定が正しいか確認するため、Edge Function をテスト呼び出しします。
+
+**方法 1: curl でテスト**
+
+```bash
+# Supabase の anon key を使用
+curl -X POST "https://YOUR_PROJECT.supabase.co/functions/v1/trigger-diarization" \
+  -H "Authorization: Bearer YOUR_ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"test": true}'
+```
+
+**方法 2: Supabase Dashboard でテスト**
+
+1. 「Edge Functions」→「trigger-diarization」を選択
+2. 「Logs」タブをクリック
+3. iPad アプリから音声を送信してログを確認
+
+**正常な場合のログ例：**
+```
+Sending audio to pyannote server: https://xxx.trycloudflare.com
+Pyannote response: 200 OK
+Diarization job started: job-id-12345
+```
+
+**エラーの場合のログ例：**
+```
+Error connecting to pyannote server: ECONNREFUSED
+```
+→ pyannote サーバーが起動していないか、URL が間違っている
+
+#### 4.5.7 URL が変わった場合の更新手順
+
+Quick Tunnel を使用している場合、サーバー再起動で URL が変わります。
+
+**更新手順：**
+
+1. **新しい URL を確認**
+   ```bash
+   # GPU サーバーで Cloudflare Tunnel を起動
+   cloudflared tunnel --url http://localhost:8000
+
+   # 表示された URL をメモ
+   # https://new-random-words.trycloudflare.com
+   ```
+
+2. **Supabase の環境変数を更新**
+   - Supabase Dashboard→「Edge Functions」→「Manage secrets」
+   - `PYANNOTE_SERVER_URL` の値を新しい URL に変更
+   - 「Save」をクリック
+
+3. **動作確認**
+   - iPad アプリで音声を録音してテスト
+   - Edge Functions のログで接続成功を確認
+
+#### 4.5.8 トラブルシューティング
+
+**問題: 「Connection refused」エラー**
+
+原因と解決方法：
+1. pyannote サーバーが起動していない
+   ```bash
+   # GPU サーバーで確認
+   curl http://localhost:8000/health
+   ```
+2. Cloudflare Tunnel が起動していない
+   ```bash
+   # トンネルを起動
+   cloudflared tunnel --url http://localhost:8000
+   ```
+
+**問題: 「401 Unauthorized」エラー**
+
+原因と解決方法：
+- API キーが一致していない
+- Supabase の `PYANNOTE_API_KEY` と pyannote サーバーの `PYANNOTE_API_KEY` が同じ値か確認
+
+**問題: 「Callback failed」エラー**
+
+原因と解決方法：
+- pyannote サーバーが Supabase にコールバックを送信できない
+- pyannote サーバーの `.env` で `SUPABASE_URL` と `SUPABASE_SERVICE_ROLE_KEY` が正しいか確認
+
+**問題: URL を更新しても反映されない**
+
+原因と解決方法：
+- Edge Functions のキャッシュ
+- 数分待つか、Edge Functions を再デプロイ：
+  ```bash
+  supabase functions deploy trigger-diarization
+  supabase functions deploy diarization-callback
+  ```
+
+#### 4.5.9 本番運用のベストプラクティス
+
+| 項目 | 推奨設定 |
+|------|---------|
+| **URL** | 名前付きトンネル（固定 URL） |
+| **API キー** | 32文字以上のランダム文字列 |
+| **監視** | Supabase Logs + pyannote ログを定期確認 |
+| **バックアップ** | 環境変数をメモしておく |
+
+**API キーの生成例：**
+```bash
+# ランダムな API キーを生成
+openssl rand -hex 32
+# 出力例: a1b2c3d4e5f6...（64文字）
+```
 
 ---
 
