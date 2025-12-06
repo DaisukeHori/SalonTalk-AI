@@ -1542,6 +1542,474 @@ interface RoleplayChatResponse {
 
 ---
 
+#### 3.3.8 extract-embedding（声紋抽出）
+
+> 🆕 **新規追加（2025-12-06）**: 声紋識別機能用API
+
+**エンドポイント**: `POST /api/v1/extract-embedding`（pyannoteサーバー）
+
+**説明**: 音声から話者の声紋埋め込みベクトルを抽出する
+
+**リクエスト**:
+
+```typescript
+interface ExtractEmbeddingRequest {
+  session_id: string;
+  audio_segments: Array<{
+    start_time_ms: number;
+    end_time_ms: number;
+    speaker: 'stylist' | 'customer';
+  }>;
+}
+```
+
+**レスポンス**:
+
+```typescript
+// 200 OK
+interface ExtractEmbeddingResponse {
+  embedding: number[];          // 512次元ベクトル
+  duration_seconds: number;     // 抽出に使用した音声長
+  confidence: number;           // 信頼度 (0-1)
+}
+```
+
+**実装（pyannoteサーバー）**:
+
+```python
+# services/pyannote/app/routes/embedding.py
+
+from fastapi import APIRouter, File, Form, UploadFile, HTTPException
+from app.services.embedding_service import EmbeddingService
+
+router = APIRouter()
+embedding_service = EmbeddingService()
+
+@router.post("/extract-embedding")
+async def extract_embedding(
+    file: UploadFile = File(...),
+    session_id: str = Form(...),
+    speaker: str = Form(...),
+    start_time_ms: int = Form(0),
+    end_time_ms: int = Form(None),
+):
+    """
+    Extract speaker embedding from audio segment.
+    Returns 512-dimensional vector for voice identification.
+    """
+    if speaker not in ['stylist', 'customer']:
+        raise HTTPException(status_code=400, detail="Invalid speaker type")
+
+    # Save temp file
+    audio_path = await save_temp_file(file)
+
+    try:
+        # Extract embedding
+        result = await embedding_service.extract(
+            audio_path=audio_path,
+            start_time_ms=start_time_ms,
+            end_time_ms=end_time_ms,
+        )
+
+        return {
+            "embedding": result["embedding"],
+            "duration_seconds": result["duration_seconds"],
+            "confidence": result["confidence"],
+        }
+    finally:
+        cleanup_temp_file(audio_path)
+```
+
+```python
+# services/pyannote/app/services/embedding_service.py
+
+import torch
+from pyannote.audio import Model, Inference
+import numpy as np
+
+class EmbeddingService:
+    def __init__(self):
+        self.model = Model.from_pretrained(
+            "pyannote/embedding",
+            use_auth_token=os.getenv("HUGGINGFACE_TOKEN")
+        )
+        self.inference = Inference(self.model, window="whole")
+
+    async def extract(
+        self,
+        audio_path: str,
+        start_time_ms: int = 0,
+        end_time_ms: int = None,
+    ) -> dict:
+        """Extract 512-dim speaker embedding from audio."""
+
+        # Load and trim audio
+        waveform, sample_rate = torchaudio.load(audio_path)
+
+        if start_time_ms > 0 or end_time_ms:
+            start_sample = int(start_time_ms * sample_rate / 1000)
+            end_sample = int(end_time_ms * sample_rate / 1000) if end_time_ms else None
+            waveform = waveform[:, start_sample:end_sample]
+
+        duration_seconds = waveform.shape[1] / sample_rate
+
+        # Minimum 10 seconds for reliable embedding
+        if duration_seconds < 10:
+            raise ValueError("Audio segment too short (minimum 10 seconds)")
+
+        # Extract embedding
+        embedding = self.inference({"waveform": waveform, "sample_rate": sample_rate})
+
+        # Calculate confidence based on duration
+        confidence = min(1.0, duration_seconds / 30)  # 30秒で最大信頼度
+
+        return {
+            "embedding": embedding.tolist(),
+            "duration_seconds": duration_seconds,
+            "confidence": confidence,
+        }
+```
+
+---
+
+#### 3.3.9 match-customer（顧客マッチング）
+
+**エンドポイント**: `POST /functions/v1/match-customer`
+
+**説明**: 声紋埋め込みから既存顧客をマッチングし、リピーターを識別する
+
+**リクエスト**:
+
+```typescript
+interface MatchCustomerRequest {
+  session_id: string;
+  embedding: number[];          // 512次元ベクトル
+  salon_id: string;
+  threshold?: number;           // デフォルト: 0.65
+}
+```
+
+**レスポンス**:
+
+```typescript
+// 200 OK
+interface MatchCustomerResponse {
+  data: {
+    matched: boolean;
+    customer_id?: string;
+    customer_name?: string;
+    similarity_score: number;
+    confidence: 'high' | 'medium' | 'low' | 'none';
+    previous_visits: number;
+    last_visit_at?: string;
+    is_new_customer: boolean;
+    alternative_candidates: Array<{
+      customer_id: string;
+      customer_name?: string;
+      similarity_score: number;
+    }>;
+  };
+}
+```
+
+**実装**:
+
+```typescript
+// supabase/functions/match-customer/index.ts
+
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { handleCors } from '../_shared/cors.ts';
+import { jsonResponse, errorResponse } from '../_shared/response.ts';
+import { createSupabaseAdminClient } from '../_shared/supabase.ts';
+
+interface MatchRequest {
+  session_id: string;
+  embedding: number[];
+  salon_id: string;
+  threshold?: number;
+}
+
+serve(async (req: Request) => {
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+
+  try {
+    const supabase = createSupabaseAdminClient();
+    const body: MatchRequest = await req.json();
+
+    const { session_id, embedding, salon_id, threshold = 0.65 } = body;
+
+    if (!embedding || embedding.length !== 512) {
+      return errorResponse('VAL_001', 'Invalid embedding (must be 512 dimensions)', 400);
+    }
+
+    // Search for matching customers using pgvector
+    const { data: matches, error: searchError } = await supabase.rpc(
+      'match_customer_by_voice',
+      {
+        query_embedding: embedding,
+        salon_id_param: salon_id,
+        match_threshold: threshold,
+        match_count: 5,
+      }
+    );
+
+    if (searchError) {
+      console.error('Voice matching error:', searchError);
+      return errorResponse('DB_001', 'Failed to search customers', 500);
+    }
+
+    // Determine confidence level
+    const topMatch = matches?.[0];
+    let confidence: 'high' | 'medium' | 'low' | 'none' = 'none';
+    let matched = false;
+    let isNewCustomer = true;
+
+    if (topMatch) {
+      if (topMatch.similarity >= 0.85) {
+        confidence = 'high';
+        matched = true;
+        isNewCustomer = false;
+      } else if (topMatch.similarity >= 0.75) {
+        confidence = 'medium';
+        matched = true;
+        isNewCustomer = false;
+      } else if (topMatch.similarity >= 0.65) {
+        confidence = 'low';
+        matched = true;
+        isNewCustomer = false;
+      }
+    }
+
+    // If matched, update visit count and embedding
+    if (matched && topMatch) {
+      await supabase.rpc('update_customer_embedding', {
+        customer_id_param: topMatch.customer_id,
+        new_embedding: embedding,
+      });
+
+      // Link session to customer
+      await supabase
+        .from('sessions')
+        .update({ customer_id: topMatch.customer_id })
+        .eq('id', session_id);
+    }
+
+    // If new customer, create record
+    let newCustomerId: string | undefined;
+    if (isNewCustomer) {
+      const { data: newCustomer, error: insertError } = await supabase
+        .from('customers')
+        .insert({
+          salon_id,
+          voice_embedding: embedding,
+          embedding_updated_at: new Date().toISOString(),
+          total_visits: 1,
+          first_visit_at: new Date().toISOString(),
+          last_visit_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (!insertError && newCustomer) {
+        newCustomerId = newCustomer.id;
+
+        // Link session to new customer
+        await supabase
+          .from('sessions')
+          .update({ customer_id: newCustomer.id })
+          .eq('id', session_id);
+      }
+    }
+
+    return jsonResponse({
+      matched,
+      customer_id: matched ? topMatch?.customer_id : newCustomerId,
+      customer_name: topMatch?.customer_name,
+      similarity_score: topMatch?.similarity || 0,
+      confidence,
+      previous_visits: topMatch?.total_visits || 0,
+      last_visit_at: topMatch?.last_visit_at,
+      is_new_customer: isNewCustomer,
+      alternative_candidates: (matches || []).slice(1).map((m: any) => ({
+        customer_id: m.customer_id,
+        customer_name: m.customer_name,
+        similarity_score: m.similarity,
+      })),
+    });
+  } catch (error) {
+    console.error('Match customer error:', error);
+    return errorResponse('INTERNAL_ERROR', error.message, 500);
+  }
+});
+```
+
+---
+
+#### 3.3.10 extract-customer-name（顧客名抽出）
+
+**エンドポイント**: `POST /functions/v1/extract-customer-name`
+
+**説明**: 会話トランスクリプトから顧客名を自動抽出する
+
+**リクエスト**:
+
+```typescript
+interface ExtractCustomerNameRequest {
+  session_id: string;
+  transcript: string;
+  customer_id: string;
+}
+```
+
+**レスポンス**:
+
+```typescript
+// 200 OK
+interface ExtractCustomerNameResponse {
+  data: {
+    extracted_names: Array<{
+      name: string;
+      confidence: number;
+      source: 'stylist_address' | 'customer_intro' | 'context';
+      context: string;
+    }>;
+    recommended_name?: string;
+    updated: boolean;
+  };
+}
+```
+
+**実装**:
+
+```typescript
+// supabase/functions/extract-customer-name/index.ts
+
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { handleCors } from '../_shared/cors.ts';
+import { jsonResponse, errorResponse } from '../_shared/response.ts';
+import { createSupabaseAdminClient } from '../_shared/supabase.ts';
+
+const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+
+serve(async (req: Request) => {
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { session_id, transcript, customer_id } = await req.json();
+
+    if (!transcript || !customer_id) {
+      return errorResponse('VAL_001', 'transcript and customer_id are required', 400);
+    }
+
+    // Claude API で名前を抽出
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5-20250929',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: `以下の美容室での会話トランスクリプトから、お客様の名前を抽出してください。
+
+## 抽出ルール
+1. 美容師がお客様を呼ぶ際の名前（「○○さん」「○○様」）
+2. お客様の自己紹介（「○○です」「○○といいます」）
+3. 予約確認の際の名前
+
+## 出力形式（JSON）
+{
+  "names": [
+    {
+      "name": "田中",
+      "confidence": 0.95,
+      "source": "stylist_address",
+      "context": "抽出元の発話"
+    }
+  ],
+  "recommended_name": "最も信頼度の高い名前"
+}
+
+名前が見つからない場合は {"names": [], "recommended_name": null} を返してください。
+
+## 会話トランスクリプト
+${transcript.substring(0, 3000)}`,
+        }],
+      }),
+    });
+
+    const result = await response.json();
+    const content = result.content[0].text;
+
+    let extractionResult;
+    try {
+      extractionResult = JSON.parse(content);
+    } catch {
+      extractionResult = { names: [], recommended_name: null };
+    }
+
+    // 名前が見つかった場合、顧客情報を更新
+    let updated = false;
+    if (extractionResult.recommended_name) {
+      // 既存の名前がない場合のみ更新
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('name, metadata')
+        .eq('id', customer_id)
+        .single();
+
+      if (customer && !customer.name) {
+        await supabase
+          .from('customers')
+          .update({
+            name: extractionResult.recommended_name,
+            metadata: {
+              ...customer.metadata,
+              name_candidates: extractionResult.names,
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', customer_id);
+        updated = true;
+      } else if (customer) {
+        // 名前候補のみ更新
+        await supabase
+          .from('customers')
+          .update({
+            metadata: {
+              ...customer.metadata,
+              name_candidates: [
+                ...(customer.metadata?.name_candidates || []),
+                ...extractionResult.names,
+              ].slice(-10), // 最新10件のみ保持
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', customer_id);
+      }
+    }
+
+    return jsonResponse({
+      extracted_names: extractionResult.names,
+      recommended_name: extractionResult.recommended_name,
+      updated,
+    });
+  } catch (error) {
+    console.error('Name extraction error:', error);
+    return errorResponse('INTERNAL_ERROR', error.message, 500);
+  }
+});
+```
+
+---
+
 ### 3.4 データベース関数（RPC）
 
 #### 3.4.1 search_success_cases
