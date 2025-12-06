@@ -898,11 +898,305 @@ curl http://123.45.67.89:8000/health
 
 ---
 
-### 4.3 ローカル GPU で実行する場合（自分の PC）
+### 4.3 クラウド GPU + Cloudflare Tunnel で公開する（推奨）
+
+VAST.ai や RunPod の GPU サーバーを Cloudflare Tunnel で安全に公開する方法です。
+IP アドレスを直接公開せず、HTTPS で保護された固定 URL を取得できます。
+
+#### 4.3.1 なぜ Cloudflare Tunnel を使うのか
+
+| 項目 | 直接 IP 公開 | Cloudflare Tunnel |
+|------|-------------|-------------------|
+| **セキュリティ** | IP が露出 | IP を隠蔽 |
+| **HTTPS** | 手動設定必要 | 自動 |
+| **DDoS 保護** | なし | あり |
+| **固定 URL** | IP 変更で変わる | 固定 |
+| **設定** | ポート開放必要 | 不要 |
+
+#### 4.3.2 VAST.ai/RunPod に SSH 接続
+
+まず、GPU サーバーに SSH 接続します。
+
+**VAST.ai の場合：**
+```bash
+# VAST.ai ダッシュボードで「Connect」をクリックして表示されるコマンド
+ssh -p 12345 root@xxx.xxx.xxx.xxx
+```
+
+**RunPod の場合：**
+```bash
+# RunPod ダッシュボードで「Connect」→「SSH over exposed TCP」
+ssh root@xxx.xxx.xxx.xxx -p 12345 -i ~/.ssh/id_ed25519
+```
+
+#### 4.3.3 cloudflared をインストール（GPU サーバー上）
+
+SSH 接続後、GPU サーバー上で以下を実行：
+
+```bash
+# cloudflared をダウンロード
+wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+
+# インストール
+dpkg -i cloudflared-linux-amd64.deb
+
+# 確認
+cloudflared --version
+```
+
+#### 4.3.4 Cloudflare にログイン（GPU サーバー上）
+
+```bash
+cloudflared tunnel login
+```
+
+以下のようなメッセージが表示されます：
+```
+Please open the following URL and log in with your Cloudflare account:
+
+https://dash.cloudflare.com/argotunnel?aud=xxx...
+
+Leave cloudflared running to download the cert automatically.
+```
+
+1. 表示された URL をコピー
+2. **ローカル PC のブラウザ**でその URL を開く
+3. Cloudflare にログイン
+4. 「Authorize」をクリック
+5. GPU サーバーのターミナルに「You have successfully logged in」と表示される
+
+#### 4.3.5 方法 A: Quick Tunnel で公開（最も簡単）
+
+すぐに公開したい場合はこの方法が最も簡単です。
+
+```bash
+# pyannote サーバーが起動していることを確認
+# （別の screen セッションで起動している場合）
+
+# Quick Tunnel で公開
+cloudflared tunnel --url http://localhost:8000
+```
+
+以下のような出力が表示されます：
+```
+2024-xx-xx INF +-----------------------------------------------------------+
+2024-xx-xx INF |  Your quick Tunnel has been created! Visit it at:         |
+2024-xx-xx INF |  https://random-words-here.trycloudflare.com               |
+2024-xx-xx INF +-----------------------------------------------------------+
+```
+
+この URL（`https://random-words-here.trycloudflare.com`）をメモしてください。
+
+> **注意**: Quick Tunnel はサーバーを再起動すると URL が変わります。
+
+#### 4.3.6 方法 B: 名前付きトンネル（固定 URL）
+
+固定 URL が必要な場合：
+
+**1. トンネルを作成**
+
+```bash
+cloudflared tunnel create pyannote-gpu
+```
+
+出力される Tunnel ID（`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`）をメモ
+
+**2. 設定ファイルを作成**
+
+```bash
+# 設定ディレクトリを作成
+mkdir -p ~/.cloudflared
+
+# 設定ファイルを作成
+cat > ~/.cloudflared/config.yml << 'EOF'
+tunnel: YOUR_TUNNEL_ID
+credentials-file: /root/.cloudflared/YOUR_TUNNEL_ID.json
+
+ingress:
+  - hostname: pyannote.yourdomain.com
+    service: http://localhost:8000
+  - service: http_status:404
+EOF
+```
+
+`YOUR_TUNNEL_ID` と `yourdomain.com` を実際の値に置き換え
+
+**3. DNS を設定**
+
+```bash
+cloudflared tunnel route dns pyannote-gpu pyannote.yourdomain.com
+```
+
+**4. トンネルを起動**
+
+```bash
+cloudflared tunnel run pyannote-gpu
+```
+
+#### 4.3.7 pyannote と Cloudflare Tunnel を同時に起動
+
+screen を使って両方をバックグラウンドで実行します。
+
+```bash
+# 1. pyannote サーバー用の screen セッション
+screen -S pyannote
+
+# pyannote を起動
+cd ~/SalonTalk-AI/services/pyannote
+source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Ctrl+A, D でデタッチ
+
+# 2. Cloudflare Tunnel 用の screen セッション
+screen -S tunnel
+
+# Quick Tunnel の場合
+cloudflared tunnel --url http://localhost:8000
+
+# または名前付きトンネルの場合
+# cloudflared tunnel run pyannote-gpu
+
+# Ctrl+A, D でデタッチ
+```
+
+**セッションの確認：**
+```bash
+# 実行中の screen セッション一覧
+screen -ls
+
+# pyannote セッションに戻る
+screen -r pyannote
+
+# tunnel セッションに戻る
+screen -r tunnel
+```
+
+#### 4.3.8 起動スクリプトを作成（便利）
+
+毎回手動で起動するのは面倒なので、スクリプトを作成します：
+
+```bash
+cat > ~/start-pyannote.sh << 'EOF'
+#!/bin/bash
+
+# pyannote サーバーを起動
+cd ~/SalonTalk-AI/services/pyannote
+source venv/bin/activate
+
+# バックグラウンドで pyannote を起動
+uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+PYANNOTE_PID=$!
+
+# 起動を待つ
+sleep 10
+
+# Cloudflare Tunnel を起動（Quick Tunnel）
+cloudflared tunnel --url http://localhost:8000
+
+# 終了時に pyannote も停止
+kill $PYANNOTE_PID
+EOF
+
+chmod +x ~/start-pyannote.sh
+```
+
+**使用方法：**
+```bash
+# screen セッションで起動
+screen -S pyannote-tunnel
+~/start-pyannote.sh
+
+# Ctrl+A, D でデタッチ
+```
+
+#### 4.4.9 動作確認
+
+ローカル PC から Cloudflare Tunnel の URL にアクセス：
+
+```bash
+curl https://random-words-here.trycloudflare.com/health
+```
+
+以下が返れば成功：
+```json
+{"status": "healthy"}
+```
+
+#### 4.3.10 Supabase に URL を設定
+
+1. Supabase ダッシュボード→「Edge Functions」→「Manage secrets」
+2. `PYANNOTE_SERVER_URL` を設定：
+   - Quick Tunnel: `https://random-words-here.trycloudflare.com`
+   - 名前付きトンネル: `https://pyannote.yourdomain.com`
+3. 「Save」をクリック
+
+#### 4.3.11 VAST.ai/RunPod 再起動時の注意
+
+クラウド GPU サーバーを停止・再起動すると：
+
+| 項目 | Quick Tunnel | 名前付きトンネル |
+|------|-------------|-----------------|
+| URL | **変わる** | 変わらない |
+| 設定ファイル | 不要 | 必要（再作成） |
+| Supabase 更新 | **必要** | 不要 |
+
+**Quick Tunnel を使っている場合：**
+
+再起動後、新しい URL を Supabase に設定し直す必要があります。
+
+**名前付きトンネルを使っている場合：**
+
+認証情報ファイルを再作成する必要があります：
+```bash
+# 再ログイン
+cloudflared tunnel login
+
+# トンネルを再起動
+cloudflared tunnel run pyannote-gpu
+```
+
+#### 4.3.12 トラブルシューティング
+
+**エラー: 「connection refused」**
+
+```bash
+# pyannote が起動しているか確認
+curl http://localhost:8000/health
+
+# 起動していなければ起動
+cd ~/SalonTalk-AI/services/pyannote
+source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+**エラー: 「tunnel not found」**
+
+```bash
+# トンネル一覧を確認
+cloudflared tunnel list
+
+# トンネルが存在しなければ再作成
+cloudflared tunnel create pyannote-gpu
+```
+
+**URL にアクセスできない**
+
+```bash
+# cloudflared が動作しているか確認
+ps aux | grep cloudflared
+
+# ログを確認
+cloudflared tunnel --url http://localhost:8000 --loglevel debug
+```
+
+---
+
+### 4.4 ローカル GPU で実行する場合（自分の PC）
 
 NVIDIA GPU 搭載の PC があれば、クラウドサービスを使わずにローカルで実行できます。
 
-#### 4.3.1 必要なスペック
+#### 4.4.1 必要なスペック
 
 | 項目 | 最小要件 | 推奨 |
 |------|---------|------|
@@ -913,7 +1207,7 @@ NVIDIA GPU 搭載の PC があれば、クラウドサービスを使わずに�
 
 > **注意**: AMD GPU や Intel GPU は対応していません。NVIDIA GPU が必須です。
 
-#### 4.3.2 NVIDIA ドライバーのインストール
+#### 4.4.2 NVIDIA ドライバーのインストール
 
 **Windows の場合：**
 
@@ -955,7 +1249,7 @@ nvidia-smi
 +-------------------------------+----------------------+----------------------+
 ```
 
-#### 4.3.3 CUDA Toolkit のインストール
+#### 4.4.3 CUDA Toolkit のインストール
 
 **Windows の場合：**
 
@@ -995,7 +1289,7 @@ Built on ...
 Cuda compilation tools, release 12.2, V12.2.xxx
 ```
 
-#### 4.3.4 Python 環境のセットアップ
+#### 4.4.4 Python 環境のセットアップ
 
 **Windows の場合：**
 
@@ -1009,7 +1303,7 @@ Cuda compilation tools, release 12.2, V12.2.xxx
 sudo apt-get install -y python3.11 python3.11-venv python3-pip
 ```
 
-#### 4.3.5 pyannote サーバーのセットアップ
+#### 4.4.5 pyannote サーバーのセットアップ
 
 ```bash
 # プロジェクトディレクトリに移動
@@ -1036,7 +1330,7 @@ pip install -r requirements.txt
 
 > **注意**: PyTorch のインストールには数分かかります。
 
-#### 4.3.6 環境変数の設定
+#### 4.4.6 環境変数の設定
 
 ```bash
 cd ~/SalonTalk-AI/services/pyannote
@@ -1071,7 +1365,7 @@ notepad .env
 
 上記の内容をコピーして、実際の値に置き換えて保存
 
-#### 4.3.7 GPU 認識の確認
+#### 4.4.7 GPU 認識の確認
 
 ```bash
 # 仮想環境を有効化していることを確認
@@ -1096,7 +1390,7 @@ GPU: NVIDIA GeForce RTX 3090
    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
    ```
 
-#### 4.3.8 サーバーを起動
+#### 4.4.8 サーバーを起動
 
 ```bash
 cd ~/SalonTalk-AI/services/pyannote
@@ -1118,7 +1412,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 
 > **注意**: 初回起動時は pyannote モデル（約 1GB）のダウンロードに数分かかります。
 
-#### 4.3.9 動作確認
+#### 4.4.9 動作確認
 
 別のターミナルを開いて：
 
@@ -1131,7 +1425,7 @@ curl http://localhost:8000/health
 {"status": "healthy", "gpu": true, "model_loaded": true}
 ```
 
-#### 4.3.10 バックグラウンド実行（Windows）
+#### 4.4.10 バックグラウンド実行（Windows）
 
 Windows でバックグラウンド実行するには、タスクスケジューラを使用：
 
@@ -1148,7 +1442,7 @@ Windows でバックグラウンド実行するには、タスクスケジュー
    - 開始: `C:\path\to\SalonTalk-AI\services\pyannote`
 6. 「OK」をクリック
 
-#### 4.3.11 バックグラウンド実行（Linux/Mac）
+#### 4.4.11 バックグラウンド実行（Linux/Mac）
 
 **systemd サービスとして登録（推奨）：**
 
@@ -1197,7 +1491,7 @@ sudo systemctl restart pyannote
 sudo journalctl -u pyannote -f
 ```
 
-#### 4.3.12 外部からアクセスできるようにする
+#### 4.4.12 外部からアクセスできるようにする
 
 ローカル PC の pyannote サーバーに外部（iPad アプリなど）からアクセスするには：
 
@@ -1226,15 +1520,281 @@ ngrok http 8000
 
 **方法 3: Cloudflare Tunnel（無料・推奨）**
 
-```bash
-# cloudflared をインストール
-# https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/
+Cloudflare Tunnel は無料で、固定 URL を取得でき、HTTPS も自動で設定されます。
 
-# トンネルを作成
+---
+
+### 4.4.13 Cloudflare Tunnel で公開する（詳細手順）
+
+Cloudflare Tunnel を使うと、ローカル PC の pyannote サーバーをインターネットに安全に公開できます。
+
+#### ステップ 1: Cloudflare アカウントを作成
+
+1. https://dash.cloudflare.com/sign-up にアクセス
+2. メールアドレスとパスワードを入力
+3. 「Create Account」をクリック
+4. メールに届いた確認リンクをクリック
+
+#### ステップ 2: cloudflared をインストール
+
+**Windows の場合：**
+
+1. https://github.com/cloudflare/cloudflared/releases にアクセス
+2. 最新版の `cloudflared-windows-amd64.msi` をダウンロード
+3. ダウンロードしたファイルをダブルクリックしてインストール
+4. インストール完了後、PowerShell を**管理者として**開く
+5. インストール確認：
+   ```powershell
+   cloudflared --version
+   ```
+
+**Mac の場合：**
+
+```bash
+# Homebrew でインストール
+brew install cloudflare/cloudflare/cloudflared
+
+# 確認
+cloudflared --version
+```
+
+**Ubuntu/Linux の場合：**
+
+```bash
+# cloudflared をダウンロード
+wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+
+# インストール
+sudo dpkg -i cloudflared-linux-amd64.deb
+
+# 確認
+cloudflared --version
+```
+
+以下のように表示されれば OK：
+```
+cloudflared version 2024.x.x (built 2024-xx-xx)
+```
+
+#### ステップ 3: Cloudflare にログイン
+
+```bash
+cloudflared tunnel login
+```
+
+ブラウザが自動で開きます：
+
+1. Cloudflare アカウントでログイン
+2. 「Authorize」をクリック
+3. ターミナルに「You have successfully logged in」と表示される
+
+> **ブラウザが開かない場合**: ターミナルに表示された URL をコピーしてブラウザで開く
+
+#### ステップ 4: トンネルを作成
+
+```bash
+# トンネルを作成（名前は自由に決められます）
+cloudflared tunnel create pyannote-server
+```
+
+以下のような出力が表示されます：
+```
+Tunnel credentials written to /home/user/.cloudflared/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.json
+Created tunnel pyannote-server with id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+**重要**: この `id`（`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`）をメモしてください。
+
+#### ステップ 5: ドメインを設定（無料サブドメイン）
+
+Cloudflare の無料プランでは、自分のドメインを追加するか、Quick Tunnel を使用できます。
+
+**方法 A: Quick Tunnel（最も簡単、一時的な URL）**
+
+```bash
+# 一時的な URL で公開（PC を再起動すると URL が変わります）
 cloudflared tunnel --url http://localhost:8000
 ```
 
-#### 4.3.13 ローカル GPU のメリット・デメリット
+以下のような出力が表示されます：
+```
+2024-xx-xx INF Requesting new quick Tunnel on trycloudflare.com...
+2024-xx-xx INF +-----------------------------------------------------------+
+2024-xx-xx INF |  Your quick Tunnel has been created! Visit it at:         |
+2024-xx-xx INF |  https://random-words-here.trycloudflare.com               |
+2024-xx-xx INF +-----------------------------------------------------------+
+```
+
+この URL（`https://random-words-here.trycloudflare.com`）を使用します。
+
+> **注意**: Quick Tunnel は PC を再起動すると URL が変わります。固定 URL が必要な場合は方法 B を使用。
+
+**方法 B: 名前付きトンネル（固定 URL、推奨）**
+
+自分のドメインを持っている場合、または固定 URL が必要な場合：
+
+1. **Cloudflare にドメインを追加**（既にドメインを持っている場合）
+   - https://dash.cloudflare.com にログイン
+   - 「Add a Site」をクリック
+   - ドメインを入力
+   - Free プランを選択
+   - DNS 設定を Cloudflare に変更
+
+2. **設定ファイルを作成**
+
+```bash
+# 設定ディレクトリに移動
+cd ~/.cloudflared
+
+# 設定ファイルを作成
+cat > config.yml << 'EOF'
+tunnel: YOUR_TUNNEL_ID
+credentials-file: /home/YOUR_USERNAME/.cloudflared/YOUR_TUNNEL_ID.json
+
+ingress:
+  - hostname: pyannote.yourdomain.com
+    service: http://localhost:8000
+  - service: http_status:404
+EOF
+```
+
+`YOUR_TUNNEL_ID` と `YOUR_USERNAME`、`yourdomain.com` を実際の値に置き換えてください。
+
+3. **DNS レコードを作成**
+
+```bash
+cloudflared tunnel route dns pyannote-server pyannote.yourdomain.com
+```
+
+4. **トンネルを起動**
+
+```bash
+cloudflared tunnel run pyannote-server
+```
+
+#### ステップ 6: トンネルをサービスとして登録（自動起動）
+
+PC 起動時に自動でトンネルが開始されるようにします。
+
+**Windows の場合：**
+
+```powershell
+# 管理者として PowerShell を開く
+cloudflared service install
+```
+
+これで Windows サービスとして登録されます。
+
+**Ubuntu/Linux の場合：**
+
+```bash
+# サービスとしてインストール
+sudo cloudflared service install
+
+# サービスを有効化して起動
+sudo systemctl enable cloudflared
+sudo systemctl start cloudflared
+
+# 状態を確認
+sudo systemctl status cloudflared
+```
+
+**Mac の場合：**
+
+```bash
+# LaunchAgent としてインストール
+sudo cloudflared service install
+
+# サービスを起動
+sudo launchctl start com.cloudflare.cloudflared
+```
+
+#### ステップ 7: 動作確認
+
+別の PC やスマートフォンから、Cloudflare Tunnel の URL にアクセスしてテスト：
+
+```bash
+# Quick Tunnel の場合
+curl https://random-words-here.trycloudflare.com/health
+
+# 名前付きトンネルの場合
+curl https://pyannote.yourdomain.com/health
+```
+
+以下が返れば成功：
+```json
+{"status": "healthy", "gpu": true, "model_loaded": true}
+```
+
+#### ステップ 8: Supabase に URL を設定
+
+1. Supabase ダッシュボード→「Edge Functions」→「Manage secrets」
+2. `PYANNOTE_SERVER_URL` を編集
+3. Cloudflare Tunnel の URL を入力：
+   - Quick Tunnel: `https://random-words-here.trycloudflare.com`
+   - 名前付きトンネル: `https://pyannote.yourdomain.com`
+4. 「Save」をクリック
+
+#### Cloudflare Tunnel のトラブルシューティング
+
+**エラー: 「failed to connect to origin」**
+
+原因: pyannote サーバーが起動していない
+
+解決方法:
+```bash
+# pyannote サーバーが起動しているか確認
+curl http://localhost:8000/health
+
+# 起動していなければ起動
+cd ~/SalonTalk-AI/services/pyannote
+source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+**エラー: 「Tunnel credentials file not found」**
+
+原因: ログインしていない、または認証情報が見つからない
+
+解決方法:
+```bash
+cloudflared tunnel login
+```
+
+**Quick Tunnel の URL が毎回変わる**
+
+これは仕様です。固定 URL が必要な場合は名前付きトンネルを使用してください。
+
+#### Cloudflare Tunnel の管理
+
+```bash
+# トンネル一覧を表示
+cloudflared tunnel list
+
+# トンネルの情報を表示
+cloudflared tunnel info pyannote-server
+
+# トンネルを削除
+cloudflared tunnel delete pyannote-server
+
+# ログを確認（サービス実行時）
+sudo journalctl -u cloudflared -f  # Linux
+```
+
+#### Cloudflare Tunnel のメリット
+
+| 項目 | Cloudflare Tunnel | ngrok | ポート開放 |
+|------|-------------------|-------|-----------|
+| **料金** | 無料 | 無料（制限あり） | 無料 |
+| **HTTPS** | 自動 | 自動 | 手動設定必要 |
+| **固定 URL** | 可能 | 有料 | 可能 |
+| **セキュリティ** | 高（DDoS 保護） | 中 | 低 |
+| **速度** | 高速（CDN 経由） | 普通 | 普通 |
+| **設定難易度** | 中 | 低 | 高 |
+
+---
+
+#### 4.4.14 ローカル GPU のメリット・デメリット
 
 | 項目 | ローカル GPU | クラウド GPU (VAST.ai等) |
 |------|-------------|------------------------|
@@ -1247,7 +1807,7 @@ cloudflared tunnel --url http://localhost:8000
 
 ---
 
-### 4.4 Supabase に pyannote URL を設定
+### 4.5 Supabase に pyannote URL を設定
 
 pyannote サーバーが起動したら、Supabase の Edge Functions 環境変数を更新：
 
