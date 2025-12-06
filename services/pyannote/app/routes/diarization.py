@@ -11,7 +11,12 @@ import structlog
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 
 from app.main import get_pyannote_service
-from app.models.diarization import DiarizationRequest, DiarizationResponse, DiarizationSegment
+from app.models.diarization import (
+    DiarizationRequest,
+    DiarizationResponse,
+    DiarizationSegment,
+    EmbeddingResponse,
+)
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -173,3 +178,71 @@ async def process_and_callback(
     finally:
         if os.path.exists(audio_path):
             os.unlink(audio_path)
+
+
+@router.post("/extract-embedding", response_model=EmbeddingResponse)
+async def extract_embedding(
+    file: UploadFile = File(...),
+    session_id: Optional[str] = Form(None),
+    speaker_label: Optional[str] = Form(None),
+):
+    """
+    Extract speaker embedding from an audio file.
+
+    - **file**: Audio file (WAV, MP3, M4A)
+    - **session_id**: Optional session identifier for tracking
+    - **speaker_label**: Optional speaker to extract ('customer' or 'stylist')
+                         If specified, will diarize and extract only that speaker
+
+    Returns a 512-dimensional speaker embedding vector.
+    """
+    logger.info(
+        "Received embedding extraction request",
+        session_id=session_id,
+        speaker_label=speaker_label,
+        filename=file.filename,
+    )
+
+    # Validate file type
+    allowed_types = ["audio/wav", "audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/webm"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported audio format: {file.content_type}",
+        )
+
+    # Validate speaker_label if provided
+    if speaker_label and speaker_label not in ["customer", "stylist"]:
+        raise HTTPException(
+            status_code=400,
+            detail="speaker_label must be 'customer' or 'stylist'",
+        )
+
+    # Save uploaded file temporarily
+    suffix = os.path.splitext(file.filename or "audio.wav")[1]
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        service = get_pyannote_service()
+        result = await service.extract_embedding(tmp_path, speaker_label)
+
+        return EmbeddingResponse(
+            embedding=result["embedding"],
+            duration_seconds=result["duration_seconds"],
+            confidence=result["confidence"],
+            processing_time_ms=result["processing_time_ms"],
+        )
+
+    except Exception as e:
+        logger.error(f"Embedding extraction failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Embedding extraction failed: {str(e)}",
+        )
+
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)

@@ -41,3 +41,27 @@ class DiarizationCallbackPayload(BaseModel):
     success: bool
     result: Optional[DiarizationResponse] = None
     error: Optional[str] = None
+
+
+# ============================================================
+# 声紋埋め込み関連モデル
+# ============================================================
+
+class EmbeddingResponse(BaseModel):
+    """Response model for embedding extraction endpoint."""
+
+    embedding: List[float] = Field(..., description="512-dimensional speaker embedding vector")
+    duration_seconds: float = Field(..., ge=0, description="Audio duration in seconds")
+    confidence: float = Field(
+        ..., ge=0, le=1, description="Confidence score of the embedding quality"
+    )
+    processing_time_ms: int = Field(..., ge=0, description="Processing time in milliseconds")
+
+
+class EmbeddingRequest(BaseModel):
+    """Request model for embedding extraction (for JSON body, optional)."""
+
+    session_id: Optional[str] = Field(None, description="Session identifier for tracking")
+    speaker_label: Optional[str] = Field(
+        None, description="Specific speaker to extract embedding for (e.g., 'customer')"
+    )

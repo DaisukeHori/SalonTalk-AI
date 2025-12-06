@@ -18,6 +18,7 @@
 7. [GitHub Actions CI/CD の設定](#7-github-actions-cicd-の設定)
 8. [本番環境の確認](#8-本番環境の確認)
 9. [トラブルシューティング](#9-トラブルシューティング)
+10. [声紋識別機能](#10-声紋識別機能)
 
 ---
 
@@ -2562,6 +2563,189 @@ journalctl -u pyannote -f
 1. **GitHub Issues**: https://github.com/DaisukeHori/SalonTalk-AI/issues
 2. **Supabase Discord**: https://discord.supabase.com
 3. **Expo Forums**: https://forums.expo.dev
+
+---
+
+## 10. 声紋識別機能
+
+声紋識別機能を使用すると、顧客の声を識別して再来店時に自動で顧客情報を表示できます。
+
+### 10.1 機能概要
+
+| 機能 | 説明 |
+|------|------|
+| 声紋埋め込み抽出 | 音声から512次元の声紋ベクトルを抽出 |
+| 顧客マッチング | 声紋ベクトルで既存顧客を検索 |
+| 新規顧客登録 | マッチしない場合、新規顧客として自動登録 |
+| 顧客名抽出 | 会話から顧客名をAIで自動抽出 |
+
+### 10.2 仕組み
+
+```
+[音声録音] → [pyannote: 声紋抽出] → [pgvector: 類似検索]
+                                           ↓
+                                    [マッチあり] → 顧客情報表示 & 声紋更新
+                                           ↓
+                                    [マッチなし] → 新規顧客作成
+                                           ↓
+                                    [Claude: 名前抽出] → 顧客名更新
+```
+
+### 10.3 API エンドポイント
+
+#### 10.3.1 声紋埋め込み抽出 (pyannote サーバー)
+
+```bash
+# 顧客の声紋を抽出
+curl -X POST https://your-pyannote-server/api/v1/extract-embedding \
+  -F "file=@audio.wav" \
+  -F "speaker_label=customer"
+```
+
+**レスポンス例:**
+```json
+{
+  "embedding": [0.123, -0.456, ...],  // 512次元ベクトル
+  "duration_seconds": 45.2,
+  "confidence": 0.85,
+  "processing_time_ms": 1250
+}
+```
+
+#### 10.3.2 顧客マッチング (Edge Function)
+
+```bash
+# 声紋で顧客を検索
+curl -X POST https://your-project.supabase.co/functions/v1/match-customer \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "session-uuid",
+    "embedding": [0.123, -0.456, ...],
+    "threshold": 0.65,
+    "create_if_not_found": true
+  }'
+```
+
+**レスポンス例:**
+```json
+{
+  "data": {
+    "customer_id": "customer-uuid",
+    "customer_name": "山田太郎",
+    "confidence": "high",
+    "is_new_customer": false,
+    "match": {
+      "similarity": 0.92,
+      "total_visits": 5,
+      "last_visit_at": "2025-11-15T10:30:00Z"
+    }
+  }
+}
+```
+
+#### 10.3.3 顧客名抽出 (Edge Function)
+
+```bash
+# 会話から顧客名を抽出
+curl -X POST https://your-project.supabase.co/functions/v1/extract-customer-name \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "session-uuid",
+    "customer_id": "customer-uuid"
+  }'
+```
+
+**レスポンス例:**
+```json
+{
+  "data": {
+    "name": "山田太郎",
+    "confidence": "high",
+    "context": "美容師: 山田さん、今日はカットとカラーですね。",
+    "name_updated": true
+  }
+}
+```
+
+### 10.4 信頼度レベル
+
+| レベル | 類似度 | 説明 |
+|--------|--------|------|
+| `high` | 0.85以上 | 高い確率で同一人物 |
+| `medium` | 0.75〜0.85 | 同一人物の可能性が高い |
+| `low` | 0.65〜0.75 | 同一人物の可能性あり |
+| `none` | 0.65未満 | マッチなし（新規顧客） |
+
+### 10.5 データベース設計
+
+#### customers テーブル
+
+```sql
+CREATE TABLE customers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  salon_id UUID NOT NULL REFERENCES salons(id),
+  name VARCHAR(100),                    -- 顧客名（AI抽出）
+  voice_embedding VECTOR(512),          -- 声紋ベクトル
+  embedding_updated_at TIMESTAMPTZ,     -- 声紋更新日時
+  total_visits INTEGER DEFAULT 1,       -- 来店回数
+  first_visit_at TIMESTAMPTZ,           -- 初回来店日
+  last_visit_at TIMESTAMPTZ,            -- 最終来店日
+  metadata JSONB DEFAULT '{}'::jsonb,   -- 追加情報
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### sessions テーブル（追加カラム）
+
+```sql
+ALTER TABLE sessions
+  ADD COLUMN customer_id UUID REFERENCES customers(id);
+```
+
+### 10.6 声紋更新ロジック
+
+再来店時の声紋は加重平均で更新されます：
+
+```
+新しい声紋 = (1 - w) * 既存声紋 + w * 今回の声紋
+```
+
+- `w = min(1 / (来店回数 + 1), 0.3)`
+- 来店回数が増えるほど、既存の声紋が優先される
+- 最大でも30%の重みで新しい声紋が反映される
+
+### 10.7 Edge Functions のデプロイ
+
+新しく追加された Edge Functions をデプロイしてください：
+
+```bash
+# Supabase プロジェクトにログイン
+supabase login
+
+# Edge Functions をデプロイ
+supabase functions deploy match-customer --project-ref YOUR_PROJECT_REF
+supabase functions deploy extract-customer-name --project-ref YOUR_PROJECT_REF
+```
+
+### 10.8 データベースマイグレーション
+
+声紋識別機能用のテーブルを作成します：
+
+```bash
+# マイグレーションを実行
+supabase db push --project-ref YOUR_PROJECT_REF
+```
+
+マイグレーションファイル: `supabase/migrations/20251206184527_add_customers_voice_print.sql`
+
+### 10.9 セキュリティ
+
+- 声紋データは店舗ごとに分離（RLS ポリシー適用）
+- 顧客の削除権限は owner/manager のみ
+- 声紋データは暗号化されて保存
 
 ---
 
