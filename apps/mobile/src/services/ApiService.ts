@@ -381,6 +381,65 @@ export class ApiService {
       body: JSON.stringify({ token, platform }),
     });
   }
+
+  // ============================================================
+  // Voice Print / Customer Identification Methods
+  // ============================================================
+
+  /**
+   * Extract voice embedding from audio file via pyannote server
+   */
+  async extractVoiceEmbedding(
+    audioUri: string,
+    speakerLabel: 'customer' | 'stylist' = 'customer'
+  ): Promise<ExtractEmbeddingResponse> {
+    const pyannoteUrl = Constants.expoConfig?.extra?.pyannoteServerUrl ||
+      process.env.EXPO_PUBLIC_PYANNOTE_SERVER_URL;
+
+    if (!pyannoteUrl) {
+      throw new Error('PYANNOTE_SERVER_URL not configured');
+    }
+
+    const formData = new FormData();
+
+    // Read audio file and append
+    const response = await fetch(audioUri);
+    const blob = await response.blob();
+    formData.append('file', blob as any, 'audio.wav');
+    formData.append('speaker_label', speakerLabel);
+
+    const apiResponse = await fetch(`${pyannoteUrl}/api/v1/extract-embedding`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!apiResponse.ok) {
+      const error = await apiResponse.text();
+      throw new Error(`Voice embedding extraction failed: ${error}`);
+    }
+
+    return apiResponse.json();
+  }
+
+  /**
+   * Match customer by voice embedding
+   */
+  async matchCustomer(request: MatchCustomerRequest): Promise<MatchCustomerResponse> {
+    return this.request<MatchCustomerResponse>('match-customer', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Extract customer name from conversation using AI
+   */
+  async extractCustomerName(request: ExtractCustomerNameRequest): Promise<ExtractCustomerNameResponse> {
+    return this.request<ExtractCustomerNameResponse>('extract-customer-name', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
 }
 
 // Roleplay types
@@ -518,6 +577,52 @@ export interface LoginResponse {
     name: string;
   } | null;
   access_token: string;
+}
+
+// ============================================================
+// Voice Print / Customer Identification Types
+// ============================================================
+
+export interface MatchCustomerRequest {
+  session_id: string;
+  embedding: number[];
+  threshold?: number;
+  create_if_not_found?: boolean;
+}
+
+export interface MatchCustomerResponse {
+  customer_id: string | null;
+  customer_name: string | null;
+  confidence: 'high' | 'medium' | 'low' | 'none';
+  is_new_customer: boolean;
+  match: {
+    similarity: number;
+    total_visits: number;
+    last_visit_at: string;
+  } | null;
+}
+
+export interface ExtractCustomerNameRequest {
+  session_id: string;
+  customer_id: string;
+  segments?: Array<{
+    speaker: string;
+    text: string;
+  }>;
+}
+
+export interface ExtractCustomerNameResponse {
+  name: string | null;
+  confidence: 'high' | 'medium' | 'low' | 'none';
+  context: string | null;
+  name_updated: boolean;
+}
+
+export interface ExtractEmbeddingResponse {
+  embedding: number[];
+  duration_seconds: number;
+  confidence: number;
+  processing_time_ms: number;
 }
 
 // Singleton instance

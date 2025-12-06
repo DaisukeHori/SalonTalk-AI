@@ -13,6 +13,8 @@ import {
   NotificationPayload,
 } from '@/services';
 import { useSpeechRecognition } from '@/services/SpeechRecognitionService';
+import { useCustomerIdentification } from '@/hooks';
+import { CustomerIdentificationCard } from '@/components/session/CustomerIdentificationCard';
 
 interface ConversationItem {
   id: string;
@@ -65,6 +67,17 @@ export default function SessionScreen() {
 
   // Initialize speech recognition event listeners
   useSpeechRecognition();
+
+  // Voice print customer identification
+  const {
+    customerMatch,
+    isIdentifying,
+    isExtractingName,
+    error: customerIdError,
+    identifyCustomer,
+    extractName,
+    reset: resetCustomerIdentification,
+  } = useCustomerIdentification();
 
   // Set API token when auth changes
   useEffect(() => {
@@ -235,6 +248,11 @@ export default function SessionScreen() {
       };
       setConversations((prev) => [...prev, newConversation]);
 
+      // Trigger customer identification on first chunk
+      if (chunk.chunkIndex === 0) {
+        identifyCustomer(chunk.uri, currentSession.id as string);
+      }
+
       // Send to server for processing
       await apiService.processAudio({
         session_id: currentSession.id as string,
@@ -252,7 +270,7 @@ export default function SessionScreen() {
     } catch (error) {
       console.error('Error processing audio chunk:', error);
     }
-  }, [currentSession]);
+  }, [currentSession, identifyCustomer]);
 
   const handleStartSession = async () => {
     if (!user || !salon || isStarting) return;
@@ -303,6 +321,7 @@ export default function SessionScreen() {
       setDetectedConcerns([]);
       setQuestionCount(0);
       setEmotionIndicator('neutral');
+      resetCustomerIdentification();
     } catch (error) {
       console.error('Failed to start session:', error);
       Alert.alert('エラー', 'セッションの開始に失敗しました');
@@ -310,6 +329,24 @@ export default function SessionScreen() {
       setIsStarting(false);
     }
   };
+
+  // Trigger name extraction when customer is identified
+  useEffect(() => {
+    if (
+      customerMatch &&
+      customerMatch.customer_id &&
+      !customerMatch.customer_name &&
+      !isExtractingName &&
+      currentSession
+    ) {
+      // Wait a bit to collect more conversation before extracting name
+      const timer = setTimeout(() => {
+        extractName(currentSession.id as string, customerMatch.customer_id as string);
+      }, 30000); // Extract name after 30 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [customerMatch, isExtractingName, currentSession, extractName]);
 
   const handleEndSession = () => {
     Alert.alert('セッション終了', 'このセッションを終了しますか？', [
@@ -557,6 +594,24 @@ export default function SessionScreen() {
       })()}
 
       <View className="flex-1 p-4">
+        {/* Customer Identification Card */}
+        {(customerMatch || isIdentifying) && (
+          <View className="mb-4">
+            <CustomerIdentificationCard
+              match={customerMatch}
+              isLoading={isIdentifying}
+              isExtracting={isExtractingName}
+              error={customerIdError}
+              onRetry={() => {
+                if (currentSession) {
+                  // Get the first chunk URI from conversations if available
+                  resetCustomerIdentification();
+                }
+              }}
+            />
+          </View>
+        )}
+
         {/* Metrics Grid */}
         <View className="flex-row mb-4">
           {/* Score Card */}
