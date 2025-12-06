@@ -876,13 +876,13 @@ curl http://123.45.67.89:8000/health
 
 ### 4.2 RunPod を使用する場合（代替）
 
-#### 6.2.1 RunPod アカウント作成
+#### 4.2.1 RunPod アカウント作成
 
 1. https://runpod.io にアクセス
 2. 「Sign Up」でアカウント作成
 3. 「Billing」→「Add Credit」で最低 $10 入金
 
-#### 6.2.2 Pod の作成
+#### 4.2.2 Pod の作成
 
 1. 「Pods」→「Deploy」をクリック
 2. GPU を選択（RTX 3090 以上推奨）
@@ -890,7 +890,7 @@ curl http://123.45.67.89:8000/health
 4. 「Expose HTTP Ports」に `8000` を入力
 5. 「Deploy On-Demand」をクリック
 
-#### 6.2.3 セットアップ
+#### 4.2.3 セットアップ
 
 1. Pod が「Running」になったら「Connect」をクリック
 2. 「Start Web Terminal」をクリック
@@ -898,13 +898,365 @@ curl http://123.45.67.89:8000/health
 
 ---
 
-### 4.3 Supabase に pyannote URL を設定
+### 4.3 ローカル GPU で実行する場合（自分の PC）
+
+NVIDIA GPU 搭載の PC があれば、クラウドサービスを使わずにローカルで実行できます。
+
+#### 4.3.1 必要なスペック
+
+| 項目 | 最小要件 | 推奨 |
+|------|---------|------|
+| **GPU** | NVIDIA GTX 1080 (8GB VRAM) | RTX 3090 (24GB VRAM) |
+| **RAM** | 16GB | 32GB |
+| **ストレージ** | 20GB 空き | 50GB 空き |
+| **OS** | Windows 10/11, Ubuntu 20.04+ | Ubuntu 22.04 |
+
+> **注意**: AMD GPU や Intel GPU は対応していません。NVIDIA GPU が必須です。
+
+#### 4.3.2 NVIDIA ドライバーのインストール
+
+**Windows の場合：**
+
+1. https://www.nvidia.com/drivers にアクセス
+2. GPU モデルを選択してダウンロード
+3. インストーラーを実行
+4. 「NVIDIA グラフィックス ドライバー」を選択してインストール
+5. PC を再起動
+
+**Ubuntu/Linux の場合：**
+
+```bash
+# 推奨ドライバーを確認
+ubuntu-drivers devices
+
+# 推奨ドライバーをインストール
+sudo ubuntu-drivers autoinstall
+
+# 再起動
+sudo reboot
+```
+
+**インストール確認：**
+
+```bash
+nvidia-smi
+```
+
+以下のような出力が表示されれば OK：
+```
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 535.154.05   Driver Version: 535.154.05   CUDA Version: 12.2     |
+|-------------------------------+----------------------+----------------------+
+| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|===============================+======================+======================|
+|   0  NVIDIA GeForce ...  Off  | 00000000:01:00.0 Off |                  N/A |
+| 30%   35C    P8    10W / 350W |      0MiB / 24576MiB |      0%      Default |
++-------------------------------+----------------------+----------------------+
+```
+
+#### 4.3.3 CUDA Toolkit のインストール
+
+**Windows の場合：**
+
+1. https://developer.nvidia.com/cuda-downloads にアクセス
+2. OS を選択（Windows → x86_64 → 11 → exe (local)）
+3. ダウンロードしたインストーラーを実行
+4. 「Express」を選択してインストール
+
+**Ubuntu/Linux の場合：**
+
+```bash
+# CUDA リポジトリを追加
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+sudo apt-get update
+
+# CUDA Toolkit をインストール
+sudo apt-get install -y cuda-toolkit-12-2
+
+# 環境変数を設定
+echo 'export PATH=/usr/local/cuda/bin:$PATH' >> ~/.bashrc
+echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**インストール確認：**
+
+```bash
+nvcc --version
+```
+
+以下のような出力が表示されれば OK：
+```
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2023 NVIDIA Corporation
+Built on ...
+Cuda compilation tools, release 12.2, V12.2.xxx
+```
+
+#### 4.3.4 Python 環境のセットアップ
+
+**Windows の場合：**
+
+1. https://www.python.org/downloads/ から Python 3.11 をダウンロード
+2. インストール時に「Add Python to PATH」にチェック
+3. インストール
+
+**Ubuntu/Linux の場合：**
+
+```bash
+sudo apt-get install -y python3.11 python3.11-venv python3-pip
+```
+
+#### 4.3.5 pyannote サーバーのセットアップ
+
+```bash
+# プロジェクトディレクトリに移動
+cd ~/SalonTalk-AI/services/pyannote
+
+# Python 仮想環境を作成
+python3.11 -m venv venv
+
+# 仮想環境を有効化
+# Windows の場合:
+# venv\Scripts\activate
+# Linux/Mac の場合:
+source venv/bin/activate
+
+# pip をアップグレード
+pip install --upgrade pip
+
+# PyTorch (GPU 版) をインストール
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# その他の依存関係をインストール
+pip install -r requirements.txt
+```
+
+> **注意**: PyTorch のインストールには数分かかります。
+
+#### 4.3.6 環境変数の設定
+
+```bash
+cd ~/SalonTalk-AI/services/pyannote
+
+# .env ファイルを作成
+cat > .env << 'EOF'
+# Hugging Face トークン（pyannote モデルのダウンロードに必要）
+HUGGINGFACE_TOKEN=hf_your_token_here
+
+# API 認証キー（自分で決める）
+PYANNOTE_API_KEY=your_api_key_here
+
+# コールバック署名用シークレット（自分で決める、32文字以上推奨）
+CALLBACK_SECRET=your_callback_secret_here
+
+# Supabase 接続情報
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIs...
+
+# サーバー設定
+HOST=0.0.0.0
+PORT=8000
+EOF
+```
+
+**Windows の場合（PowerShell）：**
+
+```powershell
+# メモ帳で .env ファイルを作成
+notepad .env
+```
+
+上記の内容をコピーして、実際の値に置き換えて保存
+
+#### 4.3.7 GPU 認識の確認
+
+```bash
+# 仮想環境を有効化していることを確認
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Python で GPU を確認
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"None\"}')"
+```
+
+以下のように表示されれば OK：
+```
+CUDA available: True
+GPU: NVIDIA GeForce RTX 3090
+```
+
+**「CUDA available: False」の場合：**
+1. NVIDIA ドライバーが正しくインストールされているか確認（`nvidia-smi`）
+2. CUDA Toolkit がインストールされているか確認（`nvcc --version`）
+3. PyTorch を再インストール：
+   ```bash
+   pip uninstall torch torchaudio
+   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+   ```
+
+#### 4.3.8 サーバーを起動
+
+```bash
+cd ~/SalonTalk-AI/services/pyannote
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# サーバーを起動
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+以下のようなメッセージが表示されれば成功：
+```
+INFO:     Started server process [12345]
+INFO:     Waiting for application startup.
+INFO:     Loading pyannote model...
+INFO:     Model loaded successfully!
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+```
+
+> **注意**: 初回起動時は pyannote モデル（約 1GB）のダウンロードに数分かかります。
+
+#### 4.3.9 動作確認
+
+別のターミナルを開いて：
+
+```bash
+curl http://localhost:8000/health
+```
+
+以下が返れば成功：
+```json
+{"status": "healthy", "gpu": true, "model_loaded": true}
+```
+
+#### 4.3.10 バックグラウンド実行（Windows）
+
+Windows でバックグラウンド実行するには、タスクスケジューラを使用：
+
+1. 「タスク スケジューラ」を検索して開く
+2. 「タスクの作成」をクリック
+3. **全般タブ**：
+   - 名前: `pyannote-server`
+   - 「ユーザーがログオンしているかどうかにかかわらず実行する」を選択
+4. **トリガータブ**：
+   - 「新規」→「スタートアップ時」を選択
+5. **操作タブ**：
+   - 「新規」→ プログラム: `C:\path\to\venv\Scripts\python.exe`
+   - 引数: `-m uvicorn app.main:app --host 0.0.0.0 --port 8000`
+   - 開始: `C:\path\to\SalonTalk-AI\services\pyannote`
+6. 「OK」をクリック
+
+#### 4.3.11 バックグラウンド実行（Linux/Mac）
+
+**systemd サービスとして登録（推奨）：**
+
+```bash
+# サービスファイルを作成
+sudo cat > /etc/systemd/system/pyannote.service << 'EOF'
+[Unit]
+Description=Pyannote Speaker Diarization Server
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/home/YOUR_USERNAME/SalonTalk-AI/services/pyannote
+Environment="PATH=/home/YOUR_USERNAME/SalonTalk-AI/services/pyannote/venv/bin"
+ExecStart=/home/YOUR_USERNAME/SalonTalk-AI/services/pyannote/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# YOUR_USERNAME を実際のユーザー名に置き換え
+sudo sed -i "s/YOUR_USERNAME/$(whoami)/g" /etc/systemd/system/pyannote.service
+
+# サービスを有効化して起動
+sudo systemctl daemon-reload
+sudo systemctl enable pyannote
+sudo systemctl start pyannote
+
+# 状態を確認
+sudo systemctl status pyannote
+```
+
+**サービスの操作：**
+
+```bash
+# 停止
+sudo systemctl stop pyannote
+
+# 再起動
+sudo systemctl restart pyannote
+
+# ログを確認
+sudo journalctl -u pyannote -f
+```
+
+#### 4.3.12 外部からアクセスできるようにする
+
+ローカル PC の pyannote サーバーに外部（iPad アプリなど）からアクセスするには：
+
+**方法 1: 同じ LAN 内からアクセス**
+
+1. PC の IP アドレスを確認：
+   ```bash
+   # Windows
+   ipconfig
+
+   # Linux/Mac
+   ip addr
+   ```
+2. `192.168.x.x:8000` のような URL でアクセス
+
+**方法 2: ngrok でインターネット公開**
+
+```bash
+# ngrok をインストール（https://ngrok.com からダウンロード）
+
+# トンネルを作成
+ngrok http 8000
+```
+
+表示される URL（例：`https://abc123.ngrok.io`）を使用
+
+**方法 3: Cloudflare Tunnel（無料・推奨）**
+
+```bash
+# cloudflared をインストール
+# https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/
+
+# トンネルを作成
+cloudflared tunnel --url http://localhost:8000
+```
+
+#### 4.3.13 ローカル GPU のメリット・デメリット
+
+| 項目 | ローカル GPU | クラウド GPU (VAST.ai等) |
+|------|-------------|------------------------|
+| **コスト** | 初期費用のみ | 従量課金（$0.3-0.8/時間） |
+| **セットアップ** | やや複雑 | シンプル |
+| **パフォーマンス** | GPU スペック次第 | 高性能 GPU を選択可能 |
+| **可用性** | PC 起動時のみ | 24時間稼働可能 |
+| **ネットワーク** | 外部公開に設定必要 | 最初から外部公開 |
+| **おすすめ** | 開発・テスト用 | 本番運用 |
+
+---
+
+### 4.4 Supabase に pyannote URL を設定
 
 pyannote サーバーが起動したら、Supabase の Edge Functions 環境変数を更新：
 
 1. Supabase ダッシュボード→「Edge Functions」→「Manage secrets」
 2. `PYANNOTE_SERVER_URL` を編集
-3. 実際の URL を入力（例：`http://123.45.67.89:8000`）
+3. 実際の URL を入力：
+   - ローカル（同じ LAN）: `http://192.168.x.x:8000`
+   - ローカル（ngrok）: `https://abc123.ngrok.io`
+   - クラウド: `http://123.45.67.89:8000`
 4. 「Save」をクリック
 
 ---
@@ -923,14 +1275,14 @@ vercel login
 
 ### 5.2 プロジェクトをインポート
 
-#### 6.2.1 GitHub リポジトリを Vercel に接続
+#### 5.2.1 GitHub リポジトリを Vercel に接続
 
 1. https://vercel.com/dashboard にアクセス
 2. 「Add New...」→「Project」をクリック
 3. 「Import Git Repository」で `DaisukeHori/SalonTalk-AI` を選択
 4. 「Import」をクリック
 
-#### 6.2.2 プロジェクト設定
+#### 5.2.2 プロジェクト設定
 
 以下を設定：
 
@@ -943,7 +1295,7 @@ vercel login
 | **Output Directory** | `.next`（デフォルトのまま） |
 | **Install Command** | `pnpm install`（デフォルトのまま） |
 
-#### 6.2.3 環境変数の設定
+#### 5.2.3 環境変数の設定
 
 「Environment Variables」セクションで以下を追加：
 
