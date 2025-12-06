@@ -10,13 +10,14 @@
 ## 目次
 
 1. [事前準備](#1-事前準備)
-2. [Supabase のセットアップ](#2-supabase-のセットアップ)
-3. [pyannote 話者分離サーバーのデプロイ](#3-pyannote-話者分離サーバーのデプロイ)
-4. [Next.js Web ダッシュボードのデプロイ（Vercel）](#4-nextjs-web-ダッシュボードのデプロイvercel)
-5. [React Native iPad アプリのデプロイ（Expo EAS）](#5-react-native-ipad-アプリのデプロイexpo-eas)
-6. [GitHub Actions CI/CD の設定](#6-github-actions-cicd-の設定)
-7. [本番環境の確認](#7-本番環境の確認)
-8. [トラブルシューティング](#8-トラブルシューティング)
+2. [ローカル開発・テスト環境](#2-ローカル開発テスト環境)
+3. [Supabase のセットアップ](#3-supabase-のセットアップ)
+4. [pyannote 話者分離サーバーのデプロイ](#4-pyannote-話者分離サーバーのデプロイ)
+5. [Next.js Web ダッシュボードのデプロイ（Vercel）](#5-nextjs-web-ダッシュボードのデプロイvercel)
+6. [React Native iPad アプリのデプロイ（Expo EAS）](#6-react-native-ipad-アプリのデプロイexpo-eas)
+7. [GitHub Actions CI/CD の設定](#7-github-actions-cicd-の設定)
+8. [本番環境の確認](#8-本番環境の確認)
+9. [トラブルシューティング](#9-トラブルシューティング)
 
 ---
 
@@ -272,9 +273,329 @@ pyannote モデルのダウンロードに必要です。
 
 ---
 
-## 2. Supabase のセットアップ
+## 2. ローカル開発・テスト環境
 
-### 2.1 新規プロジェクトの作成
+本番デプロイの前に、ローカル環境でアプリをテストできます。
+
+### 2.1 テスト方法の選択
+
+| 方法 | 必要なもの | 音声機能 | おすすめ度 | 用途 |
+|------|-----------|---------|-----------|------|
+| **ブラウザ（Expo Web）** | なし | 部分的 | ★★★ | UI確認 |
+| **iOS シミュレーター** | Mac + Xcode | 制限あり | ★★★★ | iPad画面確認 |
+| **Expo Go（実機）** | iPhone/iPad | フル対応 | ★★★★★ | 本格テスト |
+| **Android エミュレーター** | Android Studio | 部分的 | ★★★ | Android確認 |
+
+---
+
+### 2.2 ブラウザでテスト（Expo Web）- 最も手軽
+
+PC だけでアプリの UI を確認できます。実機がなくても開発を進められます。
+
+#### 2.2.1 Web 用依存関係のインストール
+
+```bash
+# プロジェクトディレクトリに移動
+cd ~/SalonTalk-AI
+
+# 依存関係をインストール
+pnpm install
+
+# Mobile アプリディレクトリに移動
+cd apps/mobile
+
+# Web 用の依存関係を追加
+pnpm add react-dom react-native-web @expo/metro-runtime
+```
+
+#### 2.2.2 開発サーバーを起動
+
+```bash
+# apps/mobile ディレクトリで実行
+pnpm dev --web
+```
+
+以下のようなメッセージが表示されます：
+```
+› Web is waiting on http://localhost:8081
+```
+
+#### 2.2.3 ブラウザで確認
+
+1. ブラウザが自動で開きます（開かない場合は http://localhost:8081 にアクセス）
+2. アプリの画面が表示されます
+
+#### 2.2.4 ブラウザテストの制限事項
+
+| 機能 | 動作 | 備考 |
+|------|------|------|
+| UI 表示 | ○ | 完全動作 |
+| ナビゲーション | ○ | 完全動作 |
+| Supabase 認証 | ○ | 完全動作 |
+| マイク（音声録音） | △ | ブラウザの許可が必要 |
+| 音声認識 | △ | Web Speech API で代替（要追加実装） |
+| ファイル保存 | △ | 一部制限あり |
+| プッシュ通知 | × | 動作しない |
+
+> **ヒント**: UI の確認やログイン機能のテストには十分使えます。
+
+---
+
+### 2.3 iOS シミュレーターでテスト（Mac のみ）
+
+Mac をお持ちの場合、iPad と同じ画面サイズでテストできます。
+
+#### 2.3.1 Xcode のインストール
+
+1. **App Store を開く**
+   - Mac の Launchpad または Spotlight（`Cmd + Space`）で「App Store」を検索
+
+2. **Xcode を検索してインストール**
+   - 「Xcode」で検索
+   - 「入手」をクリック（約 12GB、30分〜1時間かかります）
+
+3. **Xcode を起動して初期設定**
+   - 初回起動時にコンポーネントのインストールを求められるので「Install」をクリック
+   - Apple ID でのログインを求められたらログイン
+
+4. **Command Line Tools をインストール**
+   ```bash
+   xcode-select --install
+   ```
+   ポップアップが表示されたら「インストール」をクリック
+
+#### 2.3.2 シミュレーターで起動
+
+```bash
+# apps/mobile ディレクトリに移動
+cd ~/SalonTalk-AI/apps/mobile
+
+# iOS シミュレーターで起動
+pnpm ios
+```
+
+初回は以下の質問が表示されます：
+- **Which simulator would you like to use?** → iPad を選択（矢印キーで移動、Enter で選択）
+
+シミュレーターが起動し、アプリがインストールされます（初回は数分かかります）。
+
+#### 2.3.3 特定の iPad モデルを指定
+
+```bash
+# iPad Pro 12.9 インチを指定
+npx expo run:ios --device "iPad Pro (12.9-inch) (6th generation)"
+
+# 利用可能なデバイス一覧を確認
+xcrun simctl list devices
+```
+
+#### 2.3.4 シミュレーターの操作方法
+
+| 操作 | キーボードショートカット |
+|------|------------------------|
+| ホームに戻る | `Cmd + Shift + H` |
+| 回転 | `Cmd + ←` または `Cmd + →` |
+| スクリーンショット | `Cmd + S` |
+| シミュレーター終了 | `Cmd + Q` |
+
+#### 2.3.5 シミュレーターの制限事項
+
+| 機能 | 動作 | 備考 |
+|------|------|------|
+| UI 表示 | ○ | 完全動作 |
+| ナビゲーション | ○ | 完全動作 |
+| Supabase 認証 | ○ | 完全動作 |
+| マイク（音声録音） | △ | Mac のマイクを使用 |
+| 音声認識 | △ | 制限あり |
+| カメラ | × | 使用不可 |
+
+---
+
+### 2.4 Expo Go で実機テスト（iPhone/iPad）- 最もおすすめ
+
+実際の iPhone/iPad でテストできます。音声機能も含めて完全にテストできます。
+
+#### 2.4.1 Expo Go アプリをインストール
+
+1. iPhone/iPad で **App Store** を開く
+2. 「**Expo Go**」で検索
+3. 「入手」をタップしてインストール
+
+#### 2.4.2 開発サーバーを起動
+
+PC のターミナルで：
+
+```bash
+cd ~/SalonTalk-AI/apps/mobile
+
+# 開発サーバーを起動
+pnpm dev
+```
+
+以下のような表示が出ます：
+```
+› Metro waiting on exp://192.168.1.100:8081
+› Scan the QR code above with Expo Go (Android) or the Camera app (iOS)
+
+█████████████████████████
+█████████████████████████
+████ ▄▄▄▄▄ █ ▀▀ █ ▄▄▄▄▄ ████
+████ █   █ █▀ ▄ █ █   █ ████
+...
+```
+
+#### 2.4.3 QR コードをスキャン
+
+**iPhone/iPad で：**
+
+1. **カメラアプリ**を開く
+2. PC 画面の **QR コード**にカメラを向ける
+3. 「Expo Go で開く」という通知が表示される
+4. タップして Expo Go アプリで開く
+
+#### 2.4.4 接続できない場合
+
+**同じ Wi-Fi に接続しているか確認：**
+- PC と iPhone/iPad が同じ Wi-Fi ネットワークに接続されている必要があります
+
+**トンネルモードを使用：**
+```bash
+# トンネルモードで起動（異なるネットワークでも接続可能）
+pnpm dev --tunnel
+```
+
+> トンネルモードは初回起動時に `@expo/ngrok` のインストールを求められます。`Y` を入力してインストール。
+
+**ファイアウォールを確認：**
+- PC のファイアウォールがポート 8081 をブロックしていないか確認
+
+#### 2.4.5 Expo Go の制限事項
+
+Expo Go では一部のネイティブモジュールが動作しません：
+
+| 機能 | 動作 | 備考 |
+|------|------|------|
+| UI 表示 | ○ | 完全動作 |
+| マイク | ○ | 完全動作 |
+| 音声認識 | ○ | 完全動作 |
+| プッシュ通知 | △ | Expo Push のみ |
+| カスタムネイティブモジュール | × | Development Build が必要 |
+
+---
+
+### 2.5 Android エミュレーターでテスト
+
+Android Studio を使用して Android でもテストできます。
+
+#### 2.5.1 Android Studio のインストール
+
+1. https://developer.android.com/studio にアクセス
+2. 「Download Android Studio」をクリック
+3. ダウンロードしたファイルを実行してインストール
+4. 初回起動時のセットアップウィザードに従う（「Standard」を選択）
+
+#### 2.5.2 エミュレーターの作成
+
+1. Android Studio を起動
+2. 「More Actions」→「Virtual Device Manager」
+3. 「Create Virtual Device」をクリック
+4. 「Tablet」→「Pixel Tablet」を選択→「Next」
+5. システムイメージを選択（推奨: 最新の API レベル）→「Next」
+6. 「Finish」をクリック
+
+#### 2.5.3 エミュレーターで起動
+
+```bash
+cd ~/SalonTalk-AI/apps/mobile
+
+# Android エミュレーターで起動
+pnpm android
+```
+
+---
+
+### 2.6 Web ダッシュボードのローカルテスト
+
+Next.js の Web ダッシュボードもローカルでテストできます。
+
+#### 2.6.1 環境変数の設定
+
+```bash
+cd ~/SalonTalk-AI/apps/web
+
+# .env.local ファイルを作成
+cat > .env.local << 'EOF'
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
+EOF
+```
+
+> 上記の値は Supabase ダッシュボードから取得してください（セクション3.2参照）
+
+#### 2.6.2 開発サーバーを起動
+
+```bash
+cd ~/SalonTalk-AI/apps/web
+
+# 開発サーバーを起動
+pnpm dev
+```
+
+#### 2.6.3 ブラウザで確認
+
+http://localhost:3000 にアクセス
+
+---
+
+### 2.7 ローカル開発のヒント
+
+#### 2.7.1 ホットリロード
+
+コードを変更すると自動的にアプリが更新されます。保存するだけで OK。
+
+#### 2.7.2 開発者ツール
+
+**Expo（Mobile）：**
+- シェイクジェスチャー（実機）または `Cmd + D`（シミュレーター）で開発メニュー表示
+- 「Debug Remote JS」でブラウザのデベロッパーツールを使用可能
+
+**Next.js（Web）：**
+- ブラウザのデベロッパーツール（`F12` または `Cmd + Option + I`）
+
+#### 2.7.3 複数アプリの同時起動
+
+ターミナルを複数開いて、Mobile と Web を同時に起動できます：
+
+**ターミナル 1（Mobile）：**
+```bash
+cd ~/SalonTalk-AI/apps/mobile && pnpm dev
+```
+
+**ターミナル 2（Web）：**
+```bash
+cd ~/SalonTalk-AI/apps/web && pnpm dev
+```
+
+#### 2.7.4 Supabase ローカル開発（オプション）
+
+本番の Supabase を使わず、ローカルで Supabase を動かすこともできます：
+
+```bash
+cd ~/SalonTalk-AI
+
+# Docker が必要です
+supabase start
+```
+
+ローカル Supabase が起動し、以下の URL で利用可能になります：
+- API URL: http://localhost:54321
+- Studio: http://localhost:54323
+
+---
+
+## 3. Supabase のセットアップ
+
+### 3.1 新規プロジェクトの作成
 
 1. https://supabase.com/dashboard にログイン
 2. 「New Project」をクリック
@@ -287,11 +608,11 @@ pyannote モデルのダウンロードに必要です。
 5. 「Create new project」をクリック
 6. プロジェクト作成には約2分かかります
 
-### 2.2 プロジェクト情報の取得
+### 3.2 プロジェクト情報の取得
 
 プロジェクトが作成されたら、以下の情報を取得します。
 
-#### 2.2.1 Project URL と API Keys
+#### 3.2.1 Project URL と API Keys
 
 1. 左メニューの「Project Settings」（歯車アイコン）をクリック
 2. 「API」をクリック
@@ -305,14 +626,14 @@ pyannote モデルのダウンロードに必要です。
 
 > **警告**: `service_role` キーは絶対に公開しないでください！
 
-#### 2.2.2 Project Reference ID
+#### 3.2.2 Project Reference ID
 
 1. 「Project Settings」→「General」
 2. 「Reference ID」をメモ（例：`abc123xyz`）
 
-### 2.3 データベースマイグレーションの実行
+### 3.3 データベースマイグレーションの実行
 
-#### 2.3.1 Supabase CLI でログイン
+#### 3.3.1 Supabase CLI でログイン
 
 ```bash
 supabase login
@@ -320,7 +641,7 @@ supabase login
 
 ブラウザが開くので「Authorize」をクリック
 
-#### 2.3.2 プロジェクトをリンク
+#### 3.3.2 プロジェクトをリンク
 
 ```bash
 # プロジェクトディレクトリにいることを確認
@@ -339,7 +660,7 @@ supabase link --project-ref abc123xyz
 
 Database Password を聞かれたら、プロジェクト作成時にメモしたパスワードを入力
 
-#### 2.3.3 マイグレーションを実行
+#### 3.3.3 マイグレーションを実行
 
 ```bash
 supabase db push
@@ -352,9 +673,9 @@ Applying migration 20251205000001_add_setup_wizard.sql...
 Finished supabase db push.
 ```
 
-### 2.4 Edge Functions のデプロイ
+### 3.4 Edge Functions のデプロイ
 
-#### 2.4.1 環境変数の設定
+#### 3.4.1 環境変数の設定
 
 Edge Functions で使用する環境変数を Supabase に設定します。
 
@@ -372,9 +693,9 @@ Edge Functions で使用する環境変数を Supabase に設定します。
 | `PYANNOTE_API_KEY` | 任意の文字列（自分で決める） |
 | `PYANNOTE_CALLBACK_SECRET` | 任意の文字列（自分で決める。32文字以上推奨） |
 
-> **PYANNOTE_SERVER_URL は後で設定します**（セクション3で pyannote サーバーをデプロイ後）
+> **PYANNOTE_SERVER_URL は後で設定します**（セクション4で pyannote サーバーをデプロイ後）
 
-#### 2.4.2 Edge Functions をデプロイ
+#### 3.4.2 Edge Functions をデプロイ
 
 すべての Edge Functions を一括デプロイします：
 
@@ -403,15 +724,15 @@ supabase functions deploy analyze-conversation
 # ... 以下同様
 ```
 
-### 2.5 認証設定
+### 3.5 認証設定
 
-#### 2.5.1 メール認証の設定
+#### 3.5.1 メール認証の設定
 
 1. Supabase ダッシュボードで「Authentication」→「Providers」
 2. 「Email」が有効になっていることを確認
 3. 「Confirm email」を有効にする（メール確認を必須にする場合）
 
-#### 2.5.2 リダイレクト URL の設定
+#### 3.5.2 リダイレクト URL の設定
 
 1. 「Authentication」→「URL Configuration」
 2. 「Site URL」に本番の URL を設定（後で設定）：
@@ -423,19 +744,19 @@ supabase functions deploy analyze-conversation
 
 ---
 
-## 3. pyannote 話者分離サーバーのデプロイ
+## 4. pyannote 話者分離サーバーのデプロイ
 
 pyannote は GPU が必要なため、クラウド GPU サービス（VAST.ai または RunPod）を使用します。
 
-### 3.1 VAST.ai を使用する場合
+### 4.1 VAST.ai を使用する場合
 
-#### 3.1.1 VAST.ai アカウント作成と入金
+#### 4.1.1 VAST.ai アカウント作成と入金
 
 1. https://vast.ai にアクセス
 2. 「Sign Up」でアカウント作成
 3. 「Billing」→「Add Credit」で最低 $10 入金（クレジットカード）
 
-#### 3.1.2 インスタンスの検索
+#### 4.1.2 インスタンスの検索
 
 1. 「Search」タブをクリック
 2. 以下の条件でフィルター：
@@ -445,7 +766,7 @@ pyannote は GPU が必要なため、クラウド GPU サービス（VAST.ai �
 3. 「$/hr」列で価格を確認（$0.3〜$0.8/時間が目安）
 4. 適切なインスタンスの「RENT」をクリック
 
-#### 3.1.3 Docker イメージの設定
+#### 4.1.3 Docker イメージの設定
 
 1. 「Edit Image & Config」をクリック
 2. 以下を設定：
@@ -455,7 +776,7 @@ pyannote は GPU が必要なため、クラウド GPU サービス（VAST.ai �
    - **On-start Script**: 空のまま
 3. 「RENT」をクリック
 
-#### 3.1.4 インスタンスに接続
+#### 4.1.4 インスタンスに接続
 
 1. 「Instances」タブでインスタンスが「Running」になるまで待つ
 2. インスタンスの「Connect」をクリック
@@ -469,7 +790,7 @@ ssh -p 12345 root@xxx.xxx.xxx.xxx
 
 パスワードを聞かれたら、VAST.ai の画面に表示されているパスワードを入力
 
-#### 3.1.5 pyannote サーバーをセットアップ
+#### 4.1.5 pyannote サーバーをセットアップ
 
 SSH 接続後、以下のコマンドを順番に実行：
 
@@ -511,7 +832,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 > - `Ctrl+O` で保存、`Enter` で確認
 > - `Ctrl+X` で終了
 
-#### 3.1.6 バックグラウンド実行の設定
+#### 4.1.6 バックグラウンド実行の設定
 
 サーバーを永続化するため、screen または tmux を使用：
 
@@ -532,7 +853,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 > screen セッションに戻るには：`screen -r pyannote`
 
-#### 3.1.7 サーバー URL の確認
+#### 4.1.7 サーバー URL の確認
 
 VAST.ai ダッシュボードで：
 1. インスタンスの「Public IP」をメモ
@@ -553,15 +874,15 @@ curl http://123.45.67.89:8000/health
 
 ---
 
-### 3.2 RunPod を使用する場合（代替）
+### 4.2 RunPod を使用する場合（代替）
 
-#### 3.2.1 RunPod アカウント作成
+#### 6.2.1 RunPod アカウント作成
 
 1. https://runpod.io にアクセス
 2. 「Sign Up」でアカウント作成
 3. 「Billing」→「Add Credit」で最低 $10 入金
 
-#### 3.2.2 Pod の作成
+#### 6.2.2 Pod の作成
 
 1. 「Pods」→「Deploy」をクリック
 2. GPU を選択（RTX 3090 以上推奨）
@@ -569,7 +890,7 @@ curl http://123.45.67.89:8000/health
 4. 「Expose HTTP Ports」に `8000` を入力
 5. 「Deploy On-Demand」をクリック
 
-#### 3.2.3 セットアップ
+#### 6.2.3 セットアップ
 
 1. Pod が「Running」になったら「Connect」をクリック
 2. 「Start Web Terminal」をクリック
@@ -577,7 +898,7 @@ curl http://123.45.67.89:8000/health
 
 ---
 
-### 3.3 Supabase に pyannote URL を設定
+### 4.3 Supabase に pyannote URL を設定
 
 pyannote サーバーが起動したら、Supabase の Edge Functions 環境変数を更新：
 
@@ -588,9 +909,9 @@ pyannote サーバーが起動したら、Supabase の Edge Functions 環境変�
 
 ---
 
-## 4. Next.js Web ダッシュボードのデプロイ（Vercel）
+## 5. Next.js Web ダッシュボードのデプロイ（Vercel）
 
-### 4.1 Vercel にログイン
+### 5.1 Vercel にログイン
 
 ```bash
 vercel login
@@ -600,16 +921,16 @@ vercel login
 1. 「Continue with GitHub」をクリック
 2. 認証を許可
 
-### 4.2 プロジェクトをインポート
+### 5.2 プロジェクトをインポート
 
-#### 4.2.1 GitHub リポジトリを Vercel に接続
+#### 6.2.1 GitHub リポジトリを Vercel に接続
 
 1. https://vercel.com/dashboard にアクセス
 2. 「Add New...」→「Project」をクリック
 3. 「Import Git Repository」で `DaisukeHori/SalonTalk-AI` を選択
 4. 「Import」をクリック
 
-#### 4.2.2 プロジェクト設定
+#### 6.2.2 プロジェクト設定
 
 以下を設定：
 
@@ -622,7 +943,7 @@ vercel login
 | **Output Directory** | `.next`（デフォルトのまま） |
 | **Install Command** | `pnpm install`（デフォルトのまま） |
 
-#### 4.2.3 環境変数の設定
+#### 6.2.3 環境変数の設定
 
 「Environment Variables」セクションで以下を追加：
 
@@ -635,20 +956,20 @@ vercel login
 > - `NEXT_PUBLIC_` プレフィックスはクライアント側で使用するために必要
 > - `service_role` キーはフロントエンドには設定しない（セキュリティ上の理由）
 
-#### 4.2.4 デプロイを実行
+#### 5.2.4 デプロイを実行
 
 1. 「Deploy」をクリック
 2. ビルドが完了するまで待つ（約2〜3分）
 3. 「Congratulations!」と表示されたらデプロイ完了
 
-#### 4.2.5 デプロイ URL を確認
+#### 5.2.5 デプロイ URL を確認
 
 デプロイ完了後、URL が表示されます：
 - 例：`https://salontalk-ai.vercel.app`
 
 この URL をメモしてください。
 
-### 4.3 Supabase のリダイレクト URL を更新
+### 5.3 Supabase のリダイレクト URL を更新
 
 1. Supabase ダッシュボード→「Authentication」→「URL Configuration」
 2. 「Site URL」を Vercel の URL に変更：
@@ -657,7 +978,7 @@ vercel login
    - `https://salontalk-ai.vercel.app/**`
 4. 「Save」をクリック
 
-### 4.4 カスタムドメインの設定（オプション）
+### 5.4 カスタムドメインの設定（オプション）
 
 独自ドメインを使用する場合：
 
@@ -668,9 +989,9 @@ vercel login
 
 ---
 
-## 5. React Native iPad アプリのデプロイ（Expo EAS）
+## 6. React Native iPad アプリのデプロイ（Expo EAS）
 
-### 5.1 Apple Developer Program への登録
+### 6.1 Apple Developer Program への登録
 
 **重要**: iOS アプリを配信するには Apple Developer Program（年間 $99）への登録が必要です。
 
@@ -681,9 +1002,9 @@ vercel login
 5. 年会費 $99 を支払い
 6. 審査承認まで 24〜48時間待つ
 
-### 5.2 Expo プロジェクト ID の設定
+### 6.2 Expo プロジェクト ID の設定
 
-#### 5.2.1 Expo にログイン
+#### 6.2.1 Expo にログイン
 
 ```bash
 eas login
@@ -691,7 +1012,7 @@ eas login
 
 メールアドレスとパスワードを入力
 
-#### 5.2.2 Expo プロジェクトを初期化
+#### 6.2.2 Expo プロジェクトを初期化
 
 ```bash
 cd ~/SalonTalk-AI/apps/mobile
@@ -702,7 +1023,7 @@ eas init
 
 プロジェクト名を聞かれたら `salontalk-ai` と入力
 
-#### 5.2.3 app.json を更新
+#### 6.2.3 app.json を更新
 
 `apps/mobile/app.json` を開いて、`projectId` を更新：
 
@@ -728,9 +1049,9 @@ code apps/mobile/app.json
 > `projectId` は `eas init` 実行時に表示されます。
 > または https://expo.dev のプロジェクトページで確認できます。
 
-### 5.3 EAS Build の設定
+### 6.3 EAS Build の設定
 
-#### 5.3.1 eas.json を確認
+#### 6.3.1 eas.json を確認
 
 `apps/mobile/eas.json` が存在しない場合、作成：
 
@@ -762,9 +1083,9 @@ eas build:configure
 }
 ```
 
-### 5.4 iOS アプリのビルド
+### 6.4 iOS アプリのビルド
 
-#### 5.4.1 開発用ビルド（テスト用）
+#### 6.4.1 開発用ビルド（テスト用）
 
 ```bash
 cd ~/SalonTalk-AI/apps/mobile
@@ -781,15 +1102,15 @@ eas build --platform ios --profile development
 
 ビルドには 10〜20 分かかります。
 
-#### 5.4.2 本番用ビルド
+#### 6.4.2 本番用ビルド
 
 ```bash
 eas build --platform ios --profile production
 ```
 
-### 5.5 TestFlight への配信
+### 6.5 TestFlight への配信
 
-#### 5.5.1 アプリのサブミット
+#### 6.5.1 アプリのサブミット
 
 ```bash
 eas submit --platform ios
@@ -799,14 +1120,14 @@ eas submit --platform ios
 - **Which build would you like to submit?** → 最新のビルドを選択
 - App Store Connect の認証情報を入力
 
-#### 5.5.2 TestFlight でテスター招待
+#### 6.5.2 TestFlight でテスター招待
 
 1. https://appstoreconnect.apple.com にログイン
 2. 「My Apps」→「SalonTalk AI」を選択
 3. 「TestFlight」タブをクリック
 4. 「Internal Testing」または「External Testing」でテスターを追加
 
-### 5.6 App Store への公開（本番リリース）
+### 6.6 App Store への公開（本番リリース）
 
 1. App Store Connect で「App Store」タブを選択
 2. 必要なメタデータ（スクリーンショット、説明文など）を入力
@@ -815,9 +1136,9 @@ eas submit --platform ios
 
 ---
 
-## 6. GitHub Actions CI/CD の設定
+## 7. GitHub Actions CI/CD の設定
 
-### 6.1 GitHub Secrets の設定
+### 7.1 GitHub Secrets の設定
 
 GitHub リポジトリで自動デプロイを設定します。
 
@@ -837,7 +1158,7 @@ GitHub リポジトリで自動デプロイを設定します。
 | `EXPO_TOKEN` | Expo トークン | [取得方法](#614-expo-トークンの取得) |
 | `TURBO_TOKEN` | Turborepo トークン | [取得方法](#615-turborepo-トークンの取得)（オプション） |
 
-#### 6.1.1 Supabase アクセストークンの取得
+#### 7.1.1 Supabase アクセストークンの取得
 
 1. https://supabase.com/dashboard/account/tokens にアクセス
 2. 「Generate new token」をクリック
@@ -845,7 +1166,7 @@ GitHub リポジトリで自動デプロイを設定します。
 4. 「Generate token」をクリック
 5. トークンをコピー
 
-#### 6.1.2 Vercel ID の取得
+#### 7.1.2 Vercel ID の取得
 
 ```bash
 cd ~/SalonTalk-AI/apps/web
@@ -869,7 +1190,7 @@ cat .vercel/project.json
 - `orgId` → `VERCEL_ORG_ID`
 - `projectId` → `VERCEL_PROJECT_ID`
 
-#### 6.1.3 Vercel トークンの取得
+#### 7.1.3 Vercel トークンの取得
 
 1. https://vercel.com/account/tokens にアクセス
 2. 「Create」をクリック
@@ -878,7 +1199,7 @@ cat .vercel/project.json
 5. 「Create Token」をクリック
 6. トークンをコピー
 
-#### 6.1.4 Expo トークンの取得
+#### 7.1.4 Expo トークンの取得
 
 1. https://expo.dev/settings/access-tokens にアクセス
 2. 「Create Token」をクリック
@@ -886,7 +1207,7 @@ cat .vercel/project.json
 4. 「Create Token」をクリック
 5. トークンをコピー
 
-#### 6.1.5 Turborepo トークンの取得（オプション）
+#### 7.1.5 Turborepo トークンの取得（オプション）
 
 ビルドキャッシュを高速化したい場合：
 
@@ -895,7 +1216,7 @@ cat .vercel/project.json
 3. 「Enable Remote Caching」
 4. トークンを生成
 
-### 6.2 GitHub Variables の設定
+### 7.2 GitHub Variables の設定
 
 1. 「Settings」→「Secrets and variables」→「Actions」
 2. 「Variables」タブをクリック
@@ -905,7 +1226,7 @@ cat .vercel/project.json
 |------|-------|
 | `TURBO_TEAM` | あなたの Vercel チーム名 |
 
-### 6.3 CI/CD の動作確認
+### 7.3 CI/CD の動作確認
 
 設定が完了したら、`main` ブランチに変更をプッシュすると自動的に：
 
@@ -926,9 +1247,9 @@ cat .vercel/project.json
 
 ---
 
-## 7. 本番環境の確認
+## 8. 本番環境の確認
 
-### 7.1 チェックリスト
+### 8.1 チェックリスト
 
 デプロイ完了後、以下を確認してください：
 
@@ -963,7 +1284,7 @@ cat .vercel/project.json
   - https://expo.dev でビルド状況を確認
 - [ ] TestFlight でインストールできる（iOS）
 
-### 7.2 初期データの投入
+### 8.2 初期データの投入
 
 本番環境でテスト用のデータを作成：
 
@@ -974,9 +1295,9 @@ cat .vercel/project.json
 
 ---
 
-## 8. トラブルシューティング
+## 9. トラブルシューティング
 
-### 8.1 よくあるエラーと解決方法
+### 9.1 よくあるエラーと解決方法
 
 #### Supabase 関連
 
@@ -1081,7 +1402,7 @@ CUDA not available
 
 ---
 
-### 8.2 ログの確認方法
+### 9.2 ログの確認方法
 
 #### Supabase Edge Functions
 
@@ -1111,7 +1432,7 @@ journalctl -u pyannote -f
 
 ---
 
-### 8.3 サポート
+### 9.3 サポート
 
 問題が解決しない場合：
 
