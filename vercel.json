@@ -2,7 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "pnpm --filter @salontalk/web build",
   "installCommand": "pnpm install",
-  "outputDirectory": ".next",
-  "framework": "nextjs",
-  "rootDirectory": "apps/web"
+  "outputDirectory": "apps/web/.next",
+  "framework": "nextjs"
 }
