@@ -1,8 +1,10 @@
 /**
- * Pyannote Server Integration for Speaker Diarization
+ * Pyannote.ai Cloud API Integration for Speaker Diarization
  *
- * This module provides utilities for integrating with a self-hosted
- * pyannote.audio server for speaker diarization.
+ * This module provides utilities for integrating with pyannote.ai cloud API
+ * for speaker diarization.
+ *
+ * API Documentation: https://www.pyannote.ai/
  */
 
 interface DiarizationSegment {
@@ -21,108 +23,187 @@ interface DiarizationRequest {
   sessionId: string;
   chunkIndex: number;
   audioUrl: string;
-  callbackUrl: string;
+  callbackUrl?: string;
+}
+
+interface PyannoteJobResponse {
+  jobId: string;
+  status: "pending" | "processing" | "succeeded" | "failed";
+  output?: {
+    diarization: Array<{
+      speaker: string;
+      start: number;
+      end: number;
+    }>;
+  };
+  error?: string;
+}
+
+// pyannote.ai API base URL
+const PYANNOTE_API_URL = "https://api.pyannote.ai/v1";
+
+/**
+ * Get pyannote API key from environment
+ */
+export function getPyannoteApiKey(): string {
+  const apiKey = Deno.env.get("PYANNOTE_API_KEY");
+  if (!apiKey) {
+    throw new Error("PYANNOTE_API_KEY not configured");
+  }
+  return apiKey;
 }
 
 /**
  * Get pyannote server URL from environment
+ * Falls back to pyannote.ai cloud API if not set
  */
 export function getPyannoteServerUrl(): string {
-  const url = Deno.env.get('PYANNOTE_SERVER_URL');
-  if (!url) {
-    throw new Error('PYANNOTE_SERVER_URL not configured');
-  }
-  return url;
+  return Deno.env.get("PYANNOTE_SERVER_URL") || PYANNOTE_API_URL;
 }
 
 /**
- * Get pyannote API key from environment (if required)
+ * Submit audio for speaker diarization (async with callback or polling)
  */
-export function getPyannoteApiKey(): string | undefined {
-  return Deno.env.get('PYANNOTE_API_KEY');
-}
-
-/**
- * Submit audio for speaker diarization (async with callback)
- */
-export async function submitDiarization(request: DiarizationRequest): Promise<{ jobId: string }> {
-  const serverUrl = getPyannoteServerUrl();
+export async function submitDiarization(
+  request: DiarizationRequest
+): Promise<{ jobId: string }> {
   const apiKey = getPyannoteApiKey();
+  const serverUrl = getPyannoteServerUrl();
+
+  // Check if using pyannote.ai cloud API or self-hosted
+  const isPyannoteCloud = serverUrl.includes("api.pyannote.ai");
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
   };
 
-  if (apiKey) {
-    headers['Authorization'] = `Bearer ${apiKey}`;
-  }
+  let requestBody: Record<string, unknown>;
 
-  const response = await fetch(`${serverUrl}/diarize`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
+  if (isPyannoteCloud) {
+    // pyannote.ai cloud API format
+    requestBody = {
+      url: request.audioUrl,
+      webhook: request.callbackUrl, // webhook callback (if supported)
+    };
+  } else {
+    // Self-hosted server format (legacy)
+    requestBody = {
       audio_url: request.audioUrl,
       callback_url: request.callbackUrl,
       metadata: {
         session_id: request.sessionId,
         chunk_index: request.chunkIndex,
       },
-    }),
-  });
+    };
+  }
+
+  const response = await fetch(
+    isPyannoteCloud ? `${serverUrl}/diarize` : `${serverUrl}/diarize`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+    }
+  );
 
   if (!response.ok) {
     const error = await response.text();
-    console.error('Pyannote server error:', error);
-    throw new Error(`Pyannote server error: ${response.status}`);
+    console.error("Pyannote API error:", error);
+    throw new Error(`Pyannote API error: ${response.status} - ${error}`);
   }
 
   const result = await response.json();
-  return { jobId: result.job_id };
+  return { jobId: result.jobId || result.job_id };
 }
 
 /**
- * Submit audio for speaker diarization (sync - wait for result)
+ * Get job status and result from pyannote.ai
  */
-export async function diarizeSynchronous(audioUrl: string): Promise<DiarizationResult> {
-  const serverUrl = getPyannoteServerUrl();
+export async function getJobResult(
+  jobId: string
+): Promise<PyannoteJobResponse> {
   const apiKey = getPyannoteApiKey();
+  const serverUrl = getPyannoteServerUrl();
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  if (apiKey) {
-    headers['Authorization'] = `Bearer ${apiKey}`;
-  }
-
-  const startTime = Date.now();
-
-  const response = await fetch(`${serverUrl}/diarize/sync`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      audio_url: audioUrl,
-    }),
+  const response = await fetch(`${serverUrl}/jobs/${jobId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
   });
 
   if (!response.ok) {
     const error = await response.text();
-    console.error('Pyannote server error:', error);
-    throw new Error(`Pyannote server error: ${response.status}`);
+    throw new Error(`Failed to get job status: ${response.status} - ${error}`);
   }
 
   const result = await response.json();
-  const processingTimeMs = Date.now() - startTime;
 
   return {
-    segments: result.segments.map((s: { speaker: string; start: number; end: number }) => ({
-      speaker: s.speaker,
-      start: s.start,
-      end: s.end,
-    })),
-    speakers: result.speakers || [...new Set(result.segments.map((s: { speaker: string }) => s.speaker))],
-    processingTimeMs,
+    jobId: result.jobId || jobId,
+    status: result.status,
+    output: result.output,
+    error: result.error,
   };
+}
+
+/**
+ * Poll for job completion with timeout
+ */
+export async function pollForResult(
+  jobId: string,
+  timeoutMs: number = 120000, // 2 minutes default
+  intervalMs: number = 3000 // 3 seconds polling interval
+): Promise<DiarizationResult> {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeoutMs) {
+    const jobResult = await getJobResult(jobId);
+
+    if (jobResult.status === "succeeded" && jobResult.output) {
+      const segments = jobResult.output.diarization || [];
+      return {
+        segments: segments.map((s) => ({
+          speaker: s.speaker,
+          start: s.start,
+          end: s.end,
+        })),
+        speakers: [
+          ...new Set(segments.map((s: { speaker: string }) => s.speaker)),
+        ],
+        processingTimeMs: Date.now() - startTime,
+      };
+    }
+
+    if (jobResult.status === "failed") {
+      throw new Error(
+        `Diarization failed: ${jobResult.error || "Unknown error"}`
+      );
+    }
+
+    // Wait before next poll
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error(`Diarization timeout after ${timeoutMs}ms`);
+}
+
+/**
+ * Submit audio for speaker diarization (sync - wait for result via polling)
+ */
+export async function diarizeSynchronous(
+  audioUrl: string
+): Promise<DiarizationResult> {
+  // Submit job
+  const { jobId } = await submitDiarization({
+    sessionId: "",
+    chunkIndex: 0,
+    audioUrl,
+  });
+
+  // Poll for result
+  return await pollForResult(jobId);
 }
 
 /**
@@ -145,16 +226,16 @@ export function convertToMilliseconds(
 export function mapSpeakersToRoles(
   speakers: string[],
   segments: DiarizationSegment[]
-): Record<string, 'stylist' | 'customer'> {
+): Record<string, "stylist" | "customer"> {
   // Sort segments by start time to find who spoke first
   const sortedSegments = [...segments].sort((a, b) => a.start - b.start);
 
   // First speaker is assumed to be the stylist
   const firstSpeaker = sortedSegments[0]?.speaker || speakers[0];
 
-  const mapping: Record<string, 'stylist' | 'customer'> = {};
+  const mapping: Record<string, "stylist" | "customer"> = {};
   for (const speaker of speakers) {
-    mapping[speaker] = speaker === firstSpeaker ? 'stylist' : 'customer';
+    mapping[speaker] = speaker === firstSpeaker ? "stylist" : "customer";
   }
 
   return mapping;
@@ -166,16 +247,16 @@ export function mapSpeakersToRoles(
 export function mergeWithTranscription(
   diarization: Array<{ speaker: string; startTimeMs: number; endTimeMs: number }>,
   transcription: Array<{ text: string; startTimeMs: number; endTimeMs: number }>,
-  speakerMapping: Record<string, 'stylist' | 'customer'>
+  speakerMapping: Record<string, "stylist" | "customer">
 ): Array<{
-  speaker: 'stylist' | 'customer' | 'unknown';
+  speaker: "stylist" | "customer" | "unknown";
   speakerLabel: string;
   text: string;
   startTimeMs: number;
   endTimeMs: number;
 }> {
   const merged: Array<{
-    speaker: 'stylist' | 'customer' | 'unknown';
+    speaker: "stylist" | "customer" | "unknown";
     speakerLabel: string;
     text: string;
     startTimeMs: number;
@@ -192,7 +273,7 @@ export function mergeWithTranscription(
 
     if (overlapSegment) {
       merged.push({
-        speaker: speakerMapping[overlapSegment.speaker] || 'unknown',
+        speaker: speakerMapping[overlapSegment.speaker] || "unknown",
         speakerLabel: overlapSegment.speaker,
         text: trans.text,
         startTimeMs: trans.startTimeMs,
@@ -200,8 +281,8 @@ export function mergeWithTranscription(
       });
     } else {
       merged.push({
-        speaker: 'unknown',
-        speakerLabel: '',
+        speaker: "unknown",
+        speakerLabel: "",
         text: trans.text,
         startTimeMs: trans.startTimeMs,
         endTimeMs: trans.endTimeMs,
@@ -210,4 +291,38 @@ export function mergeWithTranscription(
   }
 
   return merged.sort((a, b) => a.startTimeMs - b.startTimeMs);
+}
+
+/**
+ * Process diarization result and save to database
+ * This is used when webhook callback is received or after polling
+ */
+export function processDiarizationResult(
+  segments: DiarizationSegment[]
+): Array<{
+  speaker: "stylist" | "customer";
+  start_time_ms: number;
+  end_time_ms: number;
+  confidence: number;
+}> {
+  if (segments.length === 0) {
+    return [];
+  }
+
+  // Determine which pyannote speaker is the stylist
+  // Assumption: First speaker in the session is the stylist (they greet the customer)
+  const sortedSegments = [...segments].sort((a, b) => a.start - b.start);
+  const firstSpeaker = sortedSegments[0]?.speaker || "SPEAKER_00";
+
+  // Map pyannote speakers to our speaker types
+  const mapSpeaker = (pyannoteSpeaker: string): "stylist" | "customer" => {
+    return pyannoteSpeaker === firstSpeaker ? "stylist" : "customer";
+  };
+
+  return segments.map((segment) => ({
+    speaker: mapSpeaker(segment.speaker),
+    start_time_ms: Math.round(segment.start * 1000),
+    end_time_ms: Math.round(segment.end * 1000),
+    confidence: 0.9, // pyannote.ai doesn't return confidence, default to 0.9
+  }));
 }

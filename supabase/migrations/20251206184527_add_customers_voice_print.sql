@@ -64,17 +64,17 @@ ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 
 -- customers ポリシー
 CREATE POLICY "customer_select" ON customers
-  FOR SELECT USING (salon_id = get_current_user_salon_id());
+  FOR SELECT USING (salon_id = get_current_salon_id());
 
 CREATE POLICY "customer_insert" ON customers
-  FOR INSERT WITH CHECK (salon_id = get_current_user_salon_id());
+  FOR INSERT WITH CHECK (salon_id = get_current_salon_id());
 
 CREATE POLICY "customer_update" ON customers
-  FOR UPDATE USING (salon_id = get_current_user_salon_id());
+  FOR UPDATE USING (salon_id = get_current_salon_id());
 
 CREATE POLICY "customer_delete" ON customers
   FOR DELETE USING (
-    salon_id = get_current_user_salon_id()
+    salon_id = get_current_salon_id()
     AND get_current_user_role() IN ('owner', 'manager')
   );
 
