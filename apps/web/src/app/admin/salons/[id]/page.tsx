@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   getSalon,
   updateSalonSeats,
+  updateSalonStaffLimit,
   updateSalonPlan,
   suspendSalon,
   unsuspendSalon,
@@ -14,41 +15,14 @@ import {
   OperatorSession,
   getSalonUsageStats,
   SalonUsageStats,
+  getSalonAnalytics,
+  SalonAnalytics,
   createStaff,
   deleteStaff,
   createDevice,
   deleteDevice,
   updateSalonExpiry,
 } from '@/lib/admin/client';
-
-// Simple bar chart component
-const UsageChart = ({ data, title }: { data: number[]; title: string }) => {
-  const max = Math.max(...data, 1);
-  const labels = ['月', '火', '水', '木', '金', '土', '日'];
-
-  return (
-    <div className="bg-gray-700/50 rounded-lg p-4">
-      <p className="text-gray-400 text-sm mb-4">{title}</p>
-      <div className="flex items-end gap-2 h-32">
-        {data.map((value, index) => (
-          <div key={index} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full bg-gray-600 rounded-t relative" style={{ height: '100%' }}>
-              <div
-                className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-orange-600 to-orange-400 rounded-t transition-all"
-                style={{ height: `${(value / max) * 100}%` }}
-              />
-            </div>
-            <span className="text-xs text-gray-500">{labels[index]}</span>
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-between mt-2">
-        <span className="text-xs text-gray-500">0</span>
-        <span className="text-xs text-gray-500">{max}</span>
-      </div>
-    </div>
-  );
-};
 
 export default function SalonDetailPage() {
   const params = useParams();
@@ -63,6 +37,7 @@ export default function SalonDetailPage() {
 
   // Modal states
   const [showSeatsModal, setShowSeatsModal] = useState(false);
+  const [showStaffLimitModal, setShowStaffLimitModal] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [showExpiryModal, setShowExpiryModal] = useState(false);
@@ -72,6 +47,8 @@ export default function SalonDetailPage() {
   // Form states
   const [newSeats, setNewSeats] = useState(0);
   const [seatsReason, setSeatsReason] = useState('');
+  const [newStaffLimit, setNewStaffLimit] = useState(0);
+  const [staffLimitReason, setStaffLimitReason] = useState('');
   const [newPlan, setNewPlan] = useState('');
   const [planReason, setPlanReason] = useState('');
   const [suspendReason, setSuspendReason] = useState('');
@@ -89,12 +66,18 @@ export default function SalonDetailPage() {
   const [usageStats, setUsageStats] = useState<SalonUsageStats | null>(null);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
+  // Analytics (staff/device breakdown)
+  const [analytics, setAnalytics] = useState<SalonAnalytics | null>(null);
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<'week' | 'month' | 'all'>('month');
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+
   useEffect(() => {
     async function loadData() {
       const [salonRes, meRes] = await Promise.all([getSalon(id), getMe()]);
       if (salonRes.data) {
         setSalon(salonRes.data);
         setNewSeats(salonRes.data.seats_count);
+        setNewStaffLimit(salonRes.data.staff_limit || 10);
         setNewPlan(salonRes.data.plan);
       }
       if (meRes.data) setOperator(meRes.data);
@@ -103,16 +86,34 @@ export default function SalonDetailPage() {
     loadData();
   }, [id]);
 
-  // Load usage stats when usage tab is selected
+  // Load usage stats and analytics when usage tab is selected
   useEffect(() => {
-    if (activeTab === 'usage' && !usageStats && !isLoadingUsage) {
-      setIsLoadingUsage(true);
-      getSalonUsageStats(id).then(({ data }) => {
-        if (data) setUsageStats(data);
-        setIsLoadingUsage(false);
+    if (activeTab === 'usage') {
+      // Load basic usage stats (only once)
+      if (!usageStats && !isLoadingUsage) {
+        setIsLoadingUsage(true);
+        getSalonUsageStats(id).then(({ data }) => {
+          if (data) setUsageStats(data);
+          setIsLoadingUsage(false);
+        });
+      }
+      // Load detailed analytics (when period changes)
+      setIsLoadingAnalytics(true);
+      getSalonAnalytics(id, analyticsPeriod).then(({ data }) => {
+        if (data) setAnalytics(data);
+        setIsLoadingAnalytics(false);
       });
     }
-  }, [activeTab, id, usageStats, isLoadingUsage]);
+  }, [activeTab, id, analyticsPeriod]);
+
+  // Helper functions for analytics display
+  const formatNumber = (num: number) => new Intl.NumberFormat('ja-JP').format(num);
+  const formatTime = (minutes: number) => {
+    if (minutes < 60) return `${Math.round(minutes)}分`;
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    return mins > 0 ? `${hours}時間${mins}分` : `${hours}時間`;
+  };
 
   const handleUpdateSeats = async () => {
     setIsSubmitting(true);
@@ -123,6 +124,22 @@ export default function SalonDetailPage() {
     } else if (data?.success) {
       setSuccessMessage('座席数を更新しました');
       setShowSeatsModal(false);
+      const { data: updated } = await getSalon(id);
+      if (updated) setSalon(updated);
+    }
+    setIsSubmitting(false);
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
+
+  const handleUpdateStaffLimit = async () => {
+    setIsSubmitting(true);
+    setError('');
+    const { data, error: apiError } = await updateSalonStaffLimit(id, newStaffLimit, staffLimitReason);
+    if (apiError) {
+      setError(apiError.message);
+    } else if (data?.success) {
+      setSuccessMessage('スタッフ上限を更新しました');
+      setShowStaffLimitModal(false);
       const { data: updated } = await getSalon(id);
       if (updated) setSalon(updated);
     }
@@ -458,6 +475,20 @@ export default function SalonDetailPage() {
                 </dd>
               </div>
               <div className="flex items-center justify-between py-2 border-b border-gray-700">
+                <dt className="text-gray-400 text-sm">スタッフ上限</dt>
+                <dd className="flex items-center gap-2">
+                  <span className="text-white font-medium">
+                    {salon.stats.staff_count} / {salon.staff_limit || 10} 人
+                  </span>
+                  <button
+                    onClick={() => setShowStaffLimitModal(true)}
+                    className="text-orange-500 text-sm hover:text-orange-400"
+                  >
+                    変更
+                  </button>
+                </dd>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-gray-700">
                 <dt className="text-gray-400 text-sm">有効期限</dt>
                 <dd className="flex items-center gap-2">
                   <span className="text-white font-medium">無期限</span>
@@ -699,42 +730,47 @@ export default function SalonDetailPage() {
         </div>
       )}
 
-      {/* 利用状況タブ */}
+      {/* 利用状況タブ - 統合分析ビュー */}
       {activeTab === 'usage' && (
         <div className="space-y-6">
-          {/* 詳細分析ページへのリンク */}
-          <div className="bg-gradient-to-r from-orange-500/20 to-purple-500/20 rounded-xl p-6 border border-orange-500/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-white">詳細利用分析</h3>
-                <p className="text-gray-400 text-sm mt-1">
-                  文字起こし時間、文字数、スタッフ別・デバイス別統計、時間帯別利用推移など
-                </p>
-              </div>
-              <Link
-                href={`/admin/salons/${id}/analytics`}
-                className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                詳細分析を見る
-              </Link>
+          {/* 期間セレクター */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <h2 className="text-lg font-semibold text-white">利用分析ダッシュボード</h2>
+            <div className="inline-flex bg-gray-700 rounded-lg p-1">
+              {[
+                { value: 'week' as const, label: '週間' },
+                { value: 'month' as const, label: '月間' },
+                { value: 'all' as const, label: '全期間' },
+              ].map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => setAnalyticsPeriod(p.value)}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    analyticsPeriod === p.value
+                      ? 'bg-orange-500 text-white'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {isLoadingUsage ? (
+          {isLoadingUsage || isLoadingAnalytics ? (
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
             </div>
-          ) : usageStats ? (
+          ) : (
             <>
-              {/* 利用統計カード */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 rounded-xl p-5 border border-blue-500/30">
-                  <p className="text-gray-400 text-sm mb-2">今月のセッション</p>
-                  <p className="text-3xl font-bold text-white">{usageStats.sessions_this_month}</p>
-                  {usageStats.sessions_last_month > 0 && (
+              {/* サマリーカード - 4列 */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 rounded-xl p-4 sm:p-5 border border-blue-500/30">
+                  <p className="text-gray-400 text-xs sm:text-sm mb-1">総セッション数</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-white">
+                    {analytics ? formatNumber(analytics.summary.total_sessions) : usageStats?.sessions_this_month ?? 0}
+                  </p>
+                  {usageStats && usageStats.sessions_last_month > 0 && (
                     <p className={`text-xs mt-1 ${
                       usageStats.sessions_this_month >= usageStats.sessions_last_month ? 'text-green-400' : 'text-red-400'
                     }`}>
@@ -743,87 +779,144 @@ export default function SalonDetailPage() {
                     </p>
                   )}
                 </div>
-                <div className="bg-gradient-to-br from-green-500/20 to-green-600/10 rounded-xl p-5 border border-green-500/30">
-                  <p className="text-gray-400 text-sm mb-2">平均セッション時間</p>
-                  <p className="text-3xl font-bold text-white">{Math.round(usageStats.avg_session_duration_min)}分</p>
-                  {usageStats.avg_session_duration_last_month_min > 0 && (
-                    <p className={`text-xs mt-1 ${
-                      usageStats.avg_session_duration_min >= usageStats.avg_session_duration_last_month_min ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {usageStats.avg_session_duration_min >= usageStats.avg_session_duration_last_month_min ? '+' : ''}
-                      {Math.round(usageStats.avg_session_duration_min - usageStats.avg_session_duration_last_month_min)}分 先月比
-                    </p>
+                <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/10 rounded-xl p-4 sm:p-5 border border-orange-500/30">
+                  <p className="text-gray-400 text-xs sm:text-sm mb-1">総文字起こし時間</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-orange-400">
+                    {analytics ? formatTime(analytics.summary.total_transcription_time_min) : '-'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    平均: {analytics ? formatTime(analytics.summary.avg_session_duration_min) : '-'}/セッション
+                  </p>
+                </div>
+                <div className="bg-gradient-to-br from-green-500/20 to-green-600/10 rounded-xl p-4 sm:p-5 border border-green-500/30">
+                  <p className="text-gray-400 text-xs sm:text-sm mb-1">総文字数</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-green-400">
+                    {analytics ? formatNumber(analytics.summary.total_character_count) : '-'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    平均: {analytics ? formatNumber(analytics.summary.avg_characters_per_session) : '-'}文字/セッション
+                  </p>
+                </div>
+                <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 rounded-xl p-4 sm:p-5 border border-purple-500/30">
+                  <p className="text-gray-400 text-xs sm:text-sm mb-1">話者比率</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl sm:text-2xl font-bold text-purple-400">
+                      {analytics && analytics.summary.total_character_count > 0
+                        ? Math.round((analytics.summary.stylist_character_count / analytics.summary.total_character_count) * 100)
+                        : 0}%
+                    </span>
+                    <span className="text-gray-500">:</span>
+                    <span className="text-xl sm:text-2xl font-bold text-green-400">
+                      {analytics && analytics.summary.total_character_count > 0
+                        ? Math.round((analytics.summary.customer_character_count / analytics.summary.total_character_count) * 100)
+                        : 0}%
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">スタイリスト : お客様</p>
+                </div>
+              </div>
+
+              {/* チャート - 2列 */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 日別利用推移 */}
+                <div className="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700">
+                  <h3 className="text-base sm:text-lg font-semibold text-white mb-4">日別利用推移</h3>
+                  {analytics && analytics.daily_trends.length > 0 ? (
+                    <div className="h-48 sm:h-56">
+                      <div className="flex items-end gap-1 h-40 sm:h-48 overflow-x-auto">
+                        {analytics.daily_trends.slice(-14).map((day, i) => {
+                          const maxSessions = Math.max(...analytics.daily_trends.map(d => d.session_count), 1);
+                          const height = (day.session_count / maxSessions) * 100;
+                          return (
+                            <div
+                              key={i}
+                              className="flex-1 min-w-[20px] flex flex-col items-center"
+                              title={`${day.date}: ${day.session_count}セッション`}
+                            >
+                              <div
+                                className="w-full bg-orange-500/80 rounded-t hover:bg-orange-400 transition-colors cursor-pointer"
+                                style={{ height: `${Math.max(height, 4)}%` }}
+                              />
+                              <div className="text-[8px] sm:text-[10px] text-gray-500 mt-1 whitespace-nowrap">
+                                {day.date.slice(5)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-gray-500">データがありません</div>
                   )}
                 </div>
-                <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 rounded-xl p-5 border border-purple-500/30">
-                  <p className="text-gray-400 text-sm mb-2">平均トークスコア</p>
-                  <p className="text-3xl font-bold text-white">{Math.round(usageStats.avg_talk_score)}点</p>
-                  {usageStats.avg_talk_score_last_month > 0 && (
-                    <p className={`text-xs mt-1 ${
-                      usageStats.avg_talk_score >= usageStats.avg_talk_score_last_month ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {usageStats.avg_talk_score >= usageStats.avg_talk_score_last_month ? '+' : ''}
-                      {Math.round(usageStats.avg_talk_score - usageStats.avg_talk_score_last_month)}点 先月比
-                    </p>
-                  )}
-                </div>
-                <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/10 rounded-xl p-5 border border-orange-500/30">
-                  <p className="text-gray-400 text-sm mb-2">店販成約率</p>
-                  <p className="text-3xl font-bold text-white">{Math.round(usageStats.conversion_rate)}%</p>
-                  {usageStats.conversion_rate_last_month > 0 && (
-                    <p className={`text-xs mt-1 ${
-                      usageStats.conversion_rate >= usageStats.conversion_rate_last_month ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {usageStats.conversion_rate >= usageStats.conversion_rate_last_month ? '+' : ''}
-                      {Math.round(usageStats.conversion_rate - usageStats.conversion_rate_last_month)}% 先月比
-                    </p>
+
+                {/* 時間帯別利用状況 */}
+                <div className="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700">
+                  <h3 className="text-base sm:text-lg font-semibold text-white mb-4">時間帯別利用状況</h3>
+                  {analytics && analytics.hourly_usage.length > 0 ? (
+                    <div className="h-48 sm:h-56">
+                      <div className="flex items-end gap-[2px] h-40 sm:h-48">
+                        {analytics.hourly_usage.map((hour) => {
+                          const maxSessions = Math.max(...analytics.hourly_usage.map(h => h.session_count), 1);
+                          const height = (hour.session_count / maxSessions) * 100;
+                          return (
+                            <div
+                              key={hour.hour}
+                              className="flex-1 flex flex-col items-center"
+                              title={`${hour.hour}時: ${hour.session_count}セッション`}
+                            >
+                              <div
+                                className="w-full bg-blue-500/80 rounded-t hover:bg-blue-400 transition-colors cursor-pointer"
+                                style={{ height: `${Math.max(height, 4)}%` }}
+                              />
+                              <div className="text-[8px] sm:text-[10px] text-gray-500 mt-1">
+                                {hour.hour % 3 === 0 ? hour.hour : ''}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-gray-500">データがありません</div>
                   )}
                 </div>
               </div>
 
-              {/* グラフ */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                  <h3 className="text-lg font-semibold text-white mb-4">週間セッション数</h3>
-                  <UsageChart data={usageStats.weekly_sessions} title="過去7日間" />
-                </div>
-                <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                  <h3 className="text-lg font-semibold text-white mb-4">週間成約数</h3>
-                  <UsageChart data={usageStats.weekly_conversions} title="過去7日間" />
-                </div>
-              </div>
-
-              {/* 詳細テーブル */}
+              {/* スタッフ別統計 */}
               <div className="bg-gray-800 rounded-xl border border-gray-700">
-                <div className="p-4 border-b border-gray-700">
-                  <h3 className="text-lg font-semibold text-white">月別利用履歴</h3>
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-700 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  <h3 className="text-base sm:text-lg font-semibold text-white">スタッフ別統計</h3>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full min-w-[600px]">
                     <thead className="bg-gray-700/50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">月</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">セッション数</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">平均スコア</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">成約数</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">成約率</th>
+                        <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">スタッフ名</th>
+                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">セッション数</th>
+                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">総時間</th>
+                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">平均時間</th>
+                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">総文字数</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700">
-                      {usageStats.monthly_history.length === 0 ? (
+                      {!analytics || analytics.staff_stats.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                            利用履歴がありません
+                            データがありません
                           </td>
                         </tr>
                       ) : (
-                        usageStats.monthly_history.map((row) => (
-                          <tr key={row.month} className="hover:bg-gray-700/50">
-                            <td className="px-6 py-4 text-white">{row.month}</td>
-                            <td className="px-6 py-4 text-gray-300">{row.sessions}</td>
-                            <td className="px-6 py-4 text-gray-300">{Math.round(row.avg_score)}点</td>
-                            <td className="px-6 py-4 text-gray-300">{row.conversions}</td>
-                            <td className="px-6 py-4 text-green-400">{row.conversion_rate}</td>
+                        analytics.staff_stats.map((staff) => (
+                          <tr key={staff.staff_id} className="hover:bg-gray-700/50">
+                            <td className="px-4 sm:px-6 py-4 text-white font-medium">{staff.staff_name}</td>
+                            <td className="px-4 sm:px-6 py-4 text-right text-white">{formatNumber(staff.session_count)}</td>
+                            <td className="px-4 sm:px-6 py-4 text-right text-orange-400">{formatTime(staff.total_duration_min)}</td>
+                            <td className="px-4 sm:px-6 py-4 text-right text-gray-400">{formatTime(staff.avg_duration_min)}</td>
+                            <td className="px-4 sm:px-6 py-4 text-right text-blue-400">{formatNumber(staff.total_characters)}</td>
                           </tr>
                         ))
                       )}
@@ -831,14 +924,107 @@ export default function SalonDetailPage() {
                   </table>
                 </div>
               </div>
+
+              {/* デバイス別統計 */}
+              <div className="bg-gray-800 rounded-xl border border-gray-700">
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-700 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  <h3 className="text-base sm:text-lg font-semibold text-white">デバイス別統計（iPad）</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[500px]">
+                    <thead className="bg-gray-700/50">
+                      <tr>
+                        <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">デバイス名</th>
+                        <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">席番号</th>
+                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">セッション数</th>
+                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">総時間</th>
+                        <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">最終利用</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700">
+                      {!analytics || analytics.device_stats.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                            データがありません
+                          </td>
+                        </tr>
+                      ) : (
+                        analytics.device_stats.map((device) => (
+                          <tr key={device.device_id} className="hover:bg-gray-700/50">
+                            <td className="px-4 sm:px-6 py-4 text-white font-medium">{device.device_name}</td>
+                            <td className="px-4 sm:px-6 py-4 text-gray-400">
+                              {device.seat_number !== null ? `席${device.seat_number}` : '-'}
+                            </td>
+                            <td className="px-4 sm:px-6 py-4 text-right text-white">{formatNumber(device.session_count)}</td>
+                            <td className="px-4 sm:px-6 py-4 text-right text-orange-400">{formatTime(device.total_duration_min)}</td>
+                            <td className="px-4 sm:px-6 py-4 text-gray-400 text-sm">
+                              {device.last_active_at
+                                ? new Date(device.last_active_at).toLocaleString('ja-JP')
+                                : '-'}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 月別利用履歴 */}
+              {usageStats && (
+                <div className="bg-gray-800 rounded-xl border border-gray-700">
+                  <div className="px-4 sm:px-6 py-4 border-b border-gray-700 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <h3 className="text-base sm:text-lg font-semibold text-white">月別利用履歴</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[500px]">
+                      <thead className="bg-gray-700/50">
+                        <tr>
+                          <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">月</th>
+                          <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">セッション数</th>
+                          <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">平均スコア</th>
+                          <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">成約数</th>
+                          <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">成約率</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-700">
+                        {usageStats.monthly_history.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                              利用履歴がありません
+                            </td>
+                          </tr>
+                        ) : (
+                          usageStats.monthly_history.map((row) => (
+                            <tr key={row.month} className="hover:bg-gray-700/50">
+                              <td className="px-4 sm:px-6 py-4 text-white">{row.month}</td>
+                              <td className="px-4 sm:px-6 py-4 text-right text-gray-300">{row.sessions}</td>
+                              <td className="px-4 sm:px-6 py-4 text-right text-gray-300">{Math.round(row.avg_score)}点</td>
+                              <td className="px-4 sm:px-6 py-4 text-right text-gray-300">{row.conversions}</td>
+                              <td className="px-4 sm:px-6 py-4 text-right text-green-400">{row.conversion_rate}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* 期間情報フッター */}
+              {analytics && (
+                <div className="text-sm text-gray-500 text-right">
+                  期間: {new Date(analytics.from_date).toLocaleDateString('ja-JP')} 〜{' '}
+                  {new Date(analytics.to_date).toLocaleDateString('ja-JP')}
+                </div>
+              )}
             </>
-          ) : (
-            <div className="text-center py-12 text-gray-400">
-              <svg className="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              <p>利用統計を読み込めませんでした</p>
-            </div>
           )}
         </div>
       )}
@@ -883,6 +1069,55 @@ export default function SalonDetailPage() {
               <button
                 onClick={handleUpdateSeats}
                 disabled={isSubmitting || seatsReason.length < 10}
+                className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+              >
+                {isSubmitting ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* スタッフ上限変更モーダル */}
+      {showStaffLimitModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-2xl w-full max-w-md border border-gray-700">
+            <div className="p-6 border-b border-gray-700">
+              <h3 className="text-lg font-semibold text-white">スタッフ上限を変更</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">新しいスタッフ上限</label>
+                <input
+                  type="number"
+                  value={newStaffLimit}
+                  onChange={(e) => setNewStaffLimit(parseInt(e.target.value))}
+                  min={1}
+                  max={1000}
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">変更理由（10文字以上）</label>
+                <textarea
+                  value={staffLimitReason}
+                  onChange={(e) => setStaffLimitReason(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  placeholder="変更理由を入力してください..."
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-700 flex gap-3">
+              <button
+                onClick={() => setShowStaffLimitModal(false)}
+                className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleUpdateStaffLimit}
+                disabled={isSubmitting || staffLimitReason.length < 10}
                 className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
               >
                 {isSubmitting ? '保存中...' : '保存'}

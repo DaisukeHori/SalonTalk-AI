@@ -255,6 +255,45 @@ serve(async (req: Request) => {
       return respond({ data: { success: true, message: 'Seats count updated successfully' } });
     }
 
+    // PATCH /salons/:id/staff-limit - Update staff limit
+    if (path.match(/^\/salons\/[^/]+\/staff-limit$/) && req.method === 'PATCH') {
+      const salon_id = path.split('/')[2];
+      const { staff_limit, reason } = await req.json();
+
+      if (typeof staff_limit !== 'number' || staff_limit < 1 || staff_limit > 1000) {
+        return respond({ error: { code: 'INVALID_INPUT', message: 'staff_limit must be between 1 and 1000' } }, 400);
+      }
+
+      // Get old value for audit log
+      const { data: oldSalon } = await supabaseAdmin
+        .from('salons')
+        .select('staff_limit')
+        .eq('id', salon_id)
+        .single();
+
+      // Update salon
+      const { error: updateError } = await supabaseAdmin
+        .from('salons')
+        .update({ staff_limit })
+        .eq('id', salon_id);
+
+      if (updateError) throw updateError;
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
+        p_operator_id: session.operator_id,
+        p_action: 'salon.staff_limit_change',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: null,
+        p_details: { old_staff_limit: oldSalon?.staff_limit, new_staff_limit: staff_limit, reason },
+        p_ip_address: ip_address,
+        p_user_agent: user_agent,
+      });
+
+      return respond({ data: { success: true, message: 'Staff limit updated successfully' } });
+    }
+
     // PATCH /salons/:id/plan - Update plan (admin only)
     if (path.match(/^\/salons\/[^/]+\/plan$/) && req.method === 'PATCH') {
       requireAdmin();

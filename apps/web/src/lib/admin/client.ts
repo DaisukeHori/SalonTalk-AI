@@ -21,6 +21,7 @@ export interface Salon {
   name: string;
   plan: 'free' | 'standard' | 'premium' | 'enterprise';
   seats_count: number;
+  staff_limit: number;
   status: 'active' | 'suspended';
   suspended_at: string | null;
   suspended_reason: string | null;
@@ -218,6 +219,17 @@ export async function updateSalonSeats(
   return request(`/salons/${id}/seats`, {
     method: 'PATCH',
     body: JSON.stringify({ seats_count, reason }),
+  });
+}
+
+export async function updateSalonStaffLimit(
+  id: string,
+  staff_limit: number,
+  reason?: string
+): Promise<ApiResponse<{ success: boolean; message: string }>> {
+  return request(`/salons/${id}/staff-limit`, {
+    method: 'PATCH',
+    body: JSON.stringify({ staff_limit, reason }),
   });
 }
 
