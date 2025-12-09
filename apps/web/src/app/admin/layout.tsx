@@ -17,16 +17,16 @@ export default function AdminLayout({
 
   useEffect(() => {
     async function checkAuth() {
-      // Skip auth check for login page
+      // Skip auth check for login page (redirect to unified login)
       if (pathname === '/admin/login') {
-        setIsLoading(false);
+        window.location.href = '/login';
         return;
       }
 
       // Check if user is authenticated with Supabase
       const authenticated = await isAuthenticated();
       if (!authenticated) {
-        router.replace('/admin/login');
+        window.location.href = '/login';
         return;
       }
 
@@ -34,7 +34,7 @@ export default function AdminLayout({
       const { data, error } = await getMe();
       if (error || !data) {
         await signOut();
-        router.replace('/admin/login');
+        window.location.href = '/login';
         return;
       }
 
@@ -47,7 +47,7 @@ export default function AdminLayout({
 
   const handleLogout = async () => {
     await signOut();
-    router.replace('/admin/login');
+    window.location.href = '/login';
   };
 
   // Show loading state
