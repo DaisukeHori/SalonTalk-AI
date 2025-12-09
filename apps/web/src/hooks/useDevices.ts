@@ -80,7 +80,7 @@ export function useDevices(): UseDevicesReturn {
         .from('staffs')
         .select('salon_id')
         .eq('id', user.id)
-        .single();
+        .single<{ salon_id: string }>();
 
       if (staffError || !currentStaff) {
         setError('店舗情報の取得に失敗しました');
@@ -88,32 +88,36 @@ export function useDevices(): UseDevicesReturn {
         return;
       }
 
+      const salonId = currentStaff.salon_id;
+
       // Fetch salon info for seats_count
       const { data: salon, error: salonError } = await supabase
         .from('salons')
         .select('seats_count')
-        .eq('id', currentStaff.salon_id)
-        .single();
+        .eq('id', salonId)
+        .single<{ seats_count: number | null }>();
 
       if (salonError) {
         console.error('Salon fetch error:', salonError);
       }
 
       // Fetch devices
-      const { data: deviceList, error: devicesError } = await supabase
+      const devicesResult = await supabase
         .from('devices')
         .select('*')
-        .eq('salon_id', currentStaff.salon_id)
+        .eq('salon_id', salonId)
         .order('created_at', { ascending: true });
 
-      if (devicesError) {
+      if (devicesResult.error) {
         setError('デバイスの取得に失敗しました');
         setIsLoading(false);
         return;
       }
 
+      const deviceList = devicesResult.data as Device[] | null;
+
       const now = Date.now();
-      const activeDeviceCount = (deviceList || []).filter(d => d.status === 'active').length;
+      const activeDeviceCount = (deviceList || []).filter((d) => d.status === 'active').length;
 
       // Add computed properties
       const devicesWithStatus = (deviceList || []).map((device: Device) => {

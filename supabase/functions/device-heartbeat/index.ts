@@ -50,31 +50,70 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Update last_active_at for the device
-    const { data: device, error: updateError } = await supabase
+    // First check if device exists and its status
+    const { data: deviceInfo, error: deviceError } = await supabase
       .from('devices')
-      .update({ last_active_at: new Date().toISOString() })
+      .select('id, device_name, salon_id, status')
       .eq('device_identifier', body.device_identifier)
-      .eq('status', 'active')
-      .select('id, device_name, salon_id')
       .single();
 
-    if (updateError || !device) {
-      // Device not found or not active
+    if (deviceError || !deviceInfo) {
+      // Device not found
       return new Response(
         JSON.stringify({
-          success: false,
-          message: 'Device not found or not active',
+          data: {
+            success: false,
+            message: 'Device not found',
+          }
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Check if device is revoked
+    if (deviceInfo.status === 'revoked') {
+      return new Response(
+        JSON.stringify({
+          data: {
+            success: false,
+            revoked: true,
+            message: 'Device has been revoked',
+          }
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if device is not active
+    if (deviceInfo.status !== 'active') {
+      return new Response(
+        JSON.stringify({
+          data: {
+            success: false,
+            message: 'Device is not active',
+          }
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Update last_active_at for active device
+    const { error: updateError } = await supabase
+      .from('devices')
+      .update({ last_active_at: new Date().toISOString() })
+      .eq('id', deviceInfo.id);
+
+    if (updateError) {
+      console.error('Heartbeat update error:', updateError);
+    }
+
     return new Response(
       JSON.stringify({
-        success: true,
-        device_id: device.id,
-        timestamp: new Date().toISOString(),
+        data: {
+          success: true,
+          device_id: deviceInfo.id,
+          timestamp: new Date().toISOString(),
+        }
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

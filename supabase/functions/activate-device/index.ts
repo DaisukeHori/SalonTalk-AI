@@ -6,6 +6,9 @@
  *
  * POST /activate-device
  * Body: { activation_code: string, device_identifier: string, metadata?: object }
+ *
+ * Response format (for mobile app):
+ * { data: { success, device_id, device_identifier, salon_id, salon_name, device_name, seat_number } }
  */
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
@@ -22,12 +25,14 @@ interface ActivateDeviceRequest {
   };
 }
 
-interface ActivateDeviceResponse {
+interface ActivationResult {
   success: boolean;
-  device_id: string | null;
-  salon_id: string | null;
-  device_name: string | null;
-  message: string;
+  device_id: string;
+  device_identifier: string;
+  salon_id: string;
+  salon_name: string;
+  device_name: string;
+  seat_number: number | null;
 }
 
 serve(async (req: Request) => {
@@ -37,7 +42,7 @@ serve(async (req: Request) => {
 
   if (req.method !== 'POST') {
     return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
+      JSON.stringify({ error: { message: 'Method not allowed' } }),
       { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -46,11 +51,16 @@ serve(async (req: Request) => {
     const body: ActivateDeviceRequest = await req.json();
 
     // Validate required fields
-    if (!body.activation_code || !body.device_identifier) {
+    if (!body.activation_code) {
       return new Response(
-        JSON.stringify({
-          error: 'Missing required fields: activation_code, device_identifier'
-        }),
+        JSON.stringify({ error: { message: 'アクティベーションコードを入力してください' } }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!body.device_identifier) {
+      return new Response(
+        JSON.stringify({ error: { message: 'デバイス識別子が必要です' } }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -58,7 +68,7 @@ serve(async (req: Request) => {
     // Validate activation code format (6 digits)
     if (!/^\d{6}$/.test(body.activation_code)) {
       return new Response(
-        JSON.stringify({ error: 'Invalid activation code format (must be 6 digits)' }),
+        JSON.stringify({ error: { message: '無効なコード形式です（6桁の数字）' } }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -79,38 +89,70 @@ serve(async (req: Request) => {
     if (error) {
       console.error('Activation error:', error);
       return new Response(
-        JSON.stringify({ error: 'Activation failed', details: error.message }),
+        JSON.stringify({ error: { message: 'アクティベーションに失敗しました' } }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const result = data?.[0] as ActivateDeviceResponse | undefined;
+    const dbResult = data?.[0] as {
+      success: boolean;
+      device_id: string | null;
+      salon_id: string | null;
+      device_name: string | null;
+      message: string;
+    } | undefined;
 
-    if (!result || !result.success) {
+    if (!dbResult || !dbResult.success) {
+      // Map error messages to Japanese
+      let errorMessage = 'アクティベーションに失敗しました';
+      const msg = dbResult?.message?.toLowerCase() || '';
+
+      if (msg.includes('invalid') || msg.includes('expired')) {
+        errorMessage = '無効または期限切れのアクティベーションコードです';
+      }
+
       return new Response(
-        JSON.stringify({
-          success: false,
-          message: result?.message || 'Invalid or expired activation code'
-        }),
+        JSON.stringify({ error: { message: errorMessage } }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Fetch additional data (salon_name, seat_number)
+    const { data: deviceData, error: deviceError } = await supabase
+      .from('devices')
+      .select(`
+        seat_number,
+        salons!inner (
+          name
+        )
+      `)
+      .eq('id', dbResult.device_id)
+      .single();
+
+    if (deviceError) {
+      console.error('Device fetch error:', deviceError);
+    }
+
+    // Build response matching mobile app expectations
+    const result: ActivationResult = {
+      success: true,
+      device_id: dbResult.device_id!,
+      device_identifier: body.device_identifier,
+      salon_id: dbResult.salon_id!,
+      salon_name: (deviceData?.salons as { name: string })?.name || '',
+      device_name: dbResult.device_name || '',
+      seat_number: deviceData?.seat_number ?? null,
+    };
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        device_id: result.device_id,
-        salon_id: result.salon_id,
-        device_name: result.device_name,
-        message: result.message,
-      }),
+      JSON.stringify({ data: result }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('Unexpected error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: { message: 'サーバーエラーが発生しました' } }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

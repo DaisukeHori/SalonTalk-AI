@@ -14,6 +14,8 @@ PODS:
     - ExpoModulesCore
   - ExpoAsset (10.0.10):
     - ExpoModulesCore
+  - ExpoCrypto (13.0.2):
+    - ExpoModulesCore
   - ExpoFileSystem (17.0.1):
     - ExpoModulesCore
   - ExpoFont (12.0.10):
@@ -1293,6 +1295,7 @@ DEPENDENCIES:
   - "EXNotifications (from `../../../node_modules/.pnpm/expo-notifications@0.28.19_expo@51.0.39_@babel+core@7.28.5_@babel+preset-env@7.28.5_@babel+co_vzkwsfbhod74qkbs7eb2wqgknq/node_modules/expo-notifications/ios`)"
   - "Expo (from `../../../node_modules/.pnpm/expo@51.0.39_@babel+core@7.28.5_@babel+preset-env@7.28.5_@babel+core@7.28.5__react-native@0.7_4sqmg62d3cixomcpejaycasmxy/node_modules/expo`)"
   - "ExpoAsset (from `../../../node_modules/.pnpm/expo-asset@10.0.10_expo@51.0.39_@babel+core@7.28.5_@babel+preset-env@7.28.5_@babel+core@7.28._neshkv55xdscizaxot3o4ifhzi/node_modules/expo-asset/ios`)"
+  - "ExpoCrypto (from `../../../node_modules/.pnpm/expo-crypto@13.0.2_expo@51.0.39_@babel+core@7.28.5_@babel+preset-env@7.28.5_@babel+core@7.28._gjemitc46gmob7znl65ooi7rbe/node_modules/expo-crypto/ios`)"
   - "ExpoFileSystem (from `../../../node_modules/.pnpm/expo-file-system@17.0.1_expo@51.0.39_@babel+core@7.28.5_@babel+preset-env@7.28.5_@babel+core@_6kegb5gdhamigighzntehimsxe/node_modules/expo-file-system/ios`)"
   - "ExpoFont (from `../../../node_modules/.pnpm/expo-font@12.0.10_expo@51.0.39_@babel+core@7.28.5_@babel+preset-env@7.28.5_@babel+core@7.28.5_d6hcoyja6a5pu4gkidx5kvmdze/node_modules/expo-font/ios`)"
   - "ExpoHead (from `../../../node_modules/.pnpm/expo-router@3.5.24_j4346sxdzyb7ymjdaxrwkfvp74/node_modules/expo-router/ios`)"
@@ -1381,6 +1384,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/.pnpm/expo@51.0.39_@babel+core@7.28.5_@babel+preset-env@7.28.5_@babel+core@7.28.5__react-native@0.7_4sqmg62d3cixomcpejaycasmxy/node_modules/expo"
   ExpoAsset:
     :path: "../../../node_modules/.pnpm/expo-asset@10.0.10_expo@51.0.39_@babel+core@7.28.5_@babel+preset-env@7.28.5_@babel+core@7.28._neshkv55xdscizaxot3o4ifhzi/node_modules/expo-asset/ios"
+  ExpoCrypto:
+    :path: "../../../node_modules/.pnpm/expo-crypto@13.0.2_expo@51.0.39_@babel+core@7.28.5_@babel+preset-env@7.28.5_@babel+core@7.28._gjemitc46gmob7znl65ooi7rbe/node_modules/expo-crypto/ios"
   ExpoFileSystem:
     :path: "../../../node_modules/.pnpm/expo-file-system@17.0.1_expo@51.0.39_@babel+core@7.28.5_@babel+preset-env@7.28.5_@babel+core@_6kegb5gdhamigighzntehimsxe/node_modules/expo-file-system/ios"
   ExpoFont:
@@ -1520,6 +1525,7 @@ SPEC CHECKSUMS:
   EXNotifications: 6ce128c0d3d3d161cd68bfd07d593db40e140396
   Expo: ed0a748eb6be0efd2c3df7f6de3f3158a14464c9
   ExpoAsset: 286fee7ba711ce66bf20b315e68106b13b8629fc
+  ExpoCrypto: c5c052d5f9f668c21975cb4caf072cec23c823fa
   ExpoFileSystem: 2988caaf68b7cb706e36d382829d99811d9d76a5
   ExpoFont: 38dddf823e32740c2a9f37c926a33aeca736b5c4
   ExpoHead: 1a1b30c6c1d125e9b8a199ca305c16a1dc041624
