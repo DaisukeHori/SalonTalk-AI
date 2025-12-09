@@ -1,5 +1,4 @@
 const { getDefaultConfig } = require('expo/metro-config');
-const { withNativeWind } = require('nativewind/metro');
 const path = require('path');
 
 const projectRoot = __dirname;
@@ -16,7 +15,10 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-// Allow hierarchical lookup for better pnpm compatibility
-// config.resolver.disableHierarchicalLookup = true;
+// Enable symlinks for pnpm compatibility
+config.resolver.unstable_enableSymlinks = true;
 
-module.exports = withNativeWind(config, { input: './src/global.css' });
+// Enable package exports for pnpm compatibility
+config.resolver.unstable_enablePackageExports = true;
+
+module.exports = config;

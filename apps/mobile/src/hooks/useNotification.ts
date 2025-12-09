@@ -5,6 +5,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Vibration, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 
 type NotificationType = 'concern_detected' | 'proposal_chance' | 'score_alert' | 'info';
 
@@ -53,6 +54,13 @@ export function useNotification() {
 
     if (finalStatus !== 'granted') {
       console.log('Push notification permission not granted');
+      return;
+    }
+
+    // Only get push token on physical devices
+    const isSimulator = Constants.executionEnvironment === 'storeClient' ? false : !Constants.isDevice;
+    if (isSimulator) {
+      console.log('Push notifications not supported on simulator');
       return;
     }
 

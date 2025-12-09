@@ -4,6 +4,7 @@
  */
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { apiService } from './ApiService';
 import { storageService } from './StorageService';
 
@@ -59,7 +60,14 @@ class NotificationService {
       });
     }
 
-    // Get push token
+    // Get push token (only on physical devices)
+    // Check if running in simulator using Constants
+    const isSimulator = Constants.executionEnvironment === 'storeClient' ? false : !Constants.isDevice;
+    if (isSimulator) {
+      console.log('Push notifications not supported on simulator');
+      return null;
+    }
+
     try {
       const token = (await Notifications.getExpoPushTokenAsync()).data;
       await this.registerToken(token);
