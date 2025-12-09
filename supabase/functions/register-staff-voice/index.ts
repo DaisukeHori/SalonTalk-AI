@@ -99,15 +99,13 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Convert embedding array to PostgreSQL vector format string
-    const embeddingVector = `[${body.embedding.join(',')}]`;
-
     // Register voice embedding
+    // Pass embedding array directly - Supabase/pgvector handles conversion
     const { data: result, error: rpcError } = await serviceSupabase.rpc(
       'register_staff_voice',
       {
         staff_id_param: user.id,
-        embedding_param: embeddingVector,
+        embedding_param: body.embedding,  // Pass array directly
         is_additional: body.is_additional || false,
       }
     );

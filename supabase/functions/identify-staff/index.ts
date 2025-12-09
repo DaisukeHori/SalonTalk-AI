@@ -135,12 +135,12 @@ serve(async (req: Request) => {
 
     // Try to match each speaker, prioritizing longest speaker
     for (const speaker of sortedSpeakers) {
-      const embeddingVector = `[${speaker.embedding.join(',')}]`;
-
+      // pgvector expects vector as string format '[1,2,3,...]' for casting
+      // Use SQL function with explicit cast to avoid type coercion issues
       const { data: matches, error: matchError } = await supabase.rpc(
         'match_staff_by_voice',
         {
-          query_embedding: embeddingVector,
+          query_embedding: speaker.embedding,  // Pass array directly - Supabase handles conversion
           salon_id_param: session.salon_id,
           match_threshold: 0.65,
           match_count: 1,
