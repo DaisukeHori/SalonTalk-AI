@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithEmail } from '@/lib/supabase/client';
+import { signInWithEmail, getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,9 +31,40 @@ export default function LoginPage() {
       }
 
       if (data.session) {
-        router.replace('/dashboard');
+        const userId = data.session.user.id;
+        const supabase = getSupabaseBrowserClient();
+
+        // Check if user is an operator (operator_admins table)
+        const { data: operator } = await supabase
+          .from('operator_admins')
+          .select('id, is_active')
+          .eq('id', userId)
+          .single();
+
+        if (operator && operator.is_active) {
+          // User is an active operator → redirect to admin
+          window.location.href = '/admin';
+          return;
+        }
+
+        // Check if user is a staff (staffs table)
+        const { data: staff } = await supabase
+          .from('staffs')
+          .select('id, is_active')
+          .eq('id', userId)
+          .single();
+
+        if (staff && staff.is_active) {
+          // User is an active staff → redirect to dashboard
+          window.location.href = '/dashboard';
+          return;
+        }
+
+        // User exists in auth but not in staffs or operator_admins
+        setError('アカウントが見つかりません。管理者にお問い合わせください。');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('ログインに失敗しました');
     } finally {
       setIsLoading(false);
