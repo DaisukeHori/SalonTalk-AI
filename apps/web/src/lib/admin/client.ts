@@ -491,3 +491,17 @@ export async function createOperator(data: {
     body: JSON.stringify(data),
   });
 }
+
+export async function updateOperator(
+  operatorId: string,
+  data: {
+    role?: 'operator_admin' | 'operator_support';
+    is_active?: boolean;
+    name?: string;
+  }
+): Promise<ApiResponse<Operator>> {
+  return request(`/operators/${operatorId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}

@@ -47,7 +47,10 @@ serve(async (req: Request) => {
 
   try {
     // Get client info for audit logging
-    const ip_address = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null;
+    // x-forwarded-for may contain multiple IPs: "client, proxy1, proxy2"
+    // Extract the first IP (client IP) for INET compatibility
+    const rawIp = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null;
+    const ip_address = rawIp ? rawIp.split(',')[0].trim() : null;
     const user_agent = req.headers.get('user-agent') || null;
 
     // ============================================================
@@ -102,6 +105,29 @@ serve(async (req: Request) => {
     const requireAdmin = () => {
       if (session.role !== 'operator_admin') {
         throw new Error('FORBIDDEN');
+      }
+    };
+
+    // Helper function to record audit log with error handling
+    const recordAuditLog = async (params: {
+      action: string;
+      target_type: 'salon' | 'operator' | 'system';
+      target_id: string | null;
+      target_name: string | null;
+      details: Record<string, unknown>;
+    }) => {
+      const { error: auditError } = await supabaseAdmin.rpc('record_audit_log', {
+        p_operator_id: session.operator_id,
+        p_action: params.action,
+        p_target_type: params.target_type,
+        p_target_id: params.target_id,
+        p_target_name: params.target_name,
+        p_details: params.details,
+        p_ip_address: ip_address,
+        p_user_agent: user_agent,
+      });
+      if (auditError) {
+        console.error('Failed to record audit log:', auditError);
       }
     };
 
@@ -241,15 +267,12 @@ serve(async (req: Request) => {
       if (updateError) throw updateError;
 
       // Record audit log
-      await supabaseAdmin.rpc('record_audit_log', {
-        p_operator_id: session.operator_id,
-        p_action: 'salon.seats_change',
-        p_target_type: 'salon',
-        p_target_id: salon_id,
-        p_target_name: null,
-        p_details: { old_seats: oldSalon?.seats_count, new_seats: seats_count, reason },
-        p_ip_address: ip_address,
-        p_user_agent: user_agent,
+      await recordAuditLog({
+        action: 'salon.seats_change',
+        target_type: 'salon',
+        target_id: salon_id,
+        target_name: null,
+        details: { old_seats: oldSalon?.seats_count, new_seats: seats_count, reason },
       });
 
       return respond({ data: { success: true, message: 'Seats count updated successfully' } });
@@ -280,15 +303,12 @@ serve(async (req: Request) => {
       if (updateError) throw updateError;
 
       // Record audit log
-      await supabaseAdmin.rpc('record_audit_log', {
-        p_operator_id: session.operator_id,
-        p_action: 'salon.staff_limit_change',
-        p_target_type: 'salon',
-        p_target_id: salon_id,
-        p_target_name: null,
-        p_details: { old_staff_limit: oldSalon?.staff_limit, new_staff_limit: staff_limit, reason },
-        p_ip_address: ip_address,
-        p_user_agent: user_agent,
+      await recordAuditLog({
+        action: 'salon.staff_limit_change',
+        target_type: 'salon',
+        target_id: salon_id,
+        target_name: null,
+        details: { old_staff_limit: oldSalon?.staff_limit, new_staff_limit: staff_limit, reason },
       });
 
       return respond({ data: { success: true, message: 'Staff limit updated successfully' } });
@@ -321,15 +341,12 @@ serve(async (req: Request) => {
       if (updateError) throw updateError;
 
       // Record audit log
-      await supabaseAdmin.rpc('record_audit_log', {
-        p_operator_id: session.operator_id,
-        p_action: 'salon.plan_change',
-        p_target_type: 'salon',
-        p_target_id: salon_id,
-        p_target_name: null,
-        p_details: { old_plan: oldSalon?.plan, new_plan: plan, reason },
-        p_ip_address: ip_address,
-        p_user_agent: user_agent,
+      await recordAuditLog({
+        action: 'salon.plan_change',
+        target_type: 'salon',
+        target_id: salon_id,
+        target_name: null,
+        details: { old_plan: oldSalon?.plan, new_plan: plan, reason },
       });
 
       return respond({ data: { success: true, message: 'Plan updated successfully' } });
@@ -1339,6 +1356,73 @@ serve(async (req: Request) => {
       });
 
       return respond({ data: operator }, 201);
+    }
+
+    // PATCH /operators/:id - Update operator (admin only)
+    if (path.match(/^\/operators\/[^/]+$/) && req.method === 'PATCH') {
+      requireAdmin();
+      const operator_id = path.split('/')[2];
+      const { role, is_active, name } = await req.json();
+
+      // Prevent self-deactivation
+      if (operator_id === session.operator_id && is_active === false) {
+        return respond({ error: { code: 'FORBIDDEN', message: 'Cannot deactivate your own account' } }, 403);
+      }
+
+      // Build update object
+      const updates: Record<string, unknown> = {};
+      if (role !== undefined) {
+        const validRoles = ['operator_admin', 'operator_support'];
+        if (!validRoles.includes(role)) {
+          return respond({ error: { code: 'INVALID_INPUT', message: 'Invalid role' } }, 400);
+        }
+        updates.role = role;
+      }
+      if (is_active !== undefined) {
+        updates.is_active = is_active;
+      }
+      if (name !== undefined) {
+        updates.name = name;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return respond({ error: { code: 'INVALID_INPUT', message: 'No fields to update' } }, 400);
+      }
+
+      // Get old values for audit log
+      const { data: oldOperator } = await supabaseAdmin
+        .from('operator_admins')
+        .select('role, is_active, name')
+        .eq('id', operator_id)
+        .single();
+
+      if (!oldOperator) {
+        return respond({ error: { code: 'NOT_FOUND', message: 'Operator not found' } }, 404);
+      }
+
+      // Update operator
+      const { data: updatedOperator, error: updateError } = await supabaseAdmin
+        .from('operator_admins')
+        .update(updates)
+        .eq('id', operator_id)
+        .select('id, email, name, role, is_active, created_at')
+        .single();
+
+      if (updateError) throw updateError;
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
+        p_operator_id: session.operator_id,
+        p_action: 'operator.update',
+        p_target_type: 'operator',
+        p_target_id: operator_id,
+        p_target_name: updatedOperator.email,
+        p_details: { before: oldOperator, after: updates },
+        p_ip_address: ip_address,
+        p_user_agent: user_agent,
+      });
+
+      return respond({ data: updatedOperator });
     }
 
     // 404 - Not found
