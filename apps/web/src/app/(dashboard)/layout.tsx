@@ -9,6 +9,7 @@ const navigation = [
   { name: 'スタッフ', href: '/dashboard/staff', icon: '👥' },
   { name: '成功事例', href: '/dashboard/success-cases', icon: '🏆' },
   { name: 'トレーニング', href: '/dashboard/training', icon: '📚' },
+  { name: 'デバイス', href: '/dashboard/devices', icon: '📱' },
   { name: '設定', href: '/dashboard/settings', icon: '⚙️' },
 ];
 
