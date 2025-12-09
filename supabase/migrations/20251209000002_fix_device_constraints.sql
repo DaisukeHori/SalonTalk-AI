@@ -49,14 +49,14 @@ ALTER TABLE device_seat_history ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "seat_history_select" ON device_seat_history
   FOR SELECT USING (
     device_id IN (
-      SELECT id FROM devices WHERE salon_id = get_current_salon_id()
+      SELECT id FROM devices WHERE salon_id = get_current_user_salon_id()
     )
   );
 
 CREATE POLICY "seat_history_insert" ON device_seat_history
   FOR INSERT WITH CHECK (
     device_id IN (
-      SELECT id FROM devices WHERE salon_id = get_current_salon_id()
+      SELECT id FROM devices WHERE salon_id = get_current_user_salon_id()
     )
   );
 

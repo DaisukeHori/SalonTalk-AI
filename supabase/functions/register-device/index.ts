@@ -87,12 +87,57 @@ serve(async (req: Request) => {
       );
     }
 
-    // Create device using service role to bypass RLS for insert
+    // Create service client for checks and inserts
     const serviceSupabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    // Check seats_count limit (FR-1101)
+    const { data: salon, error: salonError } = await serviceSupabase
+      .from('salons')
+      .select('seats_count')
+      .eq('id', staff.salon_id)
+      .single();
+
+    if (salonError) {
+      console.error('Salon fetch error:', salonError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch salon information' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // If seats_count is set, check device limit
+    if (salon.seats_count !== null) {
+      const { count: deviceCount, error: countError } = await serviceSupabase
+        .from('devices')
+        .select('*', { count: 'exact', head: true })
+        .eq('salon_id', staff.salon_id)
+        .in('status', ['pending', 'active']);
+
+      if (countError) {
+        console.error('Device count error:', countError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to check device count' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if ((deviceCount || 0) >= salon.seats_count) {
+        return new Response(
+          JSON.stringify({
+            error: 'Device limit reached',
+            message: `This salon can have up to ${salon.seats_count} devices. Current: ${deviceCount}`,
+            limit: salon.seats_count,
+            current: deviceCount,
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Create device
     const { data: device, error: insertError } = await serviceSupabase
       .from('devices')
       .insert({
