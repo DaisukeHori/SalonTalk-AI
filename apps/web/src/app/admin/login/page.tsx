@@ -17,41 +17,49 @@ export default function AdminLoginPage() {
     setIsLoading(true);
 
     try {
+      console.log('[Admin Login] Step 1: Signing in with email:', email);
+
       // Sign in with Supabase Auth
       const { error: signInError } = await signIn(email, password);
 
       if (signInError) {
+        console.error('[Admin Login] Sign in failed:', signInError);
         setError(signInError);
         setIsLoading(false);
         return;
       }
 
-      // Verify user is an operator by calling getMe
-      const { data: operator, error: meError } = await getMe();
+      console.log('[Admin Login] Step 2: Sign in successful, calling getMe...');
 
-      if (meError) {
+      // Verify user is an operator by calling getMe
+      const response = await getMe();
+      console.log('[Admin Login] getMe response:', JSON.stringify(response, null, 2));
+
+      if (response.error) {
+        console.error('[Admin Login] getMe error:', response.error);
         // User authenticated but not an operator
-        if (meError.code === 'FORBIDDEN') {
+        if (response.error.code === 'FORBIDDEN') {
           setError('This account is not an operator account');
         } else {
-          setError(meError.message);
+          setError(response.error.message || 'Unknown error');
         }
         setIsLoading(false);
         return;
       }
 
-      if (operator) {
-        // Use push and don't reset loading - let the new page handle its own loading state
-        router.push('/admin');
-        // Don't set loading to false - keep showing loading until navigation completes
+      if (response.data) {
+        console.log('[Admin Login] Step 3: Operator verified, redirecting to /admin');
+        // Force navigation using window.location for debugging
+        window.location.href = '/admin';
         return;
       } else {
+        console.error('[Admin Login] No operator data returned');
         setError('Failed to verify operator account');
         setIsLoading(false);
       }
     } catch (err) {
-      console.error('Login error:', err);
-      setError('Login failed');
+      console.error('[Admin Login] Unexpected error:', err);
+      setError('Login failed: ' + (err instanceof Error ? err.message : String(err)));
       setIsLoading(false);
     }
   };
