@@ -1,0 +1,139 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { login, setToken } from '@/lib/admin/client';
+
+export default function AdminLoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
+  const [showMfa, setShowMfa] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const { data, error: apiError } = await login(
+        email,
+        password,
+        showMfa ? mfaCode : undefined
+      );
+
+      if (apiError) {
+        if (apiError.code === 'MFA_REQUIRED') {
+          setShowMfa(true);
+          setIsLoading(false);
+          return;
+        }
+        setError(
+          apiError.code === 'INVALID_CREDENTIALS'
+            ? 'Invalid email or password'
+            : apiError.code === 'INVALID_MFA'
+            ? 'Invalid MFA code'
+            : apiError.message
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      if (data?.token) {
+        setToken(data.token);
+        router.replace('/admin');
+      }
+    } catch {
+      setError('Login failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="w-full max-w-md">
+      <div className="bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-700">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-orange-500 mb-2">SalonTalk Admin</h1>
+          <p className="text-gray-400">Operator Console</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="bg-red-500/10 text-red-400 px-4 py-3 rounded-lg text-sm border border-red-500/20">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder="operator@salontalk.jp"
+              required
+              disabled={isLoading}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder="Password"
+              required
+              disabled={isLoading}
+            />
+          </div>
+
+          {showMfa && (
+            <div>
+              <label htmlFor="mfa" className="block text-sm font-medium text-gray-300 mb-2">
+                MFA Code
+              </label>
+              <input
+                id="mfa"
+                type="text"
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent tracking-widest text-center text-xl"
+                placeholder="000000"
+                maxLength={6}
+                pattern="[0-9]{6}"
+                required
+                disabled={isLoading}
+                autoFocus
+              />
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-orange-500 text-white py-3 rounded-lg font-medium hover:bg-orange-600 transition-colors disabled:opacity-50"
+          >
+            {isLoading ? 'Loading...' : 'Login'}
+          </button>
+        </form>
+      </div>
+
+      <p className="text-center text-gray-500 text-sm mt-8">
+        Revol Corporation - Internal Use Only
+      </p>
+    </div>
+  );
+}
