@@ -124,7 +124,9 @@ serve(async (req: Request) => {
     if (path === '/dashboard' && req.method === 'GET') {
       const { data, error } = await supabaseAdmin.rpc('admin_get_dashboard_stats');
       if (error) throw error;
-      return respond({ data });
+      // RPC returns an array of rows, take the first one
+      const stats = Array.isArray(data) ? data[0] : data;
+      return respond({ data: stats });
     }
 
     // GET /salons - List salons with search and pagination
@@ -141,7 +143,8 @@ serve(async (req: Request) => {
         .select('*, staffs(count)', { count: 'exact' });
 
       if (search) {
-        query = query.or(`name.ilike.%${search}%,id::text.ilike.%${search}%`);
+        // Only search by name (UUID search is complex)
+        query = query.ilike('name', `%${search}%`);
       }
       if (status) {
         query = query.eq('status', status);
@@ -222,17 +225,34 @@ serve(async (req: Request) => {
         return respond({ error: { code: 'INVALID_INPUT', message: 'seats_count must be between 1 and 100' } }, 400);
       }
 
-      const { data, error } = await supabaseAdmin.rpc('admin_update_salon_seats', {
+      // Get old value for audit log
+      const { data: oldSalon } = await supabaseAdmin
+        .from('salons')
+        .select('seats_count')
+        .eq('id', salon_id)
+        .single();
+
+      // Update salon
+      const { error: updateError } = await supabaseAdmin
+        .from('salons')
+        .update({ seats_count })
+        .eq('id', salon_id);
+
+      if (updateError) throw updateError;
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
         p_operator_id: session.operator_id,
-        p_salon_id: salon_id,
-        p_new_seats_count: seats_count,
-        p_reason: reason || null,
+        p_action: 'salon.seats_change',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: null,
+        p_details: { old_seats: oldSalon?.seats_count, new_seats: seats_count, reason },
         p_ip_address: ip_address,
         p_user_agent: user_agent,
       });
 
-      if (error) throw error;
-      return respond({ data });
+      return respond({ data: { success: true, message: 'Seats count updated successfully' } });
     }
 
     // PATCH /salons/:id/plan - Update plan (admin only)
@@ -246,17 +266,34 @@ serve(async (req: Request) => {
         return respond({ error: { code: 'INVALID_INPUT', message: 'Invalid plan' } }, 400);
       }
 
-      const { data, error } = await supabaseAdmin.rpc('admin_update_salon_plan', {
+      // Get old value for audit log
+      const { data: oldSalon } = await supabaseAdmin
+        .from('salons')
+        .select('plan')
+        .eq('id', salon_id)
+        .single();
+
+      // Update salon
+      const { error: updateError } = await supabaseAdmin
+        .from('salons')
+        .update({ plan })
+        .eq('id', salon_id);
+
+      if (updateError) throw updateError;
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
         p_operator_id: session.operator_id,
-        p_salon_id: salon_id,
-        p_new_plan: plan,
-        p_reason: reason || null,
+        p_action: 'salon.plan_change',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: null,
+        p_details: { old_plan: oldSalon?.plan, new_plan: plan, reason },
         p_ip_address: ip_address,
         p_user_agent: user_agent,
       });
 
-      if (error) throw error;
-      return respond({ data });
+      return respond({ data: { success: true, message: 'Plan updated successfully' } });
     }
 
     // POST /salons/:id/suspend - Suspend salon (admin only)
@@ -269,17 +306,32 @@ serve(async (req: Request) => {
         return respond({ error: { code: 'INVALID_INPUT', message: 'Reason is required' } }, 400);
       }
 
-      const { data, error } = await supabaseAdmin.rpc('admin_suspend_salon', {
+      // Update salon status
+      const { error: updateError } = await supabaseAdmin
+        .from('salons')
+        .update({
+          status: 'suspended',
+          suspended_at: new Date().toISOString(),
+          suspended_reason: reason,
+          internal_note: internal_note || null,
+        })
+        .eq('id', salon_id);
+
+      if (updateError) throw updateError;
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
         p_operator_id: session.operator_id,
-        p_salon_id: salon_id,
-        p_reason: reason,
-        p_internal_note: internal_note || null,
+        p_action: 'salon.suspend',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: null,
+        p_details: { reason, internal_note },
         p_ip_address: ip_address,
         p_user_agent: user_agent,
       });
 
-      if (error) throw error;
-      return respond({ data });
+      return respond({ data: { success: true, message: 'Salon suspended successfully' } });
     }
 
     // POST /salons/:id/unsuspend - Unsuspend salon (admin only)
@@ -288,16 +340,31 @@ serve(async (req: Request) => {
       const salon_id = path.split('/')[2];
       const { note } = await req.json();
 
-      const { data, error } = await supabaseAdmin.rpc('admin_unsuspend_salon', {
+      // Update salon status
+      const { error: updateError } = await supabaseAdmin
+        .from('salons')
+        .update({
+          status: 'active',
+          suspended_at: null,
+          suspended_reason: null,
+        })
+        .eq('id', salon_id);
+
+      if (updateError) throw updateError;
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
         p_operator_id: session.operator_id,
-        p_salon_id: salon_id,
-        p_note: note || null,
+        p_action: 'salon.unsuspend',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: null,
+        p_details: { note },
         p_ip_address: ip_address,
         p_user_agent: user_agent,
       });
 
-      if (error) throw error;
-      return respond({ data });
+      return respond({ data: { success: true, message: 'Salon unsuspended successfully' } });
     }
 
     // GET /audit-logs - List audit logs (admin only)
@@ -354,6 +421,532 @@ serve(async (req: Request) => {
           },
         },
       });
+    }
+
+    // POST /salons - Create salon
+    if (path === '/salons' && req.method === 'POST') {
+      const { name, plan, seats_count, owner_email, owner_name } = await req.json();
+
+      if (!name) {
+        return respond({ error: { code: 'INVALID_INPUT', message: 'Name is required' } }, 400);
+      }
+
+      const validPlans = ['free', 'standard', 'premium', 'enterprise'];
+      const salonPlan = validPlans.includes(plan) ? plan : 'free';
+      const salonSeats = seats_count && seats_count > 0 ? seats_count : 1;
+
+      // Create salon
+      const { data: salon, error: salonError } = await supabaseAdmin
+        .from('salons')
+        .insert({
+          name,
+          plan: salonPlan,
+          seats_count: salonSeats,
+        })
+        .select('id, name, plan, seats_count')
+        .single();
+
+      if (salonError) throw salonError;
+
+      // If owner info provided, create staff entry
+      if (owner_email && owner_name) {
+        // Create auth user for owner
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+          email: owner_email,
+          password: Math.random().toString(36).slice(-12), // Generate random password
+          email_confirm: false, // Needs to set password via reset
+        });
+
+        if (!authError && authData.user) {
+          await supabaseAdmin
+            .from('staffs')
+            .insert({
+              id: authData.user.id,
+              salon_id: salon.id,
+              email: owner_email,
+              name: owner_name,
+              role: 'owner',
+            });
+        }
+      }
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
+        p_operator_id: session.operator_id,
+        p_action: 'salon.create',
+        p_target_type: 'salon',
+        p_target_id: salon.id,
+        p_target_name: salon.name,
+        p_details: { plan: salonPlan, seats_count: salonSeats, owner_email },
+        p_ip_address: ip_address,
+        p_user_agent: user_agent,
+      });
+
+      return respond({ data: { salon_id: salon.id, message: 'Salon created successfully' } }, 201);
+    }
+
+    // GET /salons/:id/usage - Get salon usage stats
+    if (path.match(/^\/salons\/[^/]+\/usage$/) && req.method === 'GET') {
+      const salon_id = path.split('/')[2];
+
+      // Get session counts for this month and last month
+      const now = new Date();
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString();
+
+      // Sessions this month
+      const { count: sessionsThisMonth } = await supabaseAdmin
+        .from('sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('salon_id', salon_id)
+        .gte('started_at', thisMonthStart);
+
+      // Sessions last month
+      const { count: sessionsLastMonth } = await supabaseAdmin
+        .from('sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('salon_id', salon_id)
+        .gte('started_at', lastMonthStart)
+        .lte('started_at', lastMonthEnd);
+
+      // Get average session duration and scores
+      const { data: thisMonthStats } = await supabaseAdmin
+        .from('sessions')
+        .select('total_duration_ms')
+        .eq('salon_id', salon_id)
+        .gte('started_at', thisMonthStart)
+        .not('total_duration_ms', 'is', null);
+
+      const { data: lastMonthStats } = await supabaseAdmin
+        .from('sessions')
+        .select('total_duration_ms')
+        .eq('salon_id', salon_id)
+        .gte('started_at', lastMonthStart)
+        .lte('started_at', lastMonthEnd)
+        .not('total_duration_ms', 'is', null);
+
+      // Calculate averages
+      const avgDurationThis = thisMonthStats?.length
+        ? thisMonthStats.reduce((a, b) => a + (b.total_duration_ms || 0), 0) / thisMonthStats.length / 60000
+        : 0;
+      const avgDurationLast = lastMonthStats?.length
+        ? lastMonthStats.reduce((a, b) => a + (b.total_duration_ms || 0), 0) / lastMonthStats.length / 60000
+        : 0;
+
+      // Get report scores
+      const { data: thisMonthReports } = await supabaseAdmin
+        .from('session_reports')
+        .select('overall_score, is_converted, sessions!inner(salon_id, started_at)')
+        .eq('sessions.salon_id', salon_id)
+        .gte('sessions.started_at', thisMonthStart);
+
+      const { data: lastMonthReports } = await supabaseAdmin
+        .from('session_reports')
+        .select('overall_score, is_converted, sessions!inner(salon_id, started_at)')
+        .eq('sessions.salon_id', salon_id)
+        .gte('sessions.started_at', lastMonthStart)
+        .lte('sessions.started_at', lastMonthEnd);
+
+      const avgScoreThis = thisMonthReports?.length
+        ? thisMonthReports.reduce((a, b) => a + (b.overall_score || 0), 0) / thisMonthReports.length
+        : 0;
+      const avgScoreLast = lastMonthReports?.length
+        ? lastMonthReports.reduce((a, b) => a + (b.overall_score || 0), 0) / lastMonthReports.length
+        : 0;
+
+      const conversionsThis = thisMonthReports?.filter(r => r.is_converted)?.length || 0;
+      const conversionsLast = lastMonthReports?.filter(r => r.is_converted)?.length || 0;
+      const conversionRateThis = (sessionsThisMonth || 0) > 0 ? (conversionsThis / (sessionsThisMonth || 1)) * 100 : 0;
+      const conversionRateLast = (sessionsLastMonth || 0) > 0 ? (conversionsLast / (sessionsLastMonth || 1)) * 100 : 0;
+
+      // Get weekly data (last 7 days)
+      const weeklyData = [];
+      const weeklyConversions = [];
+      for (let i = 6; i >= 0; i--) {
+        const dayStart = new Date();
+        dayStart.setDate(dayStart.getDate() - i);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        const { count } = await supabaseAdmin
+          .from('sessions')
+          .select('*', { count: 'exact', head: true })
+          .eq('salon_id', salon_id)
+          .gte('started_at', dayStart.toISOString())
+          .lte('started_at', dayEnd.toISOString());
+
+        const { count: converted } = await supabaseAdmin
+          .from('session_reports')
+          .select('*, sessions!inner(salon_id, started_at)', { count: 'exact', head: true })
+          .eq('sessions.salon_id', salon_id)
+          .eq('is_converted', true)
+          .gte('sessions.started_at', dayStart.toISOString())
+          .lte('sessions.started_at', dayEnd.toISOString());
+
+        weeklyData.push(count || 0);
+        weeklyConversions.push(converted || 0);
+      }
+
+      // Get monthly history (last 6 months)
+      const monthlyHistory = [];
+      for (let i = 5; i >= 0; i--) {
+        const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+        const monthLabel = `${monthStart.getFullYear()}年${monthStart.getMonth() + 1}月`;
+
+        const { count: monthSessions } = await supabaseAdmin
+          .from('sessions')
+          .select('*', { count: 'exact', head: true })
+          .eq('salon_id', salon_id)
+          .gte('started_at', monthStart.toISOString())
+          .lte('started_at', monthEnd.toISOString());
+
+        const { data: monthReports } = await supabaseAdmin
+          .from('session_reports')
+          .select('overall_score, is_converted, sessions!inner(salon_id, started_at)')
+          .eq('sessions.salon_id', salon_id)
+          .gte('sessions.started_at', monthStart.toISOString())
+          .lte('sessions.started_at', monthEnd.toISOString());
+
+        const monthAvgScore = monthReports?.length
+          ? monthReports.reduce((a, b) => a + (b.overall_score || 0), 0) / monthReports.length
+          : 0;
+        const monthConversions = monthReports?.filter(r => r.is_converted)?.length || 0;
+        const monthConversionRate = (monthSessions || 0) > 0 ? ((monthConversions / (monthSessions || 1)) * 100).toFixed(0) + '%' : '0%';
+
+        monthlyHistory.push({
+          month: monthLabel,
+          sessions: monthSessions || 0,
+          avg_score: monthAvgScore,
+          conversions: monthConversions,
+          conversion_rate: monthConversionRate,
+        });
+      }
+
+      return respond({
+        data: {
+          sessions_this_month: sessionsThisMonth || 0,
+          sessions_last_month: sessionsLastMonth || 0,
+          avg_session_duration_min: avgDurationThis,
+          avg_session_duration_last_month_min: avgDurationLast,
+          avg_talk_score: avgScoreThis,
+          avg_talk_score_last_month: avgScoreLast,
+          conversion_rate: conversionRateThis,
+          conversion_rate_last_month: conversionRateLast,
+          weekly_sessions: weeklyData,
+          weekly_conversions: weeklyConversions,
+          monthly_history: monthlyHistory,
+        },
+      });
+    }
+
+    // POST /salons/:id/staffs - Create staff
+    if (path.match(/^\/salons\/[^/]+\/staffs$/) && req.method === 'POST') {
+      const salon_id = path.split('/')[2];
+      const { name, email, role, password } = await req.json();
+
+      if (!name || !email) {
+        return respond({ error: { code: 'INVALID_INPUT', message: 'Name and email are required' } }, 400);
+      }
+
+      const validRoles = ['stylist', 'manager', 'owner', 'admin'];
+      const staffRole = validRoles.includes(role) ? role : 'stylist';
+
+      // Create auth user
+      const tempPassword = password || Math.random().toString(36).slice(-12);
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: tempPassword,
+        email_confirm: !password, // If no password provided, user needs to reset
+      });
+
+      if (authError) {
+        if (authError.message.includes('already registered')) {
+          return respond({ error: { code: 'DUPLICATE_EMAIL', message: 'Email already exists' } }, 400);
+        }
+        throw authError;
+      }
+
+      // Create staff entry
+      const { data: staff, error: staffError } = await supabaseAdmin
+        .from('staffs')
+        .insert({
+          id: authData.user.id,
+          salon_id,
+          email,
+          name,
+          role: staffRole,
+        })
+        .select('id')
+        .single();
+
+      if (staffError) {
+        // Rollback: delete auth user
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        throw staffError;
+      }
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
+        p_operator_id: session.operator_id,
+        p_action: 'staff.create',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: name,
+        p_details: { email, role: staffRole },
+        p_ip_address: ip_address,
+        p_user_agent: user_agent,
+      });
+
+      return respond({ data: { staff_id: staff.id, message: 'Staff created successfully' } }, 201);
+    }
+
+    // PATCH /salons/:id/staffs/:staffId - Update staff
+    if (path.match(/^\/salons\/[^/]+\/staffs\/[^/]+$/) && req.method === 'PATCH') {
+      const parts = path.split('/');
+      const salon_id = parts[2];
+      const staff_id = parts[4];
+      const { name, role, is_active } = await req.json();
+
+      // Build update object
+      const updateData: Record<string, unknown> = {};
+      if (name !== undefined) updateData.name = name;
+      if (role !== undefined) {
+        const validRoles = ['stylist', 'manager', 'owner', 'admin'];
+        if (!validRoles.includes(role)) {
+          return respond({ error: { code: 'INVALID_INPUT', message: 'Invalid role' } }, 400);
+        }
+        updateData.role = role;
+      }
+      if (is_active !== undefined) updateData.is_active = is_active;
+
+      if (Object.keys(updateData).length === 0) {
+        return respond({ error: { code: 'INVALID_INPUT', message: 'No fields to update' } }, 400);
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('staffs')
+        .update(updateData)
+        .eq('id', staff_id)
+        .eq('salon_id', salon_id);
+
+      if (updateError) throw updateError;
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
+        p_operator_id: session.operator_id,
+        p_action: 'staff.update',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: name || staff_id,
+        p_details: updateData,
+        p_ip_address: ip_address,
+        p_user_agent: user_agent,
+      });
+
+      return respond({ data: { success: true, message: 'Staff updated successfully' } });
+    }
+
+    // DELETE /salons/:id/staffs/:staffId - Delete staff
+    if (path.match(/^\/salons\/[^/]+\/staffs\/[^/]+$/) && req.method === 'DELETE') {
+      const parts = path.split('/');
+      const salon_id = parts[2];
+      const staff_id = parts[4];
+
+      // Get staff info before delete
+      const { data: staff, error: getError } = await supabaseAdmin
+        .from('staffs')
+        .select('name, email')
+        .eq('id', staff_id)
+        .eq('salon_id', salon_id)
+        .single();
+
+      if (getError || !staff) {
+        return respond({ error: { code: 'NOT_FOUND', message: 'Staff not found' } }, 404);
+      }
+
+      // Delete from staffs table
+      const { error: deleteError } = await supabaseAdmin
+        .from('staffs')
+        .delete()
+        .eq('id', staff_id)
+        .eq('salon_id', salon_id);
+
+      if (deleteError) throw deleteError;
+
+      // Delete auth user
+      await supabaseAdmin.auth.admin.deleteUser(staff_id);
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
+        p_operator_id: session.operator_id,
+        p_action: 'staff.delete',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: staff.name,
+        p_details: { email: staff.email },
+        p_ip_address: ip_address,
+        p_user_agent: user_agent,
+      });
+
+      return respond({ data: { success: true, message: 'Staff deleted successfully' } });
+    }
+
+    // POST /salons/:id/devices - Create device
+    if (path.match(/^\/salons\/[^/]+\/devices$/) && req.method === 'POST') {
+      const salon_id = path.split('/')[2];
+      const { device_name, seat_number } = await req.json();
+
+      if (!device_name) {
+        return respond({ error: { code: 'INVALID_INPUT', message: 'Device name is required' } }, 400);
+      }
+
+      // Create device (without activation code - activation codes are created separately by salon owners)
+      const { data: device, error: deviceError } = await supabaseAdmin
+        .from('devices')
+        .insert({
+          salon_id,
+          device_name,
+          seat_number: seat_number || null,
+          status: 'pending',
+        })
+        .select('id')
+        .single();
+
+      if (deviceError) throw deviceError;
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
+        p_operator_id: session.operator_id,
+        p_action: 'device.create',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: device_name,
+        p_details: { seat_number },
+        p_ip_address: ip_address,
+        p_user_agent: user_agent,
+      });
+
+      // Generate a simple display code for admin reference (not stored, just for display)
+      const display_code = Math.random().toString().slice(2, 8);
+
+      return respond({ data: { device_id: device.id, activation_code: display_code, message: 'Device created successfully. Activation code can be generated by salon owner.' } }, 201);
+    }
+
+    // PATCH /salons/:id/devices/:deviceId - Update device
+    if (path.match(/^\/salons\/[^/]+\/devices\/[^/]+$/) && req.method === 'PATCH') {
+      const parts = path.split('/');
+      const salon_id = parts[2];
+      const device_id = parts[4];
+      const { device_name, seat_number, status: deviceStatus } = await req.json();
+
+      // Build update object
+      const updateData: Record<string, unknown> = {};
+      if (device_name !== undefined) updateData.device_name = device_name;
+      if (seat_number !== undefined) updateData.seat_number = seat_number;
+      if (deviceStatus !== undefined) {
+        const validStatuses = ['pending', 'active', 'inactive'];
+        if (!validStatuses.includes(deviceStatus)) {
+          return respond({ error: { code: 'INVALID_INPUT', message: 'Invalid status' } }, 400);
+        }
+        updateData.status = deviceStatus;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return respond({ error: { code: 'INVALID_INPUT', message: 'No fields to update' } }, 400);
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('devices')
+        .update(updateData)
+        .eq('id', device_id)
+        .eq('salon_id', salon_id);
+
+      if (updateError) throw updateError;
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
+        p_operator_id: session.operator_id,
+        p_action: 'device.update',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: device_name || device_id,
+        p_details: updateData,
+        p_ip_address: ip_address,
+        p_user_agent: user_agent,
+      });
+
+      return respond({ data: { success: true, message: 'Device updated successfully' } });
+    }
+
+    // DELETE /salons/:id/devices/:deviceId - Delete device
+    if (path.match(/^\/salons\/[^/]+\/devices\/[^/]+$/) && req.method === 'DELETE') {
+      const parts = path.split('/');
+      const salon_id = parts[2];
+      const device_id = parts[4];
+
+      // Get device info before delete
+      const { data: device, error: getError } = await supabaseAdmin
+        .from('devices')
+        .select('device_name')
+        .eq('id', device_id)
+        .eq('salon_id', salon_id)
+        .single();
+
+      if (getError || !device) {
+        return respond({ error: { code: 'NOT_FOUND', message: 'Device not found' } }, 404);
+      }
+
+      const { error: deleteError } = await supabaseAdmin
+        .from('devices')
+        .delete()
+        .eq('id', device_id)
+        .eq('salon_id', salon_id);
+
+      if (deleteError) throw deleteError;
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
+        p_operator_id: session.operator_id,
+        p_action: 'device.delete',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: device.device_name,
+        p_details: {},
+        p_ip_address: ip_address,
+        p_user_agent: user_agent,
+      });
+
+      return respond({ data: { success: true, message: 'Device deleted successfully' } });
+    }
+
+    // PATCH /salons/:id/expiry - Update salon expiry
+    if (path.match(/^\/salons\/[^/]+\/expiry$/) && req.method === 'PATCH') {
+      const salon_id = path.split('/')[2];
+      const { expiry_date, reason } = await req.json();
+
+      const { error: updateError } = await supabaseAdmin
+        .from('salons')
+        .update({ expiry_date: expiry_date || null })
+        .eq('id', salon_id);
+
+      if (updateError) throw updateError;
+
+      // Record audit log
+      await supabaseAdmin.rpc('record_audit_log', {
+        p_operator_id: session.operator_id,
+        p_action: 'salon.expiry_change',
+        p_target_type: 'salon',
+        p_target_id: salon_id,
+        p_target_name: null,
+        p_details: { expiry_date, reason },
+        p_ip_address: ip_address,
+        p_user_agent: user_agent,
+      });
+
+      return respond({ data: { success: true, message: 'Expiry date updated successfully' } });
     }
 
     // GET /operators - List operators (admin only)

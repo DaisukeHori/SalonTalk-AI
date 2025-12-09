@@ -55,7 +55,7 @@ export default function AuditLogsPage() {
     }
 
     if (reason) {
-      parts.push(`Reason: ${reason}`);
+      parts.push(`理由: ${reason}`);
     }
 
     return parts.join(', ') || JSON.stringify(details);
@@ -64,13 +64,13 @@ export default function AuditLogsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold text-white">Audit Logs</h1>
+        <h1 className="text-2xl font-bold text-white">監査ログ</h1>
         <span className="text-gray-400">
-          {pagination?.total ?? 0} total
+          全{pagination?.total ?? 0}件
         </span>
       </div>
 
-      {/* Filters */}
+      {/* フィルター */}
       <div className="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700">
         <div className="flex flex-wrap gap-4">
           <select
@@ -78,37 +78,37 @@ export default function AuditLogsPage() {
             onChange={(e) => { setAction(e.target.value); setPage(1); }}
             className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500"
           >
-            <option value="">All Actions</option>
-            <option value="login">Login</option>
-            <option value="seats_change">Seats Change</option>
-            <option value="plan_change">Plan Change</option>
-            <option value="suspend">Suspend</option>
-            <option value="unsuspend">Unsuspend</option>
-            <option value="operator.create">Create Operator</option>
+            <option value="">すべてのアクション</option>
+            <option value="login">ログイン</option>
+            <option value="seats_change">座席数変更</option>
+            <option value="plan_change">プラン変更</option>
+            <option value="suspend">停止</option>
+            <option value="unsuspend">停止解除</option>
+            <option value="operator.create">オペレーター作成</option>
           </select>
           <select
             value={targetType}
             onChange={(e) => { setTargetType(e.target.value); setPage(1); }}
             className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500"
           >
-            <option value="">All Target Types</option>
-            <option value="salon">Salon</option>
-            <option value="operator">Operator</option>
-            <option value="system">System</option>
+            <option value="">すべての対象種類</option>
+            <option value="salon">サロン</option>
+            <option value="operator">オペレーター</option>
+            <option value="system">システム</option>
           </select>
         </div>
       </div>
 
-      {/* Table */}
+      {/* テーブル */}
       <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-700/50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Time</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Operator</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Action</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Target</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Details</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">日時</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">オペレーター</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">アクション</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">対象</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">詳細</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
@@ -117,14 +117,14 @@ export default function AuditLogsPage() {
                 <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
                   <div className="flex items-center justify-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-orange-500 mr-2"></div>
-                    Loading...
+                    読み込み中...
                   </div>
                 </td>
               </tr>
             ) : logs.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                  No audit logs found
+                  監査ログが見つかりません
                 </td>
               </tr>
             ) : (
@@ -151,7 +151,7 @@ export default function AuditLogsPage() {
                             href={`/admin/salons/${log.target_id}`}
                             className="text-orange-500 text-xs hover:text-orange-400"
                           >
-                            View
+                            詳細
                           </Link>
                         )}
                       </div>
@@ -169,11 +169,11 @@ export default function AuditLogsPage() {
         </table>
       </div>
 
-      {/* Pagination */}
+      {/* ページネーション */}
       {pagination && pagination.total_pages > 1 && (
         <div className="flex items-center justify-between mt-6">
           <span className="text-gray-400 text-sm">
-            Page {pagination.page} of {pagination.total_pages}
+            {pagination.page} / {pagination.total_pages} ページ
           </span>
           <div className="flex gap-2">
             <button
@@ -181,14 +181,14 @@ export default function AuditLogsPage() {
               disabled={page === 1}
               className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Previous
+              前へ
             </button>
             <button
               onClick={() => setPage(p => Math.min(pagination.total_pages, p + 1))}
               disabled={page === pagination.total_pages}
               className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Next
+              次へ
             </button>
           </div>
         </div>

@@ -25,6 +25,7 @@ export interface Salon {
   suspended_at: string | null;
   suspended_reason: string | null;
   internal_note: string | null;
+  expiry_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -249,6 +250,115 @@ export async function unsuspendSalon(
   return request(`/salons/${id}/unsuspend`, {
     method: 'POST',
     body: JSON.stringify({ note }),
+  });
+}
+
+// Create salon
+export async function createSalon(data: {
+  name: string;
+  plan: 'free' | 'standard' | 'premium' | 'enterprise';
+  seats_count: number;
+  owner_email?: string;
+  owner_name?: string;
+}): Promise<ApiResponse<{ salon_id: string; message: string }>> {
+  return request('/salons', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// Salon usage stats
+export interface SalonUsageStats {
+  sessions_this_month: number;
+  sessions_last_month: number;
+  avg_session_duration_min: number;
+  avg_session_duration_last_month_min: number;
+  avg_talk_score: number;
+  avg_talk_score_last_month: number;
+  conversion_rate: number;
+  conversion_rate_last_month: number;
+  weekly_sessions: number[];
+  weekly_conversions: number[];
+  monthly_history: Array<{
+    month: string;
+    sessions: number;
+    avg_score: number;
+    conversions: number;
+    conversion_rate: string;
+  }>;
+}
+
+export async function getSalonUsageStats(salonId: string): Promise<ApiResponse<SalonUsageStats>> {
+  return request(`/salons/${salonId}/usage`);
+}
+
+// Staff CRUD
+export async function createStaff(salonId: string, data: {
+  name: string;
+  email: string;
+  role: string;
+  password?: string;
+}): Promise<ApiResponse<{ staff_id: string; message: string }>> {
+  return request(`/salons/${salonId}/staffs`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateStaff(salonId: string, staffId: string, data: {
+  name?: string;
+  role?: string;
+  is_active?: boolean;
+}): Promise<ApiResponse<{ success: boolean; message: string }>> {
+  return request(`/salons/${salonId}/staffs/${staffId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteStaff(salonId: string, staffId: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+  return request(`/salons/${salonId}/staffs/${staffId}`, {
+    method: 'DELETE',
+  });
+}
+
+// Device CRUD
+export async function createDevice(salonId: string, data: {
+  device_name: string;
+  seat_number?: number;
+}): Promise<ApiResponse<{ device_id: string; activation_code: string; message: string }>> {
+  return request(`/salons/${salonId}/devices`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateDevice(salonId: string, deviceId: string, data: {
+  device_name?: string;
+  seat_number?: number;
+  status?: string;
+}): Promise<ApiResponse<{ success: boolean; message: string }>> {
+  return request(`/salons/${salonId}/devices/${deviceId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteDevice(salonId: string, deviceId: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+  return request(`/salons/${salonId}/devices/${deviceId}`, {
+    method: 'DELETE',
+  });
+}
+
+// Salon expiry
+export async function updateSalonExpiry(
+  salonId: string,
+  expiry_date: string | null,
+  reason?: string
+): Promise<ApiResponse<{ success: boolean; message: string }>> {
+  return request(`/salons/${salonId}/expiry`, {
+    method: 'PATCH',
+    body: JSON.stringify({ expiry_date, reason }),
   });
 }
 

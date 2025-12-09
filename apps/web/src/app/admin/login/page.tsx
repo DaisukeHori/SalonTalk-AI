@@ -66,8 +66,8 @@ export default function AdminLoginPage() {
     <div className="w-full max-w-md">
       <div className="bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-700">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-orange-500 mb-2">SalonTalk Admin</h1>
-          <p className="text-gray-400">Operator Console</p>
+          <h1 className="text-3xl font-bold text-orange-500 mb-2">SalonTalk 管理</h1>
+          <p className="text-gray-400">運営管理コンソール</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -79,7 +79,7 @@ export default function AdminLoginPage() {
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-              Email
+              メールアドレス
             </label>
             <input
               id="email"
@@ -95,7 +95,7 @@ export default function AdminLoginPage() {
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-              Password
+              パスワード
             </label>
             <input
               id="password"
@@ -103,7 +103,7 @@ export default function AdminLoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="Password"
+              placeholder="パスワードを入力"
               required
               disabled={isLoading}
             />
@@ -114,13 +114,13 @@ export default function AdminLoginPage() {
             disabled={isLoading}
             className="w-full bg-orange-500 text-white py-3 rounded-lg font-medium hover:bg-orange-600 transition-colors disabled:opacity-50"
           >
-            {isLoading ? 'Loading...' : 'Login'}
+            {isLoading ? 'ログイン中...' : 'ログイン'}
           </button>
         </form>
       </div>
 
       <p className="text-center text-gray-500 text-sm mt-8">
-        Revol Corporation - Internal Use Only
+        Revol Corporation - 社内専用
       </p>
     </div>
   );

@@ -69,12 +69,12 @@ export default function AdminLayout({
 
   // Admin dashboard with sidebar
   const navItems = [
-    { href: '/admin', label: 'Dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
-    { href: '/admin/salons', label: 'Salons', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
+    { href: '/admin', label: 'ダッシュボード', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+    { href: '/admin/salons', label: 'サロン管理', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
   ];
 
   if (operator?.role === 'operator_admin') {
-    navItems.push({ href: '/admin/audit-logs', label: 'Audit Logs', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' });
+    navItems.push({ href: '/admin/audit-logs', label: '監査ログ', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' });
   }
 
   return (
@@ -82,8 +82,8 @@ export default function AdminLayout({
       {/* Sidebar */}
       <aside className="w-64 bg-gray-800 border-r border-gray-700">
         <div className="p-6">
-          <h1 className="text-xl font-bold text-orange-500">SalonTalk Admin</h1>
-          <p className="text-gray-400 text-sm mt-1">Operator Console</p>
+          <h1 className="text-xl font-bold text-orange-500">SalonTalk 管理</h1>
+          <p className="text-gray-400 text-sm mt-1">運営管理コンソール</p>
         </div>
 
         <nav className="px-4 space-y-1">
@@ -118,7 +118,7 @@ export default function AdminLayout({
             onClick={handleLogout}
             className="w-full px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
           >
-            Logout
+            ログアウト
           </button>
         </div>
       </aside>
