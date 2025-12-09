@@ -28,20 +28,21 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-8">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">ダッシュボード</h1>
-          <p className="text-gray-400 mt-1">SalonTalk AI 運営状況の概要</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">ダッシュボード</h1>
+          <p className="text-gray-400 mt-1 text-sm sm:text-base">SalonTalk AI 運営状況の概要</p>
         </div>
         <div className="flex gap-3">
           <Link
             href="/admin/salons?action=create"
-            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
+            className="px-3 sm:px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-sm sm:text-base"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            新規サロン作成
+            <span className="hidden sm:inline">新規サロン作成</span>
+            <span className="sm:hidden">新規作成</span>
           </Link>
         </div>
       </div>

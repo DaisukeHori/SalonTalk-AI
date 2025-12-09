@@ -258,8 +258,10 @@ export async function createSalon(data: {
   name: string;
   plan: 'free' | 'standard' | 'premium' | 'enterprise';
   seats_count: number;
+  staff_limit?: number;
   owner_email?: string;
   owner_name?: string;
+  owner_password?: string;
 }): Promise<ApiResponse<{ salon_id: string; message: string }>> {
   return request('/salons', {
     method: 'POST',
@@ -384,4 +386,96 @@ export async function getAuditLogs(params: {
   if (params.limit) searchParams.set('limit', params.limit.toString());
 
   return request(`/audit-logs?${searchParams.toString()}`);
+}
+
+// ========================================
+// Analytics Types
+// ========================================
+export interface AnalyticsSummary {
+  total_sessions: number;
+  total_transcription_time_min: number;
+  total_character_count: number;
+  total_segments: number;
+  stylist_character_count: number;
+  customer_character_count: number;
+  avg_session_duration_min: number;
+  avg_characters_per_session: number;
+}
+
+export interface StaffStats {
+  staff_id: string;
+  staff_name: string;
+  session_count: number;
+  total_duration_min: number;
+  total_characters: number;
+  avg_duration_min: number;
+  avg_characters_per_session: number;
+}
+
+export interface DeviceStats {
+  device_id: string;
+  device_name: string;
+  seat_number: number | null;
+  session_count: number;
+  total_duration_min: number;
+  last_active_at: string | null;
+}
+
+export interface HourlyUsage {
+  hour: number;
+  session_count: number;
+  total_duration_min: number;
+}
+
+export interface DailyTrend {
+  date: string;
+  session_count: number;
+  total_duration_min: number;
+  total_characters: number;
+}
+
+export interface SalonAnalytics {
+  period: string;
+  from_date: string;
+  to_date: string;
+  summary: AnalyticsSummary;
+  staff_stats: StaffStats[];
+  device_stats: DeviceStats[];
+  hourly_usage: HourlyUsage[];
+  daily_trends: DailyTrend[];
+}
+
+// Get salon analytics
+export async function getSalonAnalytics(
+  salonId: string,
+  period: 'week' | 'month' | 'all' = 'month'
+): Promise<ApiResponse<SalonAnalytics>> {
+  return request(`/salons/${salonId}/analytics?period=${period}`);
+}
+
+// Operators
+export interface Operator {
+  id: string;
+  email: string;
+  name: string;
+  role: 'operator_admin' | 'operator_support';
+  last_login_at: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export async function getOperators(): Promise<ApiResponse<Operator[]>> {
+  return request('/operators');
+}
+
+export async function createOperator(data: {
+  email: string;
+  password: string;
+  name: string;
+  role: 'operator_admin' | 'operator_support';
+}): Promise<ApiResponse<Operator>> {
+  return request('/operators', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }

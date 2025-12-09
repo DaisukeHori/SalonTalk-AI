@@ -63,9 +63,9 @@ export default function AuditLogsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold text-white">監査ログ</h1>
-        <span className="text-gray-400">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <h1 className="text-xl sm:text-2xl font-bold text-white">監査ログ</h1>
+        <span className="text-gray-400 text-sm sm:text-base">
           全{pagination?.total ?? 0}件
         </span>
       </div>
@@ -100,8 +100,8 @@ export default function AuditLogsPage() {
       </div>
 
       {/* テーブル */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-        <table className="w-full">
+      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden overflow-x-auto">
+        <table className="w-full min-w-[700px]">
           <thead className="bg-gray-700/50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">日時</th>

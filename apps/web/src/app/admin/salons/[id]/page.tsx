@@ -331,7 +331,7 @@ export default function SalonDetailPage() {
   return (
     <div className="space-y-6">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link href="/admin/salons" className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -339,8 +339,8 @@ export default function SalonDetailPage() {
             </svg>
           </Link>
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-white">{salon.name}</h1>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="text-xl sm:text-2xl font-bold text-white">{salon.name}</h1>
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                 salon.status === 'active'
                   ? 'bg-green-500/20 text-green-400 border border-green-500/30'
@@ -349,14 +349,14 @@ export default function SalonDetailPage() {
                 {salon.status === 'active' ? 'アクティブ' : '停止中'}
               </span>
             </div>
-            <p className="text-gray-500 text-sm font-mono mt-1">{salon.id}</p>
+            <p className="text-gray-500 text-xs sm:text-sm font-mono mt-1 break-all">{salon.id}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 ml-auto sm:ml-0">
           {isAdmin && salon.status === 'active' && (
             <button
               onClick={() => setShowSuspendModal(true)}
-              className="px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors border border-red-500/30"
+              className="px-3 sm:px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors border border-red-500/30 text-sm"
             >
               サロンを停止
             </button>
@@ -365,7 +365,7 @@ export default function SalonDetailPage() {
             <button
               onClick={handleUnsuspend}
               disabled={isSubmitting}
-              className="px-4 py-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 transition-colors border border-green-500/30 disabled:opacity-50"
+              className="px-3 sm:px-4 py-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 transition-colors border border-green-500/30 disabled:opacity-50 text-sm"
             >
               {isSubmitting ? '処理中...' : 'サロンを再開'}
             </button>
@@ -392,26 +392,27 @@ export default function SalonDetailPage() {
       )}
 
       {/* タブナビゲーション */}
-      <div className="flex gap-1 bg-gray-800 p-1 rounded-xl">
+      <div className="flex flex-wrap gap-1 bg-gray-800 p-1 rounded-xl">
         {[
-          { id: 'overview', label: '概要', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
-          { id: 'staff', label: `スタッフ (${salon.staffs.length})`, icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
-          { id: 'devices', label: `デバイス (${salon.devices.length})`, icon: 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z' },
-          { id: 'usage', label: '利用状況', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+          { id: 'overview', label: '概要', shortLabel: '概要', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+          { id: 'staff', label: `スタッフ (${salon.staffs.length})`, shortLabel: `Staff (${salon.staffs.length})`, icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
+          { id: 'devices', label: `デバイス (${salon.devices.length})`, shortLabel: `iPad (${salon.devices.length})`, icon: 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z' },
+          { id: 'usage', label: '利用状況', shortLabel: '利用', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as typeof activeTab)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${
+            className={`flex-1 min-w-[70px] flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg font-medium transition-all text-xs sm:text-sm ${
               activeTab === tab.id
                 ? 'bg-orange-500 text-white'
                 : 'text-gray-400 hover:text-white hover:bg-gray-700'
             }`}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
             </svg>
-            {tab.label}
+            <span className="hidden sm:inline">{tab.label}</span>
+            <span className="sm:hidden">{tab.shortLabel}</span>
           </button>
         ))}
       </div>
@@ -701,6 +702,27 @@ export default function SalonDetailPage() {
       {/* 利用状況タブ */}
       {activeTab === 'usage' && (
         <div className="space-y-6">
+          {/* 詳細分析ページへのリンク */}
+          <div className="bg-gradient-to-r from-orange-500/20 to-purple-500/20 rounded-xl p-6 border border-orange-500/30">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white">詳細利用分析</h3>
+                <p className="text-gray-400 text-sm mt-1">
+                  文字起こし時間、文字数、スタッフ別・デバイス別統計、時間帯別利用推移など
+                </p>
+              </div>
+              <Link
+                href={`/admin/salons/${id}/analytics`}
+                className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                詳細分析を見る
+              </Link>
+            </div>
+          </div>
+
           {isLoadingUsage ? (
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>

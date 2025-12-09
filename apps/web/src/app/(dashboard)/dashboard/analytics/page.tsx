@@ -24,8 +24,8 @@ const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 // FR-704: Period comparison types
 interface PeriodComparisonData {
-  current: Stats;
-  previous: Stats;
+  current: Partial<Stats>;
+  previous: Partial<Stats>;
   comparison: {
     sessionChange: number;
     sessionChangePercent: number;
@@ -44,6 +44,11 @@ interface Stats {
   sessionGrowth: number;
   scoreGrowth: number;
   conversionGrowth: number;
+  // Transcription stats
+  totalTranscriptionTimeMin: number;
+  totalCharacterCount: number;
+  avgTranscriptionTimeMin: number;
+  avgCharactersPerSession: number;
 }
 
 interface MonthlyData {
@@ -78,6 +83,10 @@ export default function AnalyticsPage() {
     sessionGrowth: 0,
     scoreGrowth: 0,
     conversionGrowth: 0,
+    totalTranscriptionTimeMin: 0,
+    totalCharacterCount: 0,
+    avgTranscriptionTimeMin: 0,
+    avgCharactersPerSession: 0,
   });
   const [monthlyTrend, setMonthlyTrend] = useState<MonthlyData[]>([]);
   const [staffComparison, setStaffComparison] = useState<StaffData[]>([]);
@@ -116,14 +125,15 @@ export default function AnalyticsPage() {
       const months = period === '6months' ? 6 : period === '3months' ? 3 : 1;
       const startDate = new Date(now.getFullYear(), now.getMonth() - months, 1);
 
-      // Fetch sessions with reports
-      const { data: sessions, error } = await supabase
+      // Fetch sessions with reports and transcription data
+      const { data: sessionsRaw, error } = await supabase
         .from('sessions')
         .select(`
           id,
           started_at,
           stylist_id,
           status,
+          total_duration_ms,
           session_reports (
             overall_score,
             indicator_scores
@@ -141,6 +151,43 @@ export default function AnalyticsPage() {
         .gte('started_at', startDate.toISOString())
         .order('started_at', { ascending: true });
 
+      // Cast to proper type for TypeScript
+      const sessions = sessionsRaw as Array<{
+        id: string;
+        started_at: string;
+        stylist_id: string;
+        status: string;
+        total_duration_ms: number | null;
+        session_reports: { overall_score: number | null; indicator_scores: object | null } | null;
+        session_analyses: Array<{ indicator_type: string; details: object | null }> | null;
+        staffs: { name: string } | null;
+      }> | null;
+
+      // Fetch speaker segments for character count
+      const sessionIds = sessions?.map(s => s.id) || [];
+      let totalCharacterCount = 0;
+      let stylistCharacterCount = 0;
+      let customerCharacterCount = 0;
+
+      if (sessionIds.length > 0) {
+        const { data: segments } = await supabase
+          .from('speaker_segments')
+          .select('session_id, speaker, text')
+          .in('session_id', sessionIds);
+
+        if (segments) {
+          segments.forEach((seg: { session_id: string; speaker: string; text: string }) => {
+            const charCount = seg.text?.length || 0;
+            totalCharacterCount += charCount;
+            if (seg.speaker === 'stylist') {
+              stylistCharacterCount += charCount;
+            } else if (seg.speaker === 'customer') {
+              customerCharacterCount += charCount;
+            }
+          });
+        }
+      }
+
       if (error) {
         console.error('Error fetching analytics:', error);
         setIsLoading(false);
@@ -154,6 +201,18 @@ export default function AnalyticsPage() {
         .filter((s: any) => s !== undefined && s !== null) || [];
       const avgScore = scores.length > 0
         ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length * 10) / 10
+        : 0;
+
+      // Calculate transcription time from total_duration_ms
+      const totalTranscriptionTimeMs = sessions?.reduce((sum: number, s: any) => {
+        return sum + (s.total_duration_ms || 0);
+      }, 0) || 0;
+      const totalTranscriptionTimeMin = Math.round(totalTranscriptionTimeMs / 60000);
+      const avgTranscriptionTimeMin = totalSessions > 0
+        ? Math.round((totalTranscriptionTimeMs / totalSessions) / 60000)
+        : 0;
+      const avgCharactersPerSession = totalSessions > 0
+        ? Math.round(totalCharacterCount / totalSessions)
         : 0;
 
       // FR-704: Fetch previous period data for comparison
@@ -200,6 +259,10 @@ export default function AnalyticsPage() {
         sessionGrowth,
         scoreGrowth,
         conversionGrowth: 2.1, // Would need conversion tracking
+        totalTranscriptionTimeMin,
+        totalCharacterCount,
+        avgTranscriptionTimeMin,
+        avgCharactersPerSession,
       });
 
       // FR-704: Set period comparison data
@@ -378,25 +441,25 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">店舗分析</h1>
-        <div className="flex items-center space-x-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">店舗分析</h1>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           {/* FR-704: Comparison Mode Toggle */}
           <button
             onClick={() => setComparisonMode(!comparisonMode)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
               comparisonMode
                 ? 'bg-primary-100 text-primary-700 border-2 border-primary-500'
                 : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
             }`}
           >
-            {comparisonMode ? '比較モード ON' : '期間比較'}
+            {comparisonMode ? '比較ON' : '期間比較'}
           </button>
 
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+            className="px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 text-sm"
           >
             <option value="6months">過去6ヶ月</option>
             <option value="3months">過去3ヶ月</option>
@@ -404,9 +467,9 @@ export default function AnalyticsPage() {
             <option value="custom">カスタム期間</option>
           </select>
 
-
-          <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-            レポート出力
+          <button className="px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm">
+            <span className="hidden sm:inline">レポート出力</span>
+            <span className="sm:hidden">出力</span>
           </button>
         </div>
       </div>
@@ -443,8 +506,8 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
+      {/* Summary Cards - Row 1 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <p className="text-gray-500 text-sm">総セッション数</p>
           <p className="text-3xl font-bold text-gray-800 mt-2">{stats.totalSessions}</p>
@@ -473,8 +536,63 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
+      {/* Summary Cards - Row 2: Transcription Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 shadow-sm border border-orange-200">
+          <p className="text-orange-700 text-sm font-medium">総文字起こし時間</p>
+          <p className="text-3xl font-bold text-orange-600 mt-2">
+            {stats.totalTranscriptionTimeMin >= 60
+              ? `${Math.floor(stats.totalTranscriptionTimeMin / 60)}時間${stats.totalTranscriptionTimeMin % 60}分`
+              : `${stats.totalTranscriptionTimeMin}分`}
+          </p>
+          <p className="text-sm text-orange-600 mt-1">
+            平均: {stats.avgTranscriptionTimeMin}分/セッション
+          </p>
+        </div>
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 shadow-sm border border-blue-200">
+          <p className="text-blue-700 text-sm font-medium">総文字数</p>
+          <p className="text-3xl font-bold text-blue-600 mt-2">
+            {stats.totalCharacterCount.toLocaleString()}
+          </p>
+          <p className="text-sm text-blue-600 mt-1">
+            平均: {stats.avgCharactersPerSession.toLocaleString()}文字/セッション
+          </p>
+        </div>
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 shadow-sm border border-purple-200 sm:col-span-2">
+          <p className="text-purple-700 text-sm font-medium">利用状況サマリー</p>
+          <div className="flex flex-wrap items-center justify-between gap-4 mt-2">
+            <div className="min-w-[80px]">
+              <p className="text-lg font-semibold text-purple-600">
+                {stats.totalSessions > 0
+                  ? Math.round(stats.totalTranscriptionTimeMin / stats.totalSessions)
+                  : 0}分
+              </p>
+              <p className="text-xs text-purple-500">平均セッション時間</p>
+            </div>
+            <div className="hidden sm:block h-8 w-px bg-purple-300"></div>
+            <div className="min-w-[60px]">
+              <p className="text-lg font-semibold text-purple-600">
+                {stats.totalCharacterCount > 0 && stats.totalTranscriptionTimeMin > 0
+                  ? Math.round(stats.totalCharacterCount / stats.totalTranscriptionTimeMin)
+                  : 0}
+              </p>
+              <p className="text-xs text-purple-500">文字/分</p>
+            </div>
+            <div className="hidden sm:block h-8 w-px bg-purple-300"></div>
+            <div className="min-w-[80px]">
+              <p className="text-lg font-semibold text-purple-600">
+                {stats.totalSessions > 0
+                  ? Math.round((stats.totalTranscriptionTimeMin / stats.totalSessions) * 60)
+                  : 0}秒
+              </p>
+              <p className="text-xs text-purple-500">平均録音時間</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Charts Row 1 */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Trend */}
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">月別推移</h2>
@@ -529,7 +647,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Charts Row 2 */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Concern Distribution */}
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">悩みカテゴリ分布</h2>
@@ -555,7 +673,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Time Distribution */}
-        <div className="bg-white rounded-xl p-6 shadow-sm col-span-2">
+        <div className="bg-white rounded-xl p-6 shadow-sm md:col-span-2">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">時間帯別セッション数</h2>
           <ResponsiveContainer width="100%" height={250}>
             <AreaChart data={timeDistribution}>
@@ -577,7 +695,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Insights */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-6">
           <h2 className="text-lg font-semibold text-green-800 mb-4">好調なポイント</h2>
           <ul className="space-y-2">

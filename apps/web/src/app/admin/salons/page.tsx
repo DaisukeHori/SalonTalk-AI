@@ -23,8 +23,10 @@ export default function AdminSalonsPage() {
     name: '',
     plan: 'standard' as const,
     seats_count: 3,
+    staff_limit: 10,
     owner_email: '',
     owner_name: '',
+    owner_password: '',
   });
 
   useEffect(() => {
@@ -50,6 +52,18 @@ export default function AdminSalonsPage() {
       setCreateError('サロン名を入力してください');
       return;
     }
+    if (!newSalon.owner_email.trim()) {
+      setCreateError('オーナーのメールアドレスを入力してください');
+      return;
+    }
+    if (!newSalon.owner_name.trim()) {
+      setCreateError('オーナー名を入力してください');
+      return;
+    }
+    if (!newSalon.owner_password || newSalon.owner_password.length < 8) {
+      setCreateError('パスワードは8文字以上で入力してください');
+      return;
+    }
 
     setIsCreating(true);
     setCreateError('');
@@ -68,8 +82,10 @@ export default function AdminSalonsPage() {
         name: '',
         plan: 'standard',
         seats_count: 3,
+        staff_limit: 10,
         owner_email: '',
         owner_name: '',
+        owner_password: '',
       });
       // Reload salons
       const { data: salonsData } = await getSalons({ search, status, plan, page, limit: 20 });
@@ -104,10 +120,10 @@ export default function AdminSalonsPage() {
   return (
     <div className="space-y-6">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">サロン管理</h1>
-          <p className="text-gray-400 mt-1">登録済みサロンの一覧と管理</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">サロン管理</h1>
+          <p className="text-gray-400 mt-1 text-sm sm:text-base">登録済みサロンの一覧と管理</p>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-gray-400 text-sm">
@@ -115,12 +131,13 @@ export default function AdminSalonsPage() {
           </span>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
+            className="px-3 sm:px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-sm sm:text-base"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            新規サロン作成
+            <span className="hidden sm:inline">新規サロン作成</span>
+            <span className="sm:hidden">新規作成</span>
           </button>
         </div>
       </div>
@@ -311,7 +328,7 @@ export default function AdminSalonsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">プラン</label>
                   <select
@@ -338,11 +355,26 @@ export default function AdminSalonsPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">スタッフ数上限</label>
+                <input
+                  type="number"
+                  value={newSalon.staff_limit}
+                  onChange={(e) => setNewSalon({ ...newSalon, staff_limit: parseInt(e.target.value) || 1 })}
+                  min={1}
+                  max={100}
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">このサロンに登録できるスタッフの最大数</p>
+              </div>
+
               <div className="border-t border-gray-700 pt-5">
-                <p className="text-sm text-gray-400 mb-4">オーナー情報（任意）</p>
+                <p className="text-sm text-orange-400 mb-4 font-medium">オーナー情報（サロン管理者アカウント）</p>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">オーナー名</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      オーナー名 <span className="text-red-400">*</span>
+                    </label>
                     <input
                       type="text"
                       value={newSalon.owner_name}
@@ -352,7 +384,9 @@ export default function AdminSalonsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">オーナーメールアドレス</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      オーナーメールアドレス（ログインID） <span className="text-red-400">*</span>
+                    </label>
                     <input
                       type="email"
                       value={newSalon.owner_email}
@@ -360,6 +394,19 @@ export default function AdminSalonsPage() {
                       placeholder="例: owner@example.com"
                       className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      初期パスワード <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={newSalon.owner_password}
+                      onChange={(e) => setNewSalon({ ...newSalon, owner_password: e.target.value })}
+                      placeholder="8文字以上"
+                      className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">オーナーがダッシュボードにログインするためのパスワード</p>
                   </div>
                 </div>
               </div>

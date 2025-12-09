@@ -425,15 +425,26 @@ serve(async (req: Request) => {
 
     // POST /salons - Create salon
     if (path === '/salons' && req.method === 'POST') {
-      const { name, plan, seats_count, owner_email, owner_name } = await req.json();
+      const { name, plan, seats_count, staff_limit, owner_email, owner_name, owner_password } = await req.json();
 
       if (!name) {
         return respond({ error: { code: 'INVALID_INPUT', message: 'Name is required' } }, 400);
       }
 
+      // Validate owner info - all fields required if any provided
+      if (owner_email || owner_name || owner_password) {
+        if (!owner_email || !owner_name || !owner_password) {
+          return respond({ error: { code: 'INVALID_INPUT', message: 'Owner email, name, and password are all required' } }, 400);
+        }
+        if (owner_password.length < 8) {
+          return respond({ error: { code: 'INVALID_INPUT', message: 'Password must be at least 8 characters' } }, 400);
+        }
+      }
+
       const validPlans = ['free', 'standard', 'premium', 'enterprise'];
       const salonPlan = validPlans.includes(plan) ? plan : 'free';
       const salonSeats = seats_count && seats_count > 0 ? seats_count : 1;
+      const salonStaffLimit = staff_limit && staff_limit > 0 ? staff_limit : 10;
 
       // Create salon
       const { data: salon, error: salonError } = await supabaseAdmin
@@ -442,23 +453,30 @@ serve(async (req: Request) => {
           name,
           plan: salonPlan,
           seats_count: salonSeats,
+          staff_limit: salonStaffLimit,
         })
-        .select('id, name, plan, seats_count')
+        .select('id, name, plan, seats_count, staff_limit')
         .single();
 
       if (salonError) throw salonError;
 
       // If owner info provided, create staff entry
-      if (owner_email && owner_name) {
-        // Create auth user for owner
+      if (owner_email && owner_name && owner_password) {
+        // Create auth user for owner with provided password
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email: owner_email,
-          password: Math.random().toString(36).slice(-12), // Generate random password
-          email_confirm: false, // Needs to set password via reset
+          password: owner_password,
+          email_confirm: true, // Auto-confirm email since operator is creating
         });
 
-        if (!authError && authData.user) {
-          await supabaseAdmin
+        if (authError) {
+          // Rollback salon creation if auth fails
+          await supabaseAdmin.from('salons').delete().eq('id', salon.id);
+          return respond({ error: { code: 'AUTH_ERROR', message: authError.message } }, 400);
+        }
+
+        if (authData.user) {
+          const { error: staffError } = await supabaseAdmin
             .from('staffs')
             .insert({
               id: authData.user.id,
@@ -467,6 +485,13 @@ serve(async (req: Request) => {
               name: owner_name,
               role: 'owner',
             });
+
+          if (staffError) {
+            // Rollback if staff creation fails
+            await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+            await supabaseAdmin.from('salons').delete().eq('id', salon.id);
+            return respond({ error: { code: 'STAFF_ERROR', message: staffError.message } }, 400);
+          }
         }
       }
 
@@ -477,7 +502,7 @@ serve(async (req: Request) => {
         p_target_type: 'salon',
         p_target_id: salon.id,
         p_target_name: salon.name,
-        p_details: { plan: salonPlan, seats_count: salonSeats, owner_email },
+        p_details: { plan: salonPlan, seats_count: salonSeats, staff_limit: salonStaffLimit, owner_email },
         p_ip_address: ip_address,
         p_user_agent: user_agent,
       });
@@ -920,6 +945,257 @@ serve(async (req: Request) => {
       });
 
       return respond({ data: { success: true, message: 'Device deleted successfully' } });
+    }
+
+    // GET /salons/:id/analytics - Get detailed usage analytics
+    if (path.match(/^\/salons\/[^/]+\/analytics$/) && req.method === 'GET') {
+      const salon_id = path.split('/')[2];
+      const period = url.searchParams.get('period') || 'month'; // 'week', 'month', 'all'
+
+      // Calculate date range
+      const now = new Date();
+      let fromDate: Date;
+      if (period === 'week') {
+        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+      } else if (period === 'month') {
+        fromDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      } else {
+        fromDate = new Date(2020, 0, 1); // All time
+      }
+
+      // ========================================
+      // 1. Transcription Statistics (文字起こし統計)
+      // ========================================
+
+      // Get total transcription time from sessions
+      const { data: sessionsData } = await supabaseAdmin
+        .from('sessions')
+        .select('id, total_duration_ms, stylist_id, started_at')
+        .eq('salon_id', salon_id)
+        .gte('started_at', fromDate.toISOString());
+
+      const totalTranscriptionTimeMs = sessionsData?.reduce((sum, s) => sum + (s.total_duration_ms || 0), 0) || 0;
+      const totalTranscriptionTimeMin = Math.round(totalTranscriptionTimeMs / 60000);
+      const totalSessions = sessionsData?.length || 0;
+
+      // Get total character count from speaker_segments
+      const sessionIds = sessionsData?.map(s => s.id) || [];
+      let totalCharacterCount = 0;
+      let totalSegments = 0;
+      let stylistCharCount = 0;
+      let customerCharCount = 0;
+
+      if (sessionIds.length > 0) {
+        const { data: segmentsData } = await supabaseAdmin
+          .from('speaker_segments')
+          .select('text, speaker')
+          .in('session_id', sessionIds);
+
+        if (segmentsData) {
+          totalSegments = segmentsData.length;
+          segmentsData.forEach(seg => {
+            const charCount = seg.text?.length || 0;
+            totalCharacterCount += charCount;
+            if (seg.speaker === 'stylist') {
+              stylistCharCount += charCount;
+            } else if (seg.speaker === 'customer') {
+              customerCharCount += charCount;
+            }
+          });
+        }
+      }
+
+      // ========================================
+      // 2. Staff Statistics (スタッフ別統計)
+      // ========================================
+      const staffStats: Array<{
+        staff_id: string;
+        staff_name: string;
+        session_count: number;
+        total_duration_min: number;
+        total_characters: number;
+        avg_duration_min: number;
+        avg_characters_per_session: number;
+      }> = [];
+
+      // Get staff info
+      const { data: staffsData } = await supabaseAdmin
+        .from('staffs')
+        .select('id, name')
+        .eq('salon_id', salon_id);
+
+      if (staffsData && sessionsData) {
+        for (const staff of staffsData) {
+          const staffSessions = sessionsData.filter(s => s.stylist_id === staff.id);
+          const staffSessionIds = staffSessions.map(s => s.id);
+          const staffDurationMs = staffSessions.reduce((sum, s) => sum + (s.total_duration_ms || 0), 0);
+
+          let staffCharacters = 0;
+          if (staffSessionIds.length > 0) {
+            const { data: staffSegments } = await supabaseAdmin
+              .from('speaker_segments')
+              .select('text')
+              .in('session_id', staffSessionIds);
+
+            if (staffSegments) {
+              staffCharacters = staffSegments.reduce((sum, seg) => sum + (seg.text?.length || 0), 0);
+            }
+          }
+
+          staffStats.push({
+            staff_id: staff.id,
+            staff_name: staff.name,
+            session_count: staffSessions.length,
+            total_duration_min: Math.round(staffDurationMs / 60000),
+            total_characters: staffCharacters,
+            avg_duration_min: staffSessions.length > 0 ? Math.round(staffDurationMs / staffSessions.length / 60000) : 0,
+            avg_characters_per_session: staffSessions.length > 0 ? Math.round(staffCharacters / staffSessions.length) : 0,
+          });
+        }
+
+        // Sort by session count
+        staffStats.sort((a, b) => b.session_count - a.session_count);
+      }
+
+      // ========================================
+      // 3. Hourly Usage Trends (時間帯別利用推移)
+      // ========================================
+      const hourlyUsage: Array<{ hour: number; session_count: number; total_duration_min: number }> = [];
+
+      for (let hour = 0; hour < 24; hour++) {
+        const sessionsInHour = sessionsData?.filter(s => {
+          const sessionHour = new Date(s.started_at).getHours();
+          return sessionHour === hour;
+        }) || [];
+
+        const durationInHour = sessionsInHour.reduce((sum, s) => sum + (s.total_duration_ms || 0), 0);
+
+        hourlyUsage.push({
+          hour,
+          session_count: sessionsInHour.length,
+          total_duration_min: Math.round(durationInHour / 60000),
+        });
+      }
+
+      // ========================================
+      // 4. Daily Trends (日別利用推移)
+      // ========================================
+      const dailyTrends: Array<{
+        date: string;
+        session_count: number;
+        total_duration_min: number;
+        total_characters: number;
+      }> = [];
+
+      // Last 30 days for daily trends
+      for (let i = 29; i >= 0; i--) {
+        const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        const daySessions = sessionsData?.filter(s => {
+          const sessionDate = new Date(s.started_at);
+          return sessionDate >= dayStart && sessionDate <= dayEnd;
+        }) || [];
+
+        const dayDuration = daySessions.reduce((sum, s) => sum + (s.total_duration_ms || 0), 0);
+        const daySessionIds = daySessions.map(s => s.id);
+
+        let dayCharacters = 0;
+        if (daySessionIds.length > 0) {
+          const { data: daySegments } = await supabaseAdmin
+            .from('speaker_segments')
+            .select('text')
+            .in('session_id', daySessionIds);
+
+          if (daySegments) {
+            dayCharacters = daySegments.reduce((sum, seg) => sum + (seg.text?.length || 0), 0);
+          }
+        }
+
+        dailyTrends.push({
+          date: dayStart.toISOString().split('T')[0],
+          session_count: daySessions.length,
+          total_duration_min: Math.round(dayDuration / 60000),
+          total_characters: dayCharacters,
+        });
+      }
+
+      // ========================================
+      // 5. Device Statistics (デバイス別統計)
+      // ========================================
+      const { data: devicesData } = await supabaseAdmin
+        .from('devices')
+        .select('id, device_name, seat_number')
+        .eq('salon_id', salon_id);
+
+      const deviceStats: Array<{
+        device_id: string;
+        device_name: string;
+        seat_number: number | null;
+        session_count: number;
+        total_duration_min: number;
+        last_active_at: string | null;
+      }> = [];
+
+      if (devicesData) {
+        for (const device of devicesData) {
+          // Get sessions for this device (via device_id in sessions table if exists)
+          const { data: deviceSessions, count: deviceSessionCount } = await supabaseAdmin
+            .from('sessions')
+            .select('id, total_duration_ms, started_at', { count: 'exact' })
+            .eq('salon_id', salon_id)
+            .eq('device_id', device.id)
+            .gte('started_at', fromDate.toISOString());
+
+          const deviceDuration = deviceSessions?.reduce((sum, s) => sum + (s.total_duration_ms || 0), 0) || 0;
+          const lastSession = deviceSessions?.sort((a, b) =>
+            new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+          )[0];
+
+          deviceStats.push({
+            device_id: device.id,
+            device_name: device.device_name,
+            seat_number: device.seat_number,
+            session_count: deviceSessionCount || 0,
+            total_duration_min: Math.round(deviceDuration / 60000),
+            last_active_at: lastSession?.started_at || null,
+          });
+        }
+
+        deviceStats.sort((a, b) => b.session_count - a.session_count);
+      }
+
+      return respond({
+        data: {
+          period,
+          from_date: fromDate.toISOString(),
+          to_date: now.toISOString(),
+
+          // Summary
+          summary: {
+            total_sessions: totalSessions,
+            total_transcription_time_min: totalTranscriptionTimeMin,
+            total_character_count: totalCharacterCount,
+            total_segments: totalSegments,
+            stylist_character_count: stylistCharCount,
+            customer_character_count: customerCharCount,
+            avg_session_duration_min: totalSessions > 0 ? Math.round(totalTranscriptionTimeMin / totalSessions) : 0,
+            avg_characters_per_session: totalSessions > 0 ? Math.round(totalCharacterCount / totalSessions) : 0,
+          },
+
+          // Staff breakdown
+          staff_stats: staffStats,
+
+          // Device breakdown
+          device_stats: deviceStats,
+
+          // Time-based trends
+          hourly_usage: hourlyUsage,
+          daily_trends: dailyTrends,
+        },
+      });
     }
 
     // PATCH /salons/:id/expiry - Update salon expiry
