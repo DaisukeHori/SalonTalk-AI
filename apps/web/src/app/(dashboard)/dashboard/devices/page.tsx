@@ -1,8 +1,49 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+/**
+ * Device Management Page (Web-009)
+ * デバイス管理画面
+ *
+ * 設計仕様: docs/詳細設計書/08-画面項目詳細定義.md 8.4.1
+ */
+import { useState, FormEvent, useCallback } from 'react';
+import { z } from 'zod';
 import { useDevices, Device, ActivationCode } from '@/hooks/useDevices';
 import { useAuth } from '@/hooks/useAuth';
+
+// Zod Schemas from design spec
+const CreateDeviceSchema = z.object({
+  device_name: z
+    .string()
+    .min(1, 'デバイス名は必須です')
+    .max(50, 'デバイス名は50文字以内で入力してください'),
+  seat_number: z
+    .number()
+    .int('整数で入力してください')
+    .min(1, 'セット面番号は1以上で入力してください')
+    .max(99, 'セット面番号は99以下で入力してください')
+    .optional(),
+});
+
+const UpdateDeviceSchema = z.object({
+  device_name: z
+    .string()
+    .min(1, 'デバイス名は必須です')
+    .max(50, 'デバイス名は50文字以内で入力してください')
+    .optional(),
+  seat_number: z
+    .number()
+    .int('整数で入力してください')
+    .min(1, 'セット面番号は1以上で入力してください')
+    .max(99, 'セット面番号は99以下で入力してください')
+    .nullable()
+    .optional(),
+  status: z
+    .enum(['active', 'inactive', 'pending'], {
+      errorMap: () => ({ message: 'ステータスを選択してください' }),
+    })
+    .optional(),
+});
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   pending: { label: '未登録', color: 'bg-yellow-100 text-yellow-800' },
@@ -26,6 +67,28 @@ function formatRelativeTime(dateString: string | null): string {
   if (diffHour < 24) return `${diffHour}時間前`;
   if (diffDay < 7) return `${diffDay}日前`;
   return date.toLocaleDateString('ja-JP');
+}
+
+// Toast notification component
+interface ToastProps {
+  message: string;
+  type: 'success' | 'error';
+  onClose: () => void;
+}
+
+function Toast({ message, type, onClose }: ToastProps) {
+  return (
+    <div
+      className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-lg shadow-lg flex items-center space-x-3 ${
+        type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+      }`}
+    >
+      <span>{message}</span>
+      <button onClick={onClose} className="text-white/80 hover:text-white">
+        ×
+      </button>
+    </div>
+  );
 }
 
 export default function DevicesPage() {
@@ -60,19 +123,85 @@ export default function DevicesPage() {
   const [activationCode, setActivationCode] = useState<ActivationCode | null>(null);
   const [revokeReason, setRevokeReason] = useState('');
 
-  // Loading states
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Modal-specific loading states
+  const [isAddSubmitting, setIsAddSubmitting] = useState(false);
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const [isRevokeSubmitting, setIsRevokeSubmitting] = useState(false);
+  const [isCodeGenerating, setIsCodeGenerating] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
+  // Validation error states
+  const [addErrors, setAddErrors] = useState<Record<string, string>>({});
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+
+  // Toast state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Permission checks
   const isOwner = user?.role === 'owner';
+  const isManager = user?.role === 'manager';
+  const canManageDevices = isOwner || isManager;
   const canAddDevice = salonInfo && salonInfo.active_device_count < salonInfo.seats_count;
+
+  // Show toast helper
+  const showToast = useCallback((message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
+
+  // Validate add form
+  const validateAddForm = (): boolean => {
+    const data = {
+      device_name: addFormData.device_name,
+      seat_number: addFormData.seat_number ? parseInt(addFormData.seat_number) : undefined,
+    };
+
+    const result = CreateDeviceSchema.safeParse(data);
+    if (!result.success) {
+      const errors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          errors[err.path[0].toString()] = err.message;
+        }
+      });
+      setAddErrors(errors);
+      return false;
+    }
+    setAddErrors({});
+    return true;
+  };
+
+  // Validate edit form
+  const validateEditForm = (): boolean => {
+    if (!editFormData) return false;
+
+    const data = {
+      device_name: editFormData.device_name || undefined,
+      seat_number: editFormData.seat_number ? parseInt(editFormData.seat_number) : null,
+      status: editFormData.status || undefined,
+    };
+
+    const result = UpdateDeviceSchema.safeParse(data);
+    if (!result.success) {
+      const errors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          errors[err.path[0].toString()] = err.message;
+        }
+      });
+      setEditErrors(errors);
+      return false;
+    }
+    setEditErrors({});
+    return true;
+  };
 
   // Handle add device
   const handleAddDevice = async (e: FormEvent) => {
     e.preventDefault();
-    if (!addFormData.device_name.trim()) return;
+    if (!validateAddForm()) return;
 
-    setIsSubmitting(true);
+    setIsAddSubmitting(true);
     try {
       const result = await registerDevice({
         device_name: addFormData.device_name,
@@ -82,34 +211,38 @@ export default function DevicesPage() {
       setIsAddModalOpen(false);
       setIsCodeModalOpen(true);
       setAddFormData({ device_name: '', seat_number: '' });
+      setAddErrors({});
+      showToast('デバイスを追加しました', 'success');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'デバイスの登録に失敗しました');
+      const message = err instanceof Error ? err.message : 'デバイスの登録に失敗しました';
+      showToast(message, 'error');
     } finally {
-      setIsSubmitting(false);
+      setIsAddSubmitting(false);
     }
   };
 
   // Handle generate activation code
   const handleGenerateCode = async (device: Device) => {
-    setIsSubmitting(true);
+    setIsCodeGenerating(true);
     try {
       const code = await generateActivationCode(device.id);
       setActivationCode(code);
       setSelectedDevice(device);
       setIsCodeModalOpen(true);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'コードの生成に失敗しました');
+      const message = err instanceof Error ? err.message : 'コードの生成に失敗しました';
+      showToast(message, 'error');
     } finally {
-      setIsSubmitting(false);
+      setIsCodeGenerating(false);
     }
   };
 
   // Handle edit device
   const handleEditDevice = async (e: FormEvent) => {
     e.preventDefault();
-    if (!editFormData) return;
+    if (!editFormData || !validateEditForm()) return;
 
-    setIsSubmitting(true);
+    setIsEditSubmitting(true);
     try {
       await updateDevice({
         device_id: editFormData.device_id,
@@ -119,10 +252,13 @@ export default function DevicesPage() {
       });
       setIsEditModalOpen(false);
       setEditFormData(null);
+      setEditErrors({});
+      showToast('デバイス設定を更新しました', 'success');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'デバイスの更新に失敗しました');
+      const message = err instanceof Error ? err.message : 'デバイスの更新に失敗しました';
+      showToast(message, 'error');
     } finally {
-      setIsSubmitting(false);
+      setIsEditSubmitting(false);
     }
   };
 
@@ -130,16 +266,18 @@ export default function DevicesPage() {
   const handleRevokeDevice = async () => {
     if (!selectedDevice) return;
 
-    setIsSubmitting(true);
+    setIsRevokeSubmitting(true);
     try {
       await revokeDevice(selectedDevice.id, revokeReason || undefined);
       setIsRevokeModalOpen(false);
       setSelectedDevice(null);
       setRevokeReason('');
+      showToast('デバイスを失効しました', 'success');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'デバイスの失効に失敗しました');
+      const message = err instanceof Error ? err.message : 'デバイスの失効に失敗しました';
+      showToast(message, 'error');
     } finally {
-      setIsSubmitting(false);
+      setIsRevokeSubmitting(false);
     }
   };
 
@@ -151,7 +289,7 @@ export default function DevicesPage() {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     } catch {
-      alert('コピーに失敗しました');
+      showToast('コピーに失敗しました', 'error');
     }
   };
 
@@ -164,6 +302,7 @@ export default function DevicesPage() {
       status: device.status,
     });
     setSelectedDevice(device);
+    setEditErrors({});
     setIsEditModalOpen(true);
   };
 
@@ -197,23 +336,33 @@ export default function DevicesPage() {
 
   const activeDevices = devices.filter(d => d.status === 'active');
   const onlineDevices = devices.filter(d => d.is_online);
-  const pendingDevices = devices.filter(d => d.status === 'pending');
 
   return (
     <div className="p-8">
+      {/* Toast */}
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">デバイス管理</h1>
           <p className="text-gray-500 mt-1">iPadデバイスの登録・管理を行います</p>
         </div>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          disabled={!canAddDevice}
-          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          + デバイス追加
-        </button>
+        {canManageDevices && (
+          <button
+            onClick={() => {
+              setAddFormData({ device_name: '', seat_number: '' });
+              setAddErrors({});
+              setIsAddModalOpen(true);
+            }}
+            disabled={!canAddDevice}
+            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            + デバイス追加
+          </button>
+        )}
       </div>
 
       {/* Stats Summary */}
@@ -312,21 +461,23 @@ export default function DevicesPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                   {device.status !== 'revoked' && (
                     <div className="flex justify-end space-x-2">
-                      {device.status === 'pending' && (
+                      {device.status === 'pending' && canManageDevices && (
                         <button
                           onClick={() => handleGenerateCode(device)}
                           className="px-3 py-1 text-primary-600 hover:bg-primary-50 rounded-lg text-sm"
-                          disabled={isSubmitting}
+                          disabled={isCodeGenerating}
                         >
-                          コード発行
+                          {isCodeGenerating ? '...' : 'コード発行'}
                         </button>
                       )}
-                      <button
-                        onClick={() => openEditModal(device)}
-                        className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
-                      >
-                        設定
-                      </button>
+                      {canManageDevices && (
+                        <button
+                          onClick={() => openEditModal(device)}
+                          className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+                        >
+                          設定
+                        </button>
+                      )}
                       {isOwner && (
                         <button
                           onClick={() => openRevokeModal(device)}
@@ -373,12 +524,21 @@ export default function DevicesPage() {
                 <input
                   type="text"
                   value={addFormData.device_name}
-                  onChange={(e) => setAddFormData({ ...addFormData, device_name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                  onChange={(e) => {
+                    setAddFormData({ ...addFormData, device_name: e.target.value });
+                    if (addErrors.device_name) {
+                      setAddErrors({ ...addErrors, device_name: '' });
+                    }
+                  }}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-primary-500 focus:border-primary-500 ${
+                    addErrors.device_name ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   placeholder="例: iPad-1"
                   maxLength={50}
-                  required
                 />
+                {addErrors.device_name && (
+                  <p className="text-red-500 text-xs mt-1">{addErrors.device_name}</p>
+                )}
               </div>
 
               <div>
@@ -388,12 +548,22 @@ export default function DevicesPage() {
                 <input
                   type="number"
                   value={addFormData.seat_number}
-                  onChange={(e) => setAddFormData({ ...addFormData, seat_number: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                  onChange={(e) => {
+                    setAddFormData({ ...addFormData, seat_number: e.target.value });
+                    if (addErrors.seat_number) {
+                      setAddErrors({ ...addErrors, seat_number: '' });
+                    }
+                  }}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-primary-500 focus:border-primary-500 ${
+                    addErrors.seat_number ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   placeholder="例: 1"
                   min={1}
                   max={99}
                 />
+                {addErrors.seat_number && (
+                  <p className="text-red-500 text-xs mt-1">{addErrors.seat_number}</p>
+                )}
               </div>
 
               {!canAddDevice && (
@@ -407,16 +577,16 @@ export default function DevicesPage() {
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
                   className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
-                  disabled={isSubmitting}
+                  disabled={isAddSubmitting}
                 >
                   キャンセル
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-                  disabled={isSubmitting || !canAddDevice}
+                  disabled={isAddSubmitting || !canAddDevice}
                 >
-                  {isSubmitting ? '追加中...' : '追加'}
+                  {isAddSubmitting ? '追加中...' : '追加'}
                 </button>
               </div>
             </form>
@@ -491,10 +661,20 @@ export default function DevicesPage() {
                 <input
                   type="text"
                   value={editFormData.device_name}
-                  onChange={(e) => setEditFormData({ ...editFormData, device_name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                  onChange={(e) => {
+                    setEditFormData({ ...editFormData, device_name: e.target.value });
+                    if (editErrors.device_name) {
+                      setEditErrors({ ...editErrors, device_name: '' });
+                    }
+                  }}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-primary-500 focus:border-primary-500 ${
+                    editErrors.device_name ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   maxLength={50}
                 />
+                {editErrors.device_name && (
+                  <p className="text-red-500 text-xs mt-1">{editErrors.device_name}</p>
+                )}
               </div>
 
               <div>
@@ -504,11 +684,21 @@ export default function DevicesPage() {
                 <input
                   type="number"
                   value={editFormData.seat_number}
-                  onChange={(e) => setEditFormData({ ...editFormData, seat_number: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                  onChange={(e) => {
+                    setEditFormData({ ...editFormData, seat_number: e.target.value });
+                    if (editErrors.seat_number) {
+                      setEditErrors({ ...editErrors, seat_number: '' });
+                    }
+                  }}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-primary-500 focus:border-primary-500 ${
+                    editErrors.seat_number ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   min={1}
                   max={99}
                 />
+                {editErrors.seat_number && (
+                  <p className="text-red-500 text-xs mt-1">{editErrors.seat_number}</p>
+                )}
               </div>
 
               {selectedDevice.status !== 'pending' && (
@@ -530,6 +720,12 @@ export default function DevicesPage() {
                 </div>
               )}
 
+              {selectedDevice.current_session && (
+                <div className="bg-yellow-50 text-yellow-700 p-3 rounded-lg text-sm">
+                  このデバイスでセッションが進行中です。ステータスを変更すると、進行中のセッションに影響する可能性があります。
+                </div>
+              )}
+
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
@@ -538,16 +734,16 @@ export default function DevicesPage() {
                     setEditFormData(null);
                   }}
                   className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
-                  disabled={isSubmitting}
+                  disabled={isEditSubmitting}
                 >
                   キャンセル
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-                  disabled={isSubmitting}
+                  disabled={isEditSubmitting}
                 >
-                  {isSubmitting ? '保存中...' : '保存'}
+                  {isEditSubmitting ? '保存中...' : '保存'}
                 </button>
               </div>
             </form>
@@ -580,6 +776,16 @@ export default function DevicesPage() {
               </p>
             </div>
 
+            {selectedDevice.current_session && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <p className="text-yellow-700 font-medium mb-1">セッション進行中</p>
+                <p className="text-yellow-600 text-sm">
+                  このデバイスでは現在「{selectedDevice.current_session.stylist_name}」さんのセッションが進行中です。
+                  失効前にセッションを終了してください。
+                </p>
+              </div>
+            )}
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 失効理由（任意）
@@ -601,16 +807,16 @@ export default function DevicesPage() {
                   setSelectedDevice(null);
                 }}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
-                disabled={isSubmitting}
+                disabled={isRevokeSubmitting}
               >
                 キャンセル
               </button>
               <button
                 onClick={handleRevokeDevice}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-                disabled={isSubmitting}
+                disabled={isRevokeSubmitting || !!selectedDevice.current_session}
               >
-                {isSubmitting ? '処理中...' : '失効する'}
+                {isRevokeSubmitting ? '処理中...' : '失効する'}
               </button>
             </div>
           </div>
