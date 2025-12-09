@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { isAuthenticated, getMe, signOut, OperatorSession } from '@/lib/admin/client';
 
@@ -10,7 +10,6 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const [operator, setOperator] = useState<OperatorSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,7 +42,7 @@ export default function AdminLayout({
     }
 
     checkAuth();
-  }, [pathname, router]);
+  }, [pathname]);
 
   const handleLogout = async () => {
     await signOut();
