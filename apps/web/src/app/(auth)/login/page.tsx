@@ -37,7 +37,7 @@ export default function LoginPage() {
           .from('operator_admins')
           .select('id, is_active')
           .eq('id', userId)
-          .single();
+          .single() as { data: { id: string; is_active: boolean } | null };
 
         if (operator && operator.is_active) {
           // User is an active operator → redirect to admin
@@ -50,7 +50,7 @@ export default function LoginPage() {
           .from('staffs')
           .select('id, is_active')
           .eq('id', userId)
-          .single();
+          .single() as { data: { id: string; is_active: boolean } | null };
 
         if (staff && staff.is_active) {
           // User is an active staff → redirect to dashboard
