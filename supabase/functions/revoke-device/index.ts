@@ -119,6 +119,36 @@ serve(async (req: Request) => {
       );
     }
 
+    // FR-1104: Check for active sessions before revoking
+    const { data: activeSessions, error: sessionError } = await serviceSupabase
+      .from('sessions')
+      .select('id, status, started_at')
+      .eq('device_id', body.device_id)
+      .in('status', ['recording', 'processing', 'analyzing']);
+
+    if (sessionError) {
+      console.error('Session check error:', sessionError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to check active sessions' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (activeSessions && activeSessions.length > 0) {
+      return new Response(
+        JSON.stringify({
+          error: 'Cannot revoke device',
+          message: 'Device has active sessions. Please wait for sessions to complete or end them manually before revoking.',
+          active_sessions: activeSessions.map(s => ({
+            session_id: s.id,
+            status: s.status,
+            started_at: s.started_at,
+          })),
+        }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Revoke the device
     const { error: updateError } = await serviceSupabase
       .from('devices')
@@ -133,15 +163,20 @@ serve(async (req: Request) => {
       throw updateError;
     }
 
-    // Invalidate all pending activation codes
-    await serviceSupabase
+    // Invalidate all pending activation codes (non-critical, log errors but don't fail)
+    const { error: activationError } = await serviceSupabase
       .from('device_activations')
       .update({ expires_at: new Date().toISOString() })
       .eq('device_id', body.device_id)
       .is('used_at', null);
 
-    // Log to audit_logs
-    await serviceSupabase
+    if (activationError) {
+      console.error('Failed to invalidate activation codes:', activationError);
+      // Continue - device is already revoked, this is non-critical cleanup
+    }
+
+    // Log to audit_logs (non-critical, log errors but don't fail)
+    const { error: auditError } = await serviceSupabase
       .from('audit_logs')
       .insert({
         event_type: 'device_revoked',
@@ -153,6 +188,11 @@ serve(async (req: Request) => {
         old_value: { status: device.status },
         new_value: { status: 'revoked', reason: body.reason },
       });
+
+    if (auditError) {
+      console.error('Failed to write audit log:', auditError);
+      // Continue - device is already revoked, audit log failure is logged
+    }
 
     return new Response(
       JSON.stringify({

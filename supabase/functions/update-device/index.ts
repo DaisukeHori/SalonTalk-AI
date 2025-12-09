@@ -157,6 +157,38 @@ serve(async (req: Request) => {
         );
       }
 
+      // FR-1104: Check for active sessions before changing status to inactive/pending
+      if (['inactive', 'pending'].includes(body.status)) {
+        const { data: activeSessions, error: sessionError } = await serviceSupabase
+          .from('sessions')
+          .select('id, status, started_at')
+          .eq('device_id', body.device_id)
+          .in('status', ['recording', 'processing', 'analyzing']);
+
+        if (sessionError) {
+          console.error('Session check error:', sessionError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to check active sessions' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        if (activeSessions && activeSessions.length > 0) {
+          return new Response(
+            JSON.stringify({
+              error: 'Cannot change device status',
+              message: 'Device has active sessions. Please wait for sessions to complete or end them manually.',
+              active_sessions: activeSessions.map(s => ({
+                session_id: s.id,
+                status: s.status,
+                started_at: s.started_at,
+              })),
+            }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
       updates.status = body.status;
 
       // If setting to pending, clear device_identifier (requires re-activation)
