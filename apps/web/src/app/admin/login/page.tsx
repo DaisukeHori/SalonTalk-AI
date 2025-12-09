@@ -41,11 +41,17 @@ export default function AdminLoginPage() {
       }
 
       if (operator) {
-        router.replace('/admin');
+        // Use push and don't reset loading - let the new page handle its own loading state
+        router.push('/admin');
+        // Don't set loading to false - keep showing loading until navigation completes
+        return;
+      } else {
+        setError('Failed to verify operator account');
+        setIsLoading(false);
       }
-    } catch {
+    } catch (err) {
+      console.error('Login error:', err);
       setError('Login failed');
-    } finally {
       setIsLoading(false);
     }
   };
