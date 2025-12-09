@@ -23,6 +23,14 @@ class DiarizationSegment(BaseModel):
     end_time_ms: int = Field(..., ge=0, description="End time in milliseconds")
 
 
+class SpeakerEmbedding(BaseModel):
+    """Speaker embedding with metadata."""
+
+    label: str = Field(..., description="Speaker label (SPEAKER_00, SPEAKER_01, etc.)")
+    embedding: List[float] = Field(..., description="512-dimensional speaker embedding vector")
+    duration_ms: int = Field(..., ge=0, description="Total speech duration in milliseconds")
+
+
 class DiarizationResponse(BaseModel):
     """Response model for diarization endpoint."""
 
@@ -31,6 +39,9 @@ class DiarizationResponse(BaseModel):
     segments: List[DiarizationSegment]
     processing_time_ms: int = Field(..., ge=0, description="Processing time in milliseconds")
     status: Literal["processing", "completed", "error"] = "completed"
+    speaker_embeddings: Optional[List[SpeakerEmbedding]] = Field(
+        None, description="Speaker embeddings (only when extract_embeddings=true)"
+    )
 
 
 class DiarizationCallbackPayload(BaseModel):

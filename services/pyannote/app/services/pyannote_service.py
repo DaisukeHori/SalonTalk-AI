@@ -265,3 +265,88 @@ class PyannoteService:
             sorted_speakers[0][0]: "stylist",
             sorted_speakers[1][0]: "customer",
         }
+
+    async def diarize_with_embeddings(self, audio_path: str) -> Dict[str, Any]:
+        """
+        Perform speaker diarization and extract embeddings for each speaker.
+
+        Args:
+            audio_path: Path to the audio file
+
+        Returns:
+            Dict containing segments, speaker_embeddings, and processing time
+        """
+        if not self.is_ready or self.pipeline is None or self.embedding_inference is None:
+            raise RuntimeError("Pyannote pipeline not initialized")
+
+        start_time = time.time()
+
+        try:
+            from pyannote.core import Segment
+
+            # Run diarization
+            diarization = self.pipeline(audio_path)
+
+            # Convert to segments and track speaker durations
+            segments: List[Dict[str, Any]] = []
+            speaker_segments: Dict[str, List[Tuple[float, float]]] = {}
+            speaker_durations: Dict[str, float] = {}
+
+            for turn, _, speaker in diarization.itertracks(yield_label=True):
+                segments.append({
+                    "speaker": speaker,
+                    "start": turn.start,
+                    "end": turn.end,
+                })
+
+                if speaker not in speaker_segments:
+                    speaker_segments[speaker] = []
+                speaker_segments[speaker].append((turn.start, turn.end))
+
+                duration = turn.end - turn.start
+                speaker_durations[speaker] = speaker_durations.get(speaker, 0) + duration
+
+            # Extract embedding for each speaker
+            speaker_embeddings = []
+
+            for speaker, segs in speaker_segments.items():
+                embeddings = []
+
+                for start, end in segs:
+                    if end - start >= 0.5:  # Minimum 0.5s segment
+                        try:
+                            segment = Segment(start, end)
+                            emb = self.embedding_inference.crop(audio_path, segment)
+                            embeddings.append(emb)
+                        except Exception:
+                            continue
+
+                if embeddings:
+                    # Average all embeddings for this speaker
+                    embedding_array = np.mean(np.stack(embeddings), axis=0)
+                    embedding = embedding_array.flatten().tolist()
+
+                    speaker_embeddings.append({
+                        "label": speaker,
+                        "embedding": embedding,
+                        "duration_ms": int(speaker_durations[speaker] * 1000),
+                    })
+
+            processing_time_ms = int((time.time() - start_time) * 1000)
+
+            logger.info(
+                "Diarization with embeddings completed",
+                num_segments=len(segments),
+                num_speakers=len(speaker_embeddings),
+                processing_time_ms=processing_time_ms,
+            )
+
+            return {
+                "segments": segments,
+                "speaker_embeddings": speaker_embeddings,
+                "processing_time_ms": processing_time_ms,
+            }
+
+        except Exception as e:
+            logger.error(f"Diarization with embeddings failed: {e}")
+            raise

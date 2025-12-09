@@ -16,6 +16,7 @@ from app.models.diarization import (
     DiarizationResponse,
     DiarizationSegment,
     EmbeddingResponse,
+    SpeakerEmbedding,
 )
 
 logger = structlog.get_logger()
@@ -29,6 +30,7 @@ async def diarize_audio(
     session_id: str = Form(...),
     chunk_index: int = Form(...),
     callback_url: Optional[str] = Form(None),
+    extract_embeddings: bool = Form(False),
 ):
     """
     Process audio file for speaker diarization.
@@ -37,12 +39,14 @@ async def diarize_audio(
     - **session_id**: Session identifier
     - **chunk_index**: Chunk index within the session
     - **callback_url**: Optional webhook URL for async processing
+    - **extract_embeddings**: If true, extract speaker embeddings for voice identification
     """
     logger.info(
         "Received diarization request",
         session_id=session_id,
         chunk_index=chunk_index,
         filename=file.filename,
+        extract_embeddings=extract_embeddings,
     )
 
     # Validate file type
@@ -71,6 +75,7 @@ async def diarize_audio(
                 session_id,
                 chunk_index,
                 callback_url,
+                extract_embeddings,
             )
             return DiarizationResponse(
                 session_id=session_id,
@@ -81,7 +86,10 @@ async def diarize_audio(
             )
 
         # Synchronous processing
-        result = await service.diarize(tmp_path)
+        if extract_embeddings:
+            result = await service.diarize_with_embeddings(tmp_path)
+        else:
+            result = await service.diarize(tmp_path)
 
         segments = [
             DiarizationSegment(
@@ -92,12 +100,24 @@ async def diarize_audio(
             for seg in result["segments"]
         ]
 
+        speaker_embeddings = None
+        if extract_embeddings and "speaker_embeddings" in result:
+            speaker_embeddings = [
+                SpeakerEmbedding(
+                    label=emb["label"],
+                    embedding=emb["embedding"],
+                    duration_ms=emb["duration_ms"],
+                )
+                for emb in result["speaker_embeddings"]
+            ]
+
         return DiarizationResponse(
             session_id=session_id,
             chunk_index=chunk_index,
             segments=segments,
             processing_time_ms=result["processing_time_ms"],
             status="completed",
+            speaker_embeddings=speaker_embeddings,
         )
 
     finally:
@@ -111,11 +131,16 @@ async def process_and_callback(
     session_id: str,
     chunk_index: int,
     callback_url: str,
+    extract_embeddings: bool = False,
 ):
     """Process audio and send result to callback URL."""
     try:
         service = get_pyannote_service()
-        result = await service.diarize(audio_path)
+
+        if extract_embeddings:
+            result = await service.diarize_with_embeddings(audio_path)
+        else:
+            result = await service.diarize(audio_path)
 
         segments = [
             {
@@ -135,6 +160,17 @@ async def process_and_callback(
                 "processing_time_ms": result["processing_time_ms"],
             },
         }
+
+        # Add speaker embeddings if requested
+        if extract_embeddings and "speaker_embeddings" in result:
+            callback_data["result"]["speaker_embeddings"] = [
+                {
+                    "label": emb["label"],
+                    "embedding": emb["embedding"],
+                    "duration_ms": emb["duration_ms"],
+                }
+                for emb in result["speaker_embeddings"]
+            ]
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
