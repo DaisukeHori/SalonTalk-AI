@@ -1,6 +1,10 @@
 // ===========================================
 // SalonTalk AI - Admin API Client
 // ===========================================
+// Uses Supabase Auth for authentication
+// ===========================================
+
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 const ADMIN_API_URL = process.env.NEXT_PUBLIC_SUPABASE_URL + '/functions/v1/admin-api';
 
@@ -95,24 +99,42 @@ export interface ApiResponse<T> {
   error?: { code: string; message: string };
 }
 
-// Token management
-const TOKEN_KEY = 'operator_token';
-
-export function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(TOKEN_KEY);
+// Get Supabase access token
+async function getAccessToken(): Promise<string | null> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
 }
 
-export function setToken(token: string): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(TOKEN_KEY, token);
-  }
+// Check if user is authenticated
+export async function isAuthenticated(): Promise<boolean> {
+  const supabase = getSupabaseBrowserClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  return !!session;
 }
 
-export function clearToken(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(TOKEN_KEY);
+// Sign in with Supabase Auth
+export async function signIn(
+  email: string,
+  password: string
+): Promise<{ error: string | null }> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    return { error: error.message };
   }
+
+  return { error: null };
+}
+
+// Sign out
+export async function signOut(): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  await supabase.auth.signOut();
 }
 
 // API client
@@ -120,10 +142,20 @@ async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-  const token = getToken();
+  const token = await getAccessToken();
+
+  if (!token) {
+    return {
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated',
+      },
+    };
+  }
+
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    Authorization: `Bearer ${token}`,
     ...options.headers,
   };
 
@@ -145,18 +177,7 @@ async function request<T>(
   }
 }
 
-// Auth
-export async function login(
-  email: string,
-  password: string,
-  mfa_code?: string
-): Promise<ApiResponse<{ token: string; operator: OperatorSession }>> {
-  return request('/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password, mfa_code }),
-  });
-}
-
+// Get current operator info
 export async function getMe(): Promise<ApiResponse<OperatorSession>> {
   return request('/me');
 }

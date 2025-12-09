@@ -2,14 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { login, setToken } from '@/lib/admin/client';
+import { signIn, getMe } from '@/lib/admin/client';
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mfaCode, setMfaCode] = useState('');
-  const [showMfa, setShowMfa] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,31 +17,30 @@ export default function AdminLoginPage() {
     setIsLoading(true);
 
     try {
-      const { data, error: apiError } = await login(
-        email,
-        password,
-        showMfa ? mfaCode : undefined
-      );
+      // Sign in with Supabase Auth
+      const { error: signInError } = await signIn(email, password);
 
-      if (apiError) {
-        if (apiError.code === 'MFA_REQUIRED') {
-          setShowMfa(true);
-          setIsLoading(false);
-          return;
-        }
-        setError(
-          apiError.code === 'INVALID_CREDENTIALS'
-            ? 'Invalid email or password'
-            : apiError.code === 'INVALID_MFA'
-            ? 'Invalid MFA code'
-            : apiError.message
-        );
+      if (signInError) {
+        setError(signInError);
         setIsLoading(false);
         return;
       }
 
-      if (data?.token) {
-        setToken(data.token);
+      // Verify user is an operator by calling getMe
+      const { data: operator, error: meError } = await getMe();
+
+      if (meError) {
+        // User authenticated but not an operator
+        if (meError.code === 'FORBIDDEN') {
+          setError('This account is not an operator account');
+        } else {
+          setError(meError.message);
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      if (operator) {
         router.replace('/admin');
       }
     } catch {
@@ -99,27 +96,6 @@ export default function AdminLoginPage() {
               disabled={isLoading}
             />
           </div>
-
-          {showMfa && (
-            <div>
-              <label htmlFor="mfa" className="block text-sm font-medium text-gray-300 mb-2">
-                MFA Code
-              </label>
-              <input
-                id="mfa"
-                type="text"
-                value={mfaCode}
-                onChange={(e) => setMfaCode(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent tracking-widest text-center text-xl"
-                placeholder="000000"
-                maxLength={6}
-                pattern="[0-9]{6}"
-                required
-                disabled={isLoading}
-                autoFocus
-              />
-            </div>
-          )}
 
           <button
             type="submit"

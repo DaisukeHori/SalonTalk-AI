@@ -2,15 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 
 const navigation = [
-  { name: 'ダッシュボード', href: '/dashboard', icon: '📊' },
-  { name: 'セッション', href: '/dashboard/sessions', icon: '🎙️' },
-  { name: 'スタッフ', href: '/dashboard/staff', icon: '👥' },
-  { name: '成功事例', href: '/dashboard/success-cases', icon: '🏆' },
-  { name: 'トレーニング', href: '/dashboard/training', icon: '📚' },
-  { name: 'デバイス', href: '/dashboard/devices', icon: '📱' },
-  { name: '設定', href: '/dashboard/settings', icon: '⚙️' },
+  { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+  { name: 'Sessions', href: '/dashboard/sessions', icon: '🎙' },
+  { name: 'Staff', href: '/dashboard/staff', icon: '👥' },
+  { name: 'Success Cases', href: '/dashboard/success-cases', icon: '🏆' },
+  { name: 'Training', href: '/dashboard/training', icon: '📚' },
+  { name: 'Devices', href: '/dashboard/devices', icon: '📱' },
+  { name: 'Settings', href: '/dashboard/settings', icon: '⚙' },
 ];
 
 export default function DashboardLayout({
@@ -19,6 +20,11 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { user, signOut, loading } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -26,7 +32,7 @@ export default function DashboardLayout({
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
         <div className="p-6 border-b border-gray-200">
           <h1 className="text-xl font-bold text-primary-600">SalonTalk AI</h1>
-          <p className="text-sm text-gray-500">管理ダッシュボード</p>
+          <p className="text-sm text-gray-500">Dashboard</p>
         </div>
 
         <nav className="flex-1 p-4">
@@ -53,15 +59,25 @@ export default function DashboardLayout({
         </nav>
 
         <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center">
+          <div className="flex items-center mb-3">
             <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
               <span className="text-lg">👤</span>
             </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-800">店長 田中</p>
-              <p className="text-xs text-gray-500">テストサロン</p>
+            <div className="ml-3 flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800 truncate">
+                {loading ? '...' : user?.name || 'User'}
+              </p>
+              <p className="text-xs text-gray-500 truncate">
+                {loading ? '...' : user?.salonName || 'Salon'}
+              </p>
             </div>
           </div>
+          <button
+            onClick={handleLogout}
+            className="w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+          >
+            Logout
+          </button>
         </div>
       </aside>
 

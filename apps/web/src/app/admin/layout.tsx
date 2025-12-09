@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { getToken, getMe, clearToken, OperatorSession } from '@/lib/admin/client';
+import { isAuthenticated, getMe, signOut, OperatorSession } from '@/lib/admin/client';
 
 export default function AdminLayout({
   children,
@@ -23,15 +23,17 @@ export default function AdminLayout({
         return;
       }
 
-      const token = getToken();
-      if (!token) {
+      // Check if user is authenticated with Supabase
+      const authenticated = await isAuthenticated();
+      if (!authenticated) {
         router.replace('/admin/login');
         return;
       }
 
+      // Verify user is an operator
       const { data, error } = await getMe();
       if (error || !data) {
-        clearToken();
+        await signOut();
         router.replace('/admin/login');
         return;
       }
@@ -43,8 +45,8 @@ export default function AdminLayout({
     checkAuth();
   }, [pathname, router]);
 
-  const handleLogout = () => {
-    clearToken();
+  const handleLogout = async () => {
+    await signOut();
     router.replace('/admin/login');
   };
 
