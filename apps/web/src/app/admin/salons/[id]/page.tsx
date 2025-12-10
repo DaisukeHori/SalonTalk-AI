@@ -66,6 +66,14 @@ export default function SalonDetailPage() {
   // New device form
   const [newDevice, setNewDevice] = useState({ device_name: '', seat_number: '' });
 
+  // Activation code result modal
+  const [showActivationCodeModal, setShowActivationCodeModal] = useState(false);
+  const [createdDeviceInfo, setCreatedDeviceInfo] = useState<{
+    device_name: string;
+    activation_code: string | null;
+    expires_at: string | null;
+  } | null>(null);
+
   // Usage stats (loaded from API)
   const [usageStats, setUsageStats] = useState<SalonUsageStats | null>(null);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
@@ -344,21 +352,27 @@ export default function SalonDetailPage() {
   const handleAddDevice = async () => {
     setIsSubmitting(true);
     setError('');
+    const deviceName = newDevice.device_name;
     const { data, error: apiError } = await createDevice(id, {
-      device_name: newDevice.device_name,
+      device_name: deviceName,
       seat_number: newDevice.seat_number ? parseInt(newDevice.seat_number) : undefined,
     });
     if (apiError) {
       setError(apiError.message);
     } else if (data?.device_id) {
-      setSuccessMessage(`デバイス ${newDevice.device_name} を追加しました（アクティベーションコード: ${data.activation_code}）`);
       setShowAddDeviceModal(false);
       setNewDevice({ device_name: '', seat_number: '' });
+      // Show activation code modal
+      setCreatedDeviceInfo({
+        device_name: deviceName,
+        activation_code: data.activation_code,
+        expires_at: data.expires_at,
+      });
+      setShowActivationCodeModal(true);
       const { data: updated } = await getSalon(id);
       if (updated) setSalon(updated);
     }
     setIsSubmitting(false);
-    setTimeout(() => setSuccessMessage(''), 3000);
   };
 
   const handleDeleteDevice = async (deviceId: string, deviceName: string) => {
@@ -1815,6 +1829,74 @@ export default function SalonDetailPage() {
                 className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
               >
                 追加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* アクティベーションコード表示モーダル */}
+      {showActivationCodeModal && createdDeviceInfo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-xl w-full max-w-md border border-gray-700">
+            <div className="p-6 border-b border-gray-700 flex items-center gap-3">
+              <div className="p-2 bg-green-500/20 rounded-lg">
+                <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-white">デバイスを追加しました</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <p className="text-gray-400 text-sm mb-1">デバイス名</p>
+                <p className="text-white font-medium">{createdDeviceInfo.device_name}</p>
+              </div>
+              <div className="bg-gray-900 p-6 rounded-xl text-center">
+                <p className="text-gray-400 text-sm mb-2">アクティベーションコード</p>
+                {createdDeviceInfo.activation_code ? (
+                  <>
+                    <p className="text-4xl font-mono font-bold text-orange-400 tracking-wider mb-3">
+                      {createdDeviceInfo.activation_code}
+                    </p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(createdDeviceInfo.activation_code || '');
+                        setSuccessMessage('コードをコピーしました');
+                        setTimeout(() => setSuccessMessage(''), 2000);
+                      }}
+                      className="text-sm text-gray-400 hover:text-white flex items-center gap-1 mx-auto"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      コピー
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-gray-500">コードの生成に失敗しました</p>
+                )}
+              </div>
+              {createdDeviceInfo.expires_at && (
+                <p className="text-gray-500 text-sm text-center">
+                  有効期限: {new Date(createdDeviceInfo.expires_at).toLocaleString('ja-JP')}
+                </p>
+              )}
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                <p className="text-yellow-400 text-sm">
+                  このコードはiPadアプリでデバイスをアクティベートする際に必要です。コードを控えておいてください。
+                </p>
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-700">
+              <button
+                onClick={() => {
+                  setShowActivationCodeModal(false);
+                  setCreatedDeviceInfo(null);
+                }}
+                className="w-full px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+              >
+                閉じる
               </button>
             </div>
           </div>

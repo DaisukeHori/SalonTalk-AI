@@ -340,7 +340,7 @@ export async function deleteStaff(salonId: string, staffId: string): Promise<Api
 export async function createDevice(salonId: string, data: {
   device_name: string;
   seat_number?: number;
-}): Promise<ApiResponse<{ device_id: string; activation_code: string; message: string }>> {
+}): Promise<ApiResponse<{ device_id: string; activation_code: string | null; expires_at: string | null; message: string }>> {
   return request(`/salons/${salonId}/devices`, {
     method: 'POST',
     body: JSON.stringify(data),
