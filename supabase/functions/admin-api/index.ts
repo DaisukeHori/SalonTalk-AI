@@ -1006,12 +1006,22 @@ serve(async (req: Request) => {
     // GET /salons/:id/analytics - Get detailed usage analytics
     if (path.match(/^\/salons\/[^/]+\/analytics$/) && req.method === 'GET') {
       const salon_id = path.split('/')[2];
-      const period = url.searchParams.get('period') || 'month'; // 'week', 'month', 'all'
+      const period = url.searchParams.get('period') || 'month'; // 'week', 'month', 'all', 'custom'
+      const customFromDate = url.searchParams.get('from_date');
+      const customToDate = url.searchParams.get('to_date');
+      const staffIdFilter = url.searchParams.get('staff_id');
+      const deviceIdFilter = url.searchParams.get('device_id');
 
       // Calculate date range
       const now = new Date();
       let fromDate: Date;
-      if (period === 'week') {
+      let toDate: Date = now;
+
+      if (period === 'custom' && customFromDate && customToDate) {
+        fromDate = new Date(customFromDate);
+        toDate = new Date(customToDate);
+        toDate.setHours(23, 59, 59, 999); // End of day
+      } else if (period === 'week') {
         fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
       } else if (period === 'month') {
         fromDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
@@ -1023,12 +1033,24 @@ serve(async (req: Request) => {
       // 1. Transcription Statistics (文字起こし統計)
       // ========================================
 
-      // Get total transcription time from sessions
-      const { data: sessionsData } = await supabaseAdmin
+      // Get total transcription time from sessions with filters
+      let sessionsQuery = supabaseAdmin
         .from('sessions')
-        .select('id, total_duration_ms, stylist_id, started_at')
+        .select('id, total_duration_ms, stylist_id, device_id, started_at')
         .eq('salon_id', salon_id)
-        .gte('started_at', fromDate.toISOString());
+        .gte('started_at', fromDate.toISOString())
+        .lte('started_at', toDate.toISOString());
+
+      // Apply staff filter
+      if (staffIdFilter) {
+        sessionsQuery = sessionsQuery.eq('stylist_id', staffIdFilter);
+      }
+      // Apply device filter
+      if (deviceIdFilter) {
+        sessionsQuery = sessionsQuery.eq('device_id', deviceIdFilter);
+      }
+
+      const { data: sessionsData } = await sessionsQuery;
 
       const totalTranscriptionTimeMs = sessionsData?.reduce((sum, s) => sum + (s.total_duration_ms || 0), 0) || 0;
       const totalTranscriptionTimeMin = Math.round(totalTranscriptionTimeMs / 60000);
@@ -1227,7 +1249,11 @@ serve(async (req: Request) => {
         data: {
           period,
           from_date: fromDate.toISOString(),
-          to_date: now.toISOString(),
+          to_date: toDate.toISOString(),
+          filters: {
+            staff_id: staffIdFilter,
+            device_id: deviceIdFilter,
+          },
 
           // Summary
           summary: {
@@ -1250,6 +1276,170 @@ serve(async (req: Request) => {
           // Time-based trends
           hourly_usage: hourlyUsage,
           daily_trends: dailyTrends,
+        },
+      });
+    }
+
+    // GET /salons/:id/sessions - Get session list with filters
+    if (path.match(/^\/salons\/[^/]+\/sessions$/) && req.method === 'GET') {
+      const salon_id = path.split('/')[2];
+      const page = parseInt(url.searchParams.get('page') || '1');
+      const limit = parseInt(url.searchParams.get('limit') || '20');
+      const fromDate = url.searchParams.get('from_date');
+      const toDate = url.searchParams.get('to_date');
+      const staffId = url.searchParams.get('staff_id');
+      const deviceId = url.searchParams.get('device_id');
+      const status = url.searchParams.get('status') || 'completed';
+
+      // Build query
+      let query = supabaseAdmin
+        .from('sessions')
+        .select(`
+          id,
+          started_at,
+          ended_at,
+          status,
+          total_duration_ms,
+          stylist_id,
+          device_id,
+          staffs!sessions_stylist_id_fkey (id, name),
+          devices (id, device_name, seat_number),
+          session_reports (overall_score, summary)
+        `, { count: 'exact' })
+        .eq('salon_id', salon_id);
+
+      // Apply filters
+      if (status) {
+        query = query.eq('status', status);
+      }
+      if (fromDate) {
+        query = query.gte('started_at', fromDate);
+      }
+      if (toDate) {
+        const endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
+        query = query.lte('started_at', endDate.toISOString());
+      }
+      if (staffId) {
+        query = query.eq('stylist_id', staffId);
+      }
+      if (deviceId) {
+        query = query.eq('device_id', deviceId);
+      }
+
+      // Apply pagination and ordering
+      const offset = (page - 1) * limit;
+      query = query
+        .order('started_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      const { data: sessions, count, error } = await query;
+
+      if (error) throw error;
+
+      return respond({
+        data: {
+          sessions: sessions || [],
+          pagination: {
+            page,
+            limit,
+            total: count || 0,
+            total_pages: Math.ceil((count || 0) / limit),
+          },
+        },
+      });
+    }
+
+    // GET /salons/:id/sessions/:session_id - Get session detail with transcription
+    if (path.match(/^\/salons\/[^/]+\/sessions\/[^/]+$/) && req.method === 'GET') {
+      const pathParts = path.split('/');
+      const salon_id = pathParts[2];
+      const session_id = pathParts[4];
+
+      // Get session with related data
+      const { data: session, error: sessionError } = await supabaseAdmin
+        .from('sessions')
+        .select(`
+          id,
+          started_at,
+          ended_at,
+          status,
+          total_duration_ms,
+          stylist_id,
+          device_id,
+          customer_info,
+          staffs!sessions_stylist_id_fkey (id, name, email),
+          devices (id, device_name, seat_number),
+          session_reports (
+            id,
+            overall_score,
+            summary,
+            strengths,
+            improvements,
+            indicator_scores,
+            recommendations
+          ),
+          session_analyses (
+            id,
+            indicator_type,
+            value,
+            score,
+            details
+          )
+        `)
+        .eq('id', session_id)
+        .eq('salon_id', salon_id)
+        .single();
+
+      if (sessionError) {
+        if (sessionError.code === 'PGRST116') {
+          return respond({ error: { code: 'NOT_FOUND', message: 'Session not found' } }, 404);
+        }
+        throw sessionError;
+      }
+
+      // Get speaker segments (transcription)
+      const { data: segments, error: segmentsError } = await supabaseAdmin
+        .from('speaker_segments')
+        .select('id, speaker, text, start_time_ms, end_time_ms, confidence, chunk_index')
+        .eq('session_id', session_id)
+        .order('start_time_ms', { ascending: true });
+
+      if (segmentsError) throw segmentsError;
+
+      // Calculate transcription statistics
+      let stylistCharCount = 0;
+      let customerCharCount = 0;
+      let totalCharCount = 0;
+
+      segments?.forEach(seg => {
+        const charCount = seg.text?.length || 0;
+        totalCharCount += charCount;
+        if (seg.speaker === 'stylist') {
+          stylistCharCount += charCount;
+        } else if (seg.speaker === 'customer') {
+          customerCharCount += charCount;
+        }
+      });
+
+      return respond({
+        data: {
+          session,
+          transcription: {
+            segments: segments || [],
+            stats: {
+              total_segments: segments?.length || 0,
+              total_characters: totalCharCount,
+              stylist_characters: stylistCharCount,
+              customer_characters: customerCharCount,
+              talk_ratio: totalCharCount > 0
+                ? {
+                    stylist: Math.round((stylistCharCount / totalCharCount) * 100),
+                    customer: Math.round((customerCharCount / totalCharCount) * 100),
+                  }
+                : { stylist: 0, customer: 0 },
+            },
+          },
         },
       });
     }

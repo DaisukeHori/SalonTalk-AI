@@ -99,7 +99,7 @@ export default function SalonDetailPage() {
       }
       // Load detailed analytics (when period changes)
       setIsLoadingAnalytics(true);
-      getSalonAnalytics(id, analyticsPeriod).then(({ data }) => {
+      getSalonAnalytics(id, { period: analyticsPeriod }).then(({ data }) => {
         if (data) setAnalytics(data);
         setIsLoadingAnalytics(false);
       });

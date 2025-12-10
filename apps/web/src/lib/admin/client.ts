@@ -457,12 +457,136 @@ export interface SalonAnalytics {
   daily_trends: DailyTrend[];
 }
 
+// Analytics filter params
+export interface AnalyticsFilterParams {
+  period?: 'week' | 'month' | 'all' | 'custom';
+  from_date?: string;
+  to_date?: string;
+  staff_id?: string;
+  device_id?: string;
+}
+
 // Get salon analytics
 export async function getSalonAnalytics(
   salonId: string,
-  period: 'week' | 'month' | 'all' = 'month'
+  params: AnalyticsFilterParams = { period: 'month' }
 ): Promise<ApiResponse<SalonAnalytics>> {
-  return request(`/salons/${salonId}/analytics?period=${period}`);
+  const searchParams = new URLSearchParams();
+  if (params.period) searchParams.set('period', params.period);
+  if (params.from_date) searchParams.set('from_date', params.from_date);
+  if (params.to_date) searchParams.set('to_date', params.to_date);
+  if (params.staff_id) searchParams.set('staff_id', params.staff_id);
+  if (params.device_id) searchParams.set('device_id', params.device_id);
+
+  return request(`/salons/${salonId}/analytics?${searchParams.toString()}`);
+}
+
+// ========================================
+// Session Types
+// ========================================
+export interface SessionListItem {
+  id: string;
+  started_at: string;
+  ended_at: string | null;
+  status: string;
+  total_duration_ms: number | null;
+  stylist_id: string;
+  device_id: string | null;
+  staffs: { id: string; name: string } | null;
+  devices: { id: string; device_name: string; seat_number: number | null } | null;
+  session_reports: { overall_score: number | null; summary: string | null } | null;
+}
+
+export interface SessionListResponse {
+  sessions: SessionListItem[];
+  pagination: Pagination;
+}
+
+export interface SpeakerSegment {
+  id: string;
+  speaker: 'stylist' | 'customer' | 'unknown';
+  text: string;
+  start_time_ms: number;
+  end_time_ms: number;
+  confidence: number | null;
+  chunk_index: number;
+}
+
+export interface SessionDetailResponse {
+  session: {
+    id: string;
+    started_at: string;
+    ended_at: string | null;
+    status: string;
+    total_duration_ms: number | null;
+    stylist_id: string;
+    device_id: string | null;
+    customer_info: Record<string, unknown> | null;
+    staffs: { id: string; name: string; email: string } | null;
+    devices: { id: string; device_name: string; seat_number: number | null } | null;
+    session_reports: {
+      id: string;
+      overall_score: number | null;
+      summary: string | null;
+      strengths: string[] | null;
+      improvements: string[] | null;
+      indicator_scores: Record<string, unknown> | null;
+      recommendations: string[] | null;
+    } | null;
+    session_analyses: Array<{
+      id: string;
+      indicator_type: string;
+      value: number;
+      score: number;
+      details: Record<string, unknown> | null;
+    }> | null;
+  };
+  transcription: {
+    segments: SpeakerSegment[];
+    stats: {
+      total_segments: number;
+      total_characters: number;
+      stylist_characters: number;
+      customer_characters: number;
+      talk_ratio: { stylist: number; customer: number };
+    };
+  };
+}
+
+// Session filter params
+export interface SessionFilterParams {
+  page?: number;
+  limit?: number;
+  from_date?: string;
+  to_date?: string;
+  staff_id?: string;
+  device_id?: string;
+  status?: string;
+}
+
+// Get salon sessions
+export async function getSalonSessions(
+  salonId: string,
+  params: SessionFilterParams = {}
+): Promise<ApiResponse<SessionListResponse>> {
+  const searchParams = new URLSearchParams();
+  if (params.page) searchParams.set('page', params.page.toString());
+  if (params.limit) searchParams.set('limit', params.limit.toString());
+  if (params.from_date) searchParams.set('from_date', params.from_date);
+  if (params.to_date) searchParams.set('to_date', params.to_date);
+  if (params.staff_id) searchParams.set('staff_id', params.staff_id);
+  if (params.device_id) searchParams.set('device_id', params.device_id);
+  if (params.status) searchParams.set('status', params.status);
+
+  return request(`/salons/${salonId}/sessions?${searchParams.toString()}`);
+}
+
+// Get session detail with transcription
+export async function getSalonSessionDetail(
+  salonId: string,
+  sessionId: string
+): Promise<ApiResponse<SessionDetailResponse>> {
+  return request(`/salons/${salonId}/sessions/${sessionId}`);
 }
 
 // Operators
