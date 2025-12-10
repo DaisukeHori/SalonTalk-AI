@@ -68,8 +68,14 @@ export default function SalonDetailPage() {
 
   // Analytics (staff/device breakdown)
   const [analytics, setAnalytics] = useState<SalonAnalytics | null>(null);
-  const [analyticsPeriod, setAnalyticsPeriod] = useState<'week' | 'month' | 'all'>('month');
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<'week' | 'month' | 'all' | 'custom'>('month');
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+
+  // Analytics filters
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('');
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [customFromDate, setCustomFromDate] = useState('');
+  const [customToDate, setCustomToDate] = useState('');
 
   useEffect(() => {
     async function loadData() {
@@ -97,14 +103,27 @@ export default function SalonDetailPage() {
           setIsLoadingUsage(false);
         });
       }
-      // Load detailed analytics (when period changes)
+      // Load detailed analytics (when filters change)
       setIsLoadingAnalytics(true);
-      getSalonAnalytics(id, { period: analyticsPeriod }).then(({ data }) => {
+      const params: {
+        period: 'week' | 'month' | 'all' | 'custom';
+        staff_id?: string;
+        device_id?: string;
+        from_date?: string;
+        to_date?: string;
+      } = { period: analyticsPeriod };
+      if (selectedStaffId) params.staff_id = selectedStaffId;
+      if (selectedDeviceId) params.device_id = selectedDeviceId;
+      if (analyticsPeriod === 'custom' && customFromDate && customToDate) {
+        params.from_date = customFromDate;
+        params.to_date = customToDate;
+      }
+      getSalonAnalytics(id, params).then(({ data }) => {
         if (data) setAnalytics(data);
         setIsLoadingAnalytics(false);
       });
     }
-  }, [activeTab, id, analyticsPeriod]);
+  }, [activeTab, id, analyticsPeriod, selectedStaffId, selectedDeviceId, customFromDate, customToDate]);
 
   // Helper functions for analytics display
   const formatNumber = (num: number) => new Intl.NumberFormat('ja-JP').format(num);
@@ -733,28 +752,119 @@ export default function SalonDetailPage() {
       {/* 利用状況タブ - 統合分析ビュー */}
       {activeTab === 'usage' && (
         <div className="space-y-6">
-          {/* 期間セレクター */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <h2 className="text-lg font-semibold text-white">利用分析ダッシュボード</h2>
-            <div className="inline-flex bg-gray-700 rounded-lg p-1">
-              {[
-                { value: 'week' as const, label: '週間' },
-                { value: 'month' as const, label: '月間' },
-                { value: 'all' as const, label: '全期間' },
-              ].map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => setAnalyticsPeriod(p.value)}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    analyticsPeriod === p.value
-                      ? 'bg-orange-500 text-white'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
+          {/* フィルターセクション */}
+          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+              {/* 期間 */}
+              <div className="flex-1">
+                <label className="block text-gray-400 text-sm mb-2">期間</label>
+                <div className="inline-flex bg-gray-700 rounded-lg p-1">
+                  {[
+                    { value: 'week' as const, label: '週間' },
+                    { value: 'month' as const, label: '月間' },
+                    { value: 'all' as const, label: '全期間' },
+                    { value: 'custom' as const, label: 'カスタム' },
+                  ].map((p) => (
+                    <button
+                      key={p.value}
+                      onClick={() => setAnalyticsPeriod(p.value)}
+                      className={`px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        analyticsPeriod === p.value
+                          ? 'bg-orange-500 text-white'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* カスタム日付 */}
+              {analyticsPeriod === 'custom' && (
+                <>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-2">開始日</label>
+                    <input
+                      type="date"
+                      value={customFromDate}
+                      onChange={(e) => setCustomFromDate(e.target.value)}
+                      className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-2">終了日</label>
+                    <input
+                      type="date"
+                      value={customToDate}
+                      onChange={(e) => setCustomToDate(e.target.value)}
+                      className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* スタッフフィルター */}
+              <div>
+                <label className="block text-gray-400 text-sm mb-2">スタッフ</label>
+                <select
+                  value={selectedStaffId}
+                  onChange={(e) => setSelectedStaffId(e.target.value)}
+                  className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm min-w-[150px]"
                 >
-                  {p.label}
+                  <option value="">全スタッフ</option>
+                  {salon.staffs.map((staff) => (
+                    <option key={staff.id} value={staff.id}>{staff.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* デバイスフィルター */}
+              <div>
+                <label className="block text-gray-400 text-sm mb-2">デバイス</label>
+                <select
+                  value={selectedDeviceId}
+                  onChange={(e) => setSelectedDeviceId(e.target.value)}
+                  className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm min-w-[150px]"
+                >
+                  <option value="">全デバイス</option>
+                  {salon.devices.map((device) => (
+                    <option key={device.id} value={device.id}>
+                      {device.device_name} {device.seat_number ? `(席${device.seat_number})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* フィルターをクリア */}
+              {(selectedStaffId || selectedDeviceId || analyticsPeriod === 'custom') && (
+                <button
+                  onClick={() => {
+                    setSelectedStaffId('');
+                    setSelectedDeviceId('');
+                    setAnalyticsPeriod('month');
+                    setCustomFromDate('');
+                    setCustomToDate('');
+                  }}
+                  className="px-4 py-2 text-orange-500 hover:text-orange-400 text-sm whitespace-nowrap"
+                >
+                  クリア
                 </button>
-              ))}
+              )}
             </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-white">利用分析ダッシュボード</h2>
+            <Link
+              href={`/admin/salons/${id}/analytics`}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              詳細分析を見る
+            </Link>
           </div>
 
           {isLoadingUsage || isLoadingAnalytics ? (
