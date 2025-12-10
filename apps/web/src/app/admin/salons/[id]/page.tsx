@@ -22,6 +22,10 @@ import {
   createDevice,
   deleteDevice,
   updateSalonExpiry,
+  getSalonSessions,
+  getSalonSessionDetail,
+  SessionListItem,
+  SessionDetailResponse,
 } from '@/lib/admin/client';
 
 export default function SalonDetailPage() {
@@ -77,6 +81,17 @@ export default function SalonDetailPage() {
   const [customFromDate, setCustomFromDate] = useState('');
   const [customToDate, setCustomToDate] = useState('');
 
+  // Usage sub-tab (analytics vs sessions)
+  const [usageSubTab, setUsageSubTab] = useState<'analytics' | 'sessions'>('analytics');
+
+  // Sessions
+  const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [sessionsPagination, setSessionsPagination] = useState({ page: 1, total: 0, total_pages: 0 });
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<SessionDetailResponse | null>(null);
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [isLoadingSessionDetail, setIsLoadingSessionDetail] = useState(false);
+
   useEffect(() => {
     async function loadData() {
       const [salonRes, meRes] = await Promise.all([getSalon(id), getMe()]);
@@ -124,6 +139,60 @@ export default function SalonDetailPage() {
       });
     }
   }, [activeTab, id, analyticsPeriod, selectedStaffId, selectedDeviceId, customFromDate, customToDate]);
+
+  // Load sessions when sessions sub-tab is selected
+  useEffect(() => {
+    if (activeTab === 'usage' && usageSubTab === 'sessions') {
+      loadSessions(1);
+    }
+  }, [activeTab, usageSubTab, selectedStaffId, selectedDeviceId, analyticsPeriod, customFromDate, customToDate]);
+
+  // Load sessions function
+  const loadSessions = async (page = 1) => {
+    setIsLoadingSessions(true);
+    const params: {
+      page: number;
+      limit: number;
+      staff_id?: string;
+      device_id?: string;
+      from_date?: string;
+      to_date?: string;
+    } = { page, limit: 20 };
+    if (selectedStaffId) params.staff_id = selectedStaffId;
+    if (selectedDeviceId) params.device_id = selectedDeviceId;
+    if (analyticsPeriod === 'custom' && customFromDate && customToDate) {
+      params.from_date = customFromDate;
+      params.to_date = customToDate;
+    }
+    const sessionsRes = await getSalonSessions(id, params);
+    if (sessionsRes.data) {
+      setSessions(sessionsRes.data.sessions);
+      setSessionsPagination({
+        page: sessionsRes.data.pagination.page,
+        total: sessionsRes.data.pagination.total,
+        total_pages: sessionsRes.data.pagination.total_pages,
+      });
+    }
+    setIsLoadingSessions(false);
+  };
+
+  // Open session detail modal
+  const openSessionDetail = async (sessionId: string) => {
+    setIsLoadingSessionDetail(true);
+    setShowSessionModal(true);
+    const detailRes = await getSalonSessionDetail(id, sessionId);
+    if (detailRes.data) {
+      setSelectedSession(detailRes.data);
+    }
+    setIsLoadingSessionDetail(false);
+  };
+
+  // Format duration helper
+  const formatDuration = (ms: number | null) => {
+    if (!ms) return '-';
+    const minutes = Math.round(ms / 60000);
+    return formatTime(minutes);
+  };
 
   // Helper functions for analytics display
   const formatNumber = (num: number) => new Intl.NumberFormat('ja-JP').format(num);
@@ -854,26 +923,43 @@ export default function SalonDetailPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">利用分析ダッシュボード</h2>
-            <Link
-              href={`/admin/salons/${id}/analytics`}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+          {/* サブタブ */}
+          <div className="flex gap-1 bg-gray-700/50 p-1 rounded-lg">
+            <button
+              onClick={() => setUsageSubTab('analytics')}
+              className={`flex-1 px-4 py-2 rounded-md font-medium transition-colors text-sm ${
+                usageSubTab === 'analytics'
+                  ? 'bg-gray-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              詳細分析を見る
-            </Link>
+              分析サマリー
+            </button>
+            <button
+              onClick={() => setUsageSubTab('sessions')}
+              className={`flex-1 px-4 py-2 rounded-md font-medium transition-colors text-sm ${
+                usageSubTab === 'sessions'
+                  ? 'bg-gray-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              セッション一覧
+              {sessionsPagination.total > 0 && (
+                <span className="ml-2 text-xs text-gray-500">({sessionsPagination.total})</span>
+              )}
+            </button>
           </div>
 
-          {isLoadingUsage || isLoadingAnalytics ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
-            </div>
-          ) : (
+          {/* 分析サマリータブ */}
+          {usageSubTab === 'analytics' && (
             <>
-              {/* サマリーカード - 4列 */}
+              {isLoadingUsage || isLoadingAnalytics ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                </div>
+              ) : (
+                <>
+                  {/* サマリーカード - 4列 */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 rounded-xl p-4 sm:p-5 border border-blue-500/30">
                   <p className="text-gray-400 text-xs sm:text-sm mb-1">総セッション数</p>
@@ -1134,8 +1220,251 @@ export default function SalonDetailPage() {
                   {new Date(analytics.to_date).toLocaleDateString('ja-JP')}
                 </div>
               )}
+                </>
+              )}
             </>
           )}
+
+          {/* セッション一覧タブ */}
+          {usageSubTab === 'sessions' && (
+            <>
+              {isLoadingSessions ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                </div>
+              ) : (
+                <div className="bg-gray-800 rounded-xl border border-gray-700">
+                  <div className="px-4 sm:px-6 py-4 border-b border-gray-700">
+                    <h3 className="text-lg font-semibold text-white">
+                      セッション一覧
+                      <span className="text-gray-400 text-sm font-normal ml-2">({sessionsPagination.total}件)</span>
+                    </h3>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[700px]">
+                      <thead className="bg-gray-700/50">
+                        <tr>
+                          <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">日時</th>
+                          <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">スタッフ</th>
+                          <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">デバイス</th>
+                          <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">時間</th>
+                          <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">スコア</th>
+                          <th className="px-4 sm:px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">アクション</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-700">
+                        {sessions.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
+                              セッションがありません
+                            </td>
+                          </tr>
+                        ) : (
+                          sessions.map((session) => (
+                            <tr key={session.id} className="hover:bg-gray-700/50">
+                              <td className="px-4 sm:px-6 py-4 text-white">
+                                {new Date(session.started_at).toLocaleString('ja-JP')}
+                              </td>
+                              <td className="px-4 sm:px-6 py-4 text-gray-300">
+                                {session.staffs?.name || '-'}
+                              </td>
+                              <td className="px-4 sm:px-6 py-4 text-gray-300">
+                                {session.devices?.device_name || '-'}
+                                {session.devices?.seat_number && ` (席${session.devices.seat_number})`}
+                              </td>
+                              <td className="px-4 sm:px-6 py-4 text-right text-orange-400">
+                                {formatDuration(session.total_duration_ms)}
+                              </td>
+                              <td className="px-4 sm:px-6 py-4 text-right">
+                                {session.session_reports?.overall_score != null ? (
+                                  <span className={`font-medium ${
+                                    (session.session_reports?.overall_score ?? 0) >= 70 ? 'text-green-400' :
+                                    (session.session_reports?.overall_score ?? 0) >= 50 ? 'text-yellow-400' : 'text-red-400'
+                                  }`}>
+                                    {session.session_reports?.overall_score}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-500">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 sm:px-6 py-4 text-center">
+                                <button
+                                  onClick={() => openSessionDetail(session.id)}
+                                  className="text-orange-500 hover:text-orange-400 text-sm font-medium"
+                                >
+                                  詳細を見る
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* ページネーション */}
+                  {sessionsPagination.total_pages > 1 && (
+                    <div className="px-6 py-4 border-t border-gray-700 flex justify-center items-center gap-4">
+                      <button
+                        onClick={() => loadSessions(sessionsPagination.page - 1)}
+                        disabled={sessionsPagination.page <= 1}
+                        className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        前へ
+                      </button>
+                      <span className="text-gray-400 text-sm">
+                        {sessionsPagination.page} / {sessionsPagination.total_pages}
+                      </span>
+                      <button
+                        onClick={() => loadSessions(sessionsPagination.page + 1)}
+                        disabled={sessionsPagination.page >= sessionsPagination.total_pages}
+                        className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        次へ
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* セッション詳細モーダル */}
+      {showSessionModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-gray-700 flex flex-col">
+            <div className="p-6 border-b border-gray-700 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-white">セッション詳細</h3>
+              <button
+                onClick={() => {
+                  setShowSessionModal(false);
+                  setSelectedSession(null);
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {isLoadingSessionDetail ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                </div>
+              ) : selectedSession ? (
+                <div className="space-y-6">
+                  {/* セッション情報 */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-gray-700/50 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm">日時</div>
+                      <div className="text-white font-medium">
+                        {new Date(selectedSession.session.started_at).toLocaleString('ja-JP')}
+                      </div>
+                    </div>
+                    <div className="bg-gray-700/50 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm">スタッフ</div>
+                      <div className="text-white font-medium">
+                        {selectedSession.session.staffs?.name || '-'}
+                      </div>
+                    </div>
+                    <div className="bg-gray-700/50 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm">時間</div>
+                      <div className="text-orange-400 font-medium">
+                        {formatDuration(selectedSession.session.total_duration_ms)}
+                      </div>
+                    </div>
+                    <div className="bg-gray-700/50 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm">スコア</div>
+                      <div className="text-white font-medium">
+                        {selectedSession.session.session_reports?.overall_score ?? '-'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 要約 */}
+                  {selectedSession.session.session_reports?.summary && (
+                    <div className="bg-gray-700/50 rounded-lg p-4">
+                      <h4 className="text-white font-medium mb-2">要約</h4>
+                      <p className="text-gray-300 text-sm whitespace-pre-wrap">
+                        {selectedSession.session.session_reports.summary}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 話者比率 */}
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <h4 className="text-white font-medium mb-2">話者比率</h4>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 bg-gray-600 rounded-full h-4 overflow-hidden">
+                        <div
+                          className="h-full bg-purple-500"
+                          style={{ width: `${selectedSession.transcription.stats.talk_ratio.stylist}%` }}
+                        />
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        <span className="text-purple-400">{selectedSession.transcription.stats.talk_ratio.stylist}%</span>
+                        {' : '}
+                        <span className="text-green-400">{selectedSession.transcription.stats.talk_ratio.customer}%</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>スタイリスト</span>
+                      <span>お客様</span>
+                    </div>
+                  </div>
+
+                  {/* 文字起こし */}
+                  <div>
+                    <h4 className="text-white font-medium mb-3">
+                      文字起こし
+                      <span className="text-gray-400 text-sm font-normal ml-2">
+                        ({selectedSession.transcription.stats.total_segments}セグメント, {formatNumber(selectedSession.transcription.stats.total_characters)}文字)
+                      </span>
+                    </h4>
+                    <div className="bg-gray-700/50 rounded-lg p-4 max-h-[400px] overflow-y-auto space-y-3">
+                      {selectedSession.transcription.segments.length === 0 ? (
+                        <p className="text-gray-400 text-center">文字起こしデータがありません</p>
+                      ) : (
+                        selectedSession.transcription.segments.map((segment) => (
+                          <div
+                            key={segment.id}
+                            className={`p-3 rounded-lg ${
+                              segment.speaker === 'stylist'
+                                ? 'bg-purple-500/10 border-l-4 border-purple-500'
+                                : segment.speaker === 'customer'
+                                ? 'bg-green-500/10 border-l-4 border-green-500'
+                                : 'bg-gray-600/50 border-l-4 border-gray-500'
+                            }`}
+                          >
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className={
+                                segment.speaker === 'stylist' ? 'text-purple-400' :
+                                segment.speaker === 'customer' ? 'text-green-400' : 'text-gray-400'
+                              }>
+                                {segment.speaker === 'stylist' ? 'スタイリスト' :
+                                 segment.speaker === 'customer' ? 'お客様' : '不明'}
+                              </span>
+                              <span className="text-gray-500">
+                                {Math.floor(segment.start_time_ms / 60000)}:{String(Math.floor((segment.start_time_ms % 60000) / 1000)).padStart(2, '0')}
+                              </span>
+                            </div>
+                            <p className="text-gray-200 text-sm">{segment.text}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-400 text-center">データを読み込めませんでした</p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
